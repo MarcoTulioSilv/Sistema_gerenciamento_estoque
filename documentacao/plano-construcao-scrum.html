@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Plano de Construção Scrum — SCE</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#f8f7f4;color:#1a1a1a;padding:24px}
+
+/* Cabeçalho */
+.page-header{margin-bottom:28px}
+.page-header h1{font-size:20px;font-weight:500;color:#1F4E79;margin-bottom:4px}
+.page-header p{font-size:13px;color:#5F5E5A}
+
+/* Grid de sprints */
+.sprints{display:flex;flex-direction:column;gap:0}
+
+/* Cabeçalho de sprint */
+.sprint{border:1px solid #e8e6de;border-radius:10px;overflow:hidden;margin-bottom:12px}
+.sprint-header{display:grid;grid-template-columns:200px 1fr auto;align-items:center;gap:16px;padding:12px 16px}
+.sprint-num{font-size:12px;font-weight:500;color:#fff;padding:3px 10px;border-radius:8px;white-space:nowrap}
+.sprint-title{font-size:14px;font-weight:500;color:#1a1a1a}
+.sprint-meta{font-size:11px;color:#888780;text-align:right;line-height:1.6}
+.sprint-body{padding:0 16px 14px;background:#fff}
+.sprint-body-inner{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px}
+
+/* Cards internos */
+.col-title{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:#888780;margin-bottom:8px}
+.item{display:flex;gap:7px;margin-bottom:6px;font-size:12px;color:#3d3d3a;line-height:1.5}
+.item-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px}
+
+/* Critérios de aceitação */
+.ac{font-size:11px;color:#5F5E5A;line-height:1.6;margin-bottom:4px;display:flex;gap:6px}
+.ac::before{content:"✓";color:#1D9E75;font-weight:500;flex-shrink:0}
+
+/* Entregas */
+.delivery{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:2px 8px;border-radius:8px;margin:2px}
+
+/* Separador de fase */
+.phase-sep{display:flex;align-items:center;gap:12px;margin:16px 0 12px}
+.phase-line{flex:1;height:1px;background:#e8e6de}
+.phase-label{font-size:11px;font-weight:500;color:#888780;white-space:nowrap;padding:3px 10px;border:1px solid #e8e6de;border-radius:10px}
+
+/* Velocidade e legenda */
+.legend{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px;font-size:12px;align-items:center}
+.leg-item{display:flex;align-items:center;gap:6px}
+.leg-dot{width:10px;height:10px;border-radius:50%}
+
+/* Cores das sprints */
+.s-infra{background:#5F5E5A}.s-mod01{background:#185FA5}.s-mod02a{background:#534AB7}
+.s-mod02b{background:#3C3489}.s-mod03{background:#0F6E56}.s-mod04{background:#854F0B}
+.s-mod05{background:#993C1D}.s-integ{background:#1D9E75}.s-homol{background:#639922}
+
+.b-infra{background:#F1EFE8;color:#444441}.b-mod01{background:#E6F1FB;color:#185FA5}
+.b-mod02{background:#EEEDFE;color:#534AB7}.b-mod03{background:#E1F5EE;color:#0F6E56}
+.b-mod04{background:#FAEEDA;color:#854F0B}.b-mod05{background:#FAECE7;color:#993C1D}
+.b-integ{background:#EAF3DE;color:#3B6D11}.b-homol{background:#EAF3DE;color:#27500A}
+
+.dot-infra{background:#888780}.dot-mod01{background:#378ADD}.dot-mod02{background:#7F77DD}
+.dot-mod03{background:#1D9E75}.dot-mod04{background:#BA7517}.dot-mod05{background:#D85A30}
+.dot-integ{background:#639922}.dot-homol{background:#27500A}
+
+/* Bloqueadores */
+.blocker{font-size:11px;color:#A32D2D;background:#FCEBEB;border-radius:5px;padding:6px 10px;margin-top:8px;line-height:1.6}
+.blocker strong{display:block;margin-bottom:2px}
+
+/* Resumo final */
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px}
+.sum-card{background:#fff;border:1px solid #e8e6de;border-radius:8px;padding:14px;text-align:center}
+.sum-num{font-size:28px;font-weight:500;color:#1F4E79;margin-bottom:4px}
+.sum-label{font-size:11px;color:#5F5E5A}
+
+/* Timeline */
+.timeline{display:flex;gap:0;margin:20px 0;overflow-x:auto}
+.tl-sprint{flex:1;min-width:80px;text-align:center;position:relative}
+.tl-bar{height:28px;margin:0 2px;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.tl-label{font-size:10px;color:#5F5E5A;margin-top:4px}
+.tl-week{font-size:9px;color:#888780}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Plano de construção — Sistema de Controle de Estoque (SCE)</h1>
+  <p>Metodologia Scrum · Sprints de 2 semanas · Entrega incremental por módulo · Baseado em ERS v1.5 e DAS v1.2</p>
+</div>
+
+<!-- Legenda -->
+<div class="legend">
+  <strong style="font-size:12px;color:#444441">Módulos:</strong>
+  <div class="leg-item"><div class="leg-dot dot-infra"></div><span>Infraestrutura base</span></div>
+  <div class="leg-item"><div class="leg-dot dot-mod01"></div><span>MOD-01 Auth</span></div>
+  <div class="leg-item"><div class="leg-dot dot-mod02"></div><span>MOD-02 Estoque</span></div>
+  <div class="leg-item"><div class="leg-dot dot-mod03"></div><span>MOD-03 Relatórios</span></div>
+  <div class="leg-item"><div class="leg-dot dot-mod04"></div><span>MOD-04 Notificações</span></div>
+  <div class="leg-item"><div class="leg-dot dot-mod05"></div><span>MOD-05 Admin</span></div>
+  <div class="leg-item"><div class="leg-dot dot-integ"></div><span>Integração</span></div>
+  <div class="leg-item"><div class="leg-dot dot-homol"></div><span>Homologação</span></div>
+</div>
+
+<!-- Timeline visual -->
+<div class="timeline">
+  <div class="tl-sprint"><div class="tl-bar" style="background:#888780"><span style="color:#fff;font-size:10px;font-weight:500">S0</span></div><div class="tl-label">Setup</div><div class="tl-week">S1-S2</div></div>
+  <div class="tl-sprint"><div class="tl-bar" style="background:#185FA5"><span style="color:#fff;font-size:10px;font-weight:500">S1</span></div><div class="tl-label">Auth</div><div class="tl-week">S3-S4</div></div>
+  <div class="tl-sprint"><div class="tl-bar" style="background:#534AB7"><span style="color:#fff;font-size:10px;font-weight:500">S2</span></div><div class="tl-label">Estoque A</div><div class="tl-week">S5-S6</div></div>
+  <div class="tl-sprint"><div class="tl-bar" style="background:#3C3489"><span style="color:#fff;font-size:10px;font-weight:500">S3</span></div><div class="tl-label">Estoque B</div><div class="tl-week">S7-S8</div></div>
+  <div class="tl-sprint"><div class="tl-bar" style="background:#0F6E56"><span style="color:#fff;font-size:10px;font-weight:500">S4</span></div><div class="tl-label">Relatórios</div><div class="tl-week">S9-S10</div></div>
+  <div class="tl-sprint"><div class="tl-bar" style="background:#854F0B"><span style="color:#fff;font-size:10px;font-weight:500">S5</span></div><div class="tl-label">Notif.</div><div class="tl-week">S11-S12</div></div>
+  <div class="tl-sprint"><div class="tl-bar" style="background:#993C1D"><span style="color:#fff;font-size:10px;font-weight:500">S6</span></div><div class="tl-label">Admin</div><div class="tl-week">S13-S14</div></div>
+  <div class="tl-sprint"><div class="tl-bar" style="background:#1D9E75"><span style="color:#fff;font-size:10px;font-weight:500">S7</span></div><div class="tl-label">Integração</div><div class="tl-week">S15-S16</div></div>
+  <div class="tl-sprint"><div class="tl-bar" style="background:#639922"><span style="color:#fff;font-size:10px;font-weight:500">S8</span></div><div class="tl-label">Homolog.</div><div class="tl-week">S17-S18</div></div>
+</div>
+
+<!-- ══ SPRINT 0 ══ -->
+<div class="phase-sep"><div class="phase-line"></div><div class="phase-label">Fase 1 — Fundação</div><div class="phase-line"></div></div>
+
+<div class="sprint">
+  <div class="sprint-header" style="background:#F1EFE8">
+    <span class="sprint-num s-infra">Sprint 0 — Setup e infraestrutura</span>
+    <span class="sprint-title">Ambiente, banco de dados, estrutura de projeto e CI</span>
+    <div class="sprint-meta">Semanas 1–2<br>Pré-requisito: servidor MySQL disponível</div>
+  </div>
+  <div class="sprint-body">
+    <div class="sprint-body-inner">
+      <div>
+        <div class="col-title">Itens do backlog</div>
+        <div class="item"><div class="item-dot dot-infra"></div>Criar estrutura de pacotes Python (MOD-01 a MOD-06, gui, main.py)</div>
+        <div class="item"><div class="item-dot dot-infra"></div>Configurar MySQL Server 8.x e criar schema <code>sce_db</code></div>
+        <div class="item"><div class="item-dot dot-infra"></div>Escrever DDL completo (9 tabelas, índices, constraints)</div>
+        <div class="item"><div class="item-dot dot-infra"></div>Configurar SQLAlchemy 2.0 com pool de conexões</div>
+        <div class="item"><div class="item-dot dot-infra"></div>Configurar PyInstaller + Inno Setup (build de teste)</div>
+        <div class="item"><div class="item-dot dot-infra"></div>Configurar ambiente de desenvolvimento (venv, requirements.txt)</div>
+        <div class="item"><div class="item-dot dot-infra"></div>Estrutura base CustomTkinter (janela principal, tema, menu lateral)</div>
+      </div>
+      <div>
+        <div class="col-title">Critérios de aceitação</div>
+        <div class="ac">Schema MySQL criado e validado via Workbench</div>
+        <div class="ac">SQLAlchemy conecta ao banco e executa query de teste</div>
+        <div class="ac">Janela principal abre sem erros no Windows 10</div>
+        <div class="ac">Build .exe gerado e executável em máquina limpa</div>
+        <div class="ac">Estrutura de pacotes reflete os 6 módulos do DAS</div>
+      </div>
+      <div>
+        <div class="col-title">Entrega ao final da sprint</div>
+        <span class="delivery b-infra">Ambiente configurado</span>
+        <span class="delivery b-infra">Banco criado (DDL)</span>
+        <span class="delivery b-infra">Janela principal vazia</span>
+        <span class="delivery b-infra">Build .exe funcional</span>
+        <div class="blocker"><strong>Dependência externa:</strong>Servidor MySQL deve estar instalado e acessível antes do início desta sprint. Responsabilidade do TI do cliente.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SPRINT 1 ══ -->
+<div class="phase-sep"><div class="phase-line"></div><div class="phase-label">Fase 2 — Núcleo operacional</div><div class="phase-line"></div></div>
+
+<div class="sprint">
+  <div class="sprint-header" style="background:#E6F1FB">
+    <span class="sprint-num s-mod01">Sprint 1 — MOD-01 Autenticação e acesso</span>
+    <span class="sprint-title">Login, sessão, perfis e controle de permissões</span>
+    <div class="sprint-meta">Semanas 3–4<br>Depende: Sprint 0 concluída</div>
+  </div>
+  <div class="sprint-body">
+    <div class="sprint-body-inner">
+      <div>
+        <div class="col-title">Itens do backlog</div>
+        <div class="item"><div class="item-dot dot-mod01"></div>Tela T-01 — Login (wireframe + implementação)</div>
+        <div class="item"><div class="item-dot dot-mod01"></div>AuthService: validação de credenciais com bcrypt</div>
+        <div class="item"><div class="item-dot dot-mod01"></div>SessionManager: controle de sessão ativa e expiração 30min</div>
+        <div class="item"><div class="item-dot dot-mod01"></div>PermissionGuard: controle de acesso por perfil por tela</div>
+        <div class="item"><div class="item-dot dot-mod01"></div>Tela T-02 — Tela inicial com menu lateral por perfil</div>
+        <div class="item"><div class="item-dot dot-mod01"></div>Tela T-21 — Troca de senha</div>
+        <div class="item"><div class="item-dot dot-mod01"></div>UsuarioRepository: CRUD básico no MOD-06</div>
+        <div class="item"><div class="item-dot dot-mod01"></div">Seed: criar usuário TI padrão no banco</div>
+      </div>
+      <div>
+        <div class="col-title">Critérios de aceitação</div>
+        <div class="ac">Login com credenciais válidas abre tela inicial com menu correto por perfil</div>
+        <div class="ac">Login com credenciais inválidas exibe erro sem revelar qual campo está errado</div>
+        <div class="ac">Sessão expira após 30 min de inatividade e retorna ao login</div>
+        <div class="ac">Técnico não visualiza itens de menu restritos à Gestora ou TI</div>
+        <div class="ac">Senha armazenada como hash bcrypt — nunca em texto plano</div>
+        <div class="ac">Troca de senha exige senha atual antes de aceitar nova</div>
+      </div>
+      <div>
+        <div class="col-title">Entrega ao final da sprint</div>
+        <span class="delivery b-mod01">T-01 Login funcional</span>
+        <span class="delivery b-mod01">T-02 Tela inicial</span>
+        <span class="delivery b-mod01">T-21 Troca de senha</span>
+        <span class="delivery b-mod01">Controle de perfis</span>
+        <div style="margin-top:10px;font-size:11px;color:#5F5E5A;line-height:1.6">
+          Ao final desta sprint o sistema já pode ser instalado nas estações e os usuários conseguem se autenticar. Primeiro entregável demonstrável ao cliente.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SPRINT 2 ══ -->
+<div class="sprint">
+  <div class="sprint-header" style="background:#EEEDFE">
+    <span class="sprint-num s-mod02a">Sprint 2 — MOD-02 Estoque parte A</span>
+    <span class="sprint-title">Cadastros: produto, fornecedor, lote e entrada manual</span>
+    <div class="sprint-meta">Semanas 5–6<br>Depende: Sprint 1 concluída</div>
+  </div>
+  <div class="sprint-body">
+    <div class="sprint-body-inner">
+      <div>
+        <div class="col-title">Itens do backlog</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Tela T-03 — Listagem de produtos com filtros e badges de situação</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Tela T-04 — Listagem de fornecedores</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Tela T-05 — Cadastro/edição de produto (todos os campos RF-01)</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Tela T-06 — Cadastro de fornecedor</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Tela T-07 — Registro de entrada manual com leitor de barras</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>ProdutoRepository, FornecedorRepository, LoteRepository</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>EstoqueService: cadastrarProduto, cadastrarFornecedor, registrarEntradaManual</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Validação número NF obrigatório (RN-07)</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Cálculo automático valor_total = qtd × valor_unitario</div>
+      </div>
+      <div>
+        <div class="col-title">Critérios de aceitação</div>
+        <div class="ac">Produto cadastrado com todos os campos de RF-01 (nome, EAN, marca, fornecedor, centro_alocação, estoque mínimo)</div>
+        <div class="ac">EAN duplicado é rejeitado com mensagem clara</div>
+        <div class="ac">Leitor de código de barras preenche campo EAN automaticamente (HID USB)</div>
+        <div class="ac">Entrada manual bloqueada sem número de NF (RN-07)</div>
+        <div class="ac">Valor total calculado automaticamente ao informar qtd e valor unitário</div>
+        <div class="ac">Lote criado vinculado ao produto correto com data de vencimento válida</div>
+      </div>
+      <div>
+        <div class="col-title">Entrega ao final da sprint</div>
+        <span class="delivery b-mod02">T-03 Produtos</span>
+        <span class="delivery b-mod02">T-04 Fornecedores</span>
+        <span class="delivery b-mod02">T-05 Novo produto</span>
+        <span class="delivery b-mod02">T-06 Novo fornecedor</span>
+        <span class="delivery b-mod02">T-07 Entrada manual</span>
+        <div style="margin-top:10px;font-size:11px;color:#5F5E5A;line-height:1.6">
+          Ao final desta sprint o Técnico consegue cadastrar o estoque completo via entrada manual.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SPRINT 3 ══ -->
+<div class="sprint">
+  <div class="sprint-header" style="background:#EEEDFE">
+    <span class="sprint-num s-mod02b">Sprint 3 — MOD-02 Estoque parte B</span>
+    <span class="sprint-title">Importação NF-e XML, retirada multi-lote FEFO e dashboard</span>
+    <div class="sprint-meta">Semanas 7–8<br>Depende: Sprint 2 concluída</div>
+  </div>
+  <div class="sprint-body">
+    <div class="sprint-body-inner">
+      <div>
+        <div class="col-title">Itens do backlog</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Tela T-08 — Importação NF-e XML (preview + confirmação)</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>NFeParser: leitura XML SEFAZ 4.0, validação schema XSD</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Atomicidade da importação (RN-06): tudo ou nada</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Tela T-09 — Retirada multi-lote com exibição do plano FEFO</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>FEFOSelector: algoritmo de distribuição multi-lote (RN-08)</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Bloqueio RF-09: estoque total insuficiente</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Tela T-10 — Posição do estoque com filtros</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Tela T-22 — Dashboard de monitoramento com auto-refresh</div>
+        <div class="item"><div class="item-dot dot-mod02"></div>Marcação de lote esgotado (saldo = 0 após retirada)</div>
+      </div>
+      <div>
+        <div class="col-title">Critérios de aceitação</div>
+        <div class="ac">XML NF-e válido importa todos os itens ou nenhum (atomicidade)</div>
+        <div class="ac">EAN não cadastrado gera aviso e permite cadastro antes de continuar</div>
+        <div class="ac">Retirada distribui automaticamente entre lotes FEFO quando necessário</div>
+        <div class="ac">Plano de consumo exibido antes da confirmação (lotes afetados + qtd + saldo restante)</div>
+        <div class="ac">Retirada maior que estoque total é bloqueada com mensagem de qtd máxima</div>
+        <div class="ac">Dashboard T-22 atualiza automaticamente a cada 30 segundos</div>
+        <div class="ac">Lote com saldo zero é marcado como esgotado após retirada</div>
+      </div>
+      <div>
+        <div class="col-title">Entrega ao final da sprint</div>
+        <span class="delivery b-mod02">T-08 NF-e XML</span>
+        <span class="delivery b-mod02">T-09 Retirada FEFO</span>
+        <span class="delivery b-mod02">T-10 Consulta</span>
+        <span class="delivery b-mod02">T-22 Dashboard</span>
+        <div style="margin-top:10px;font-size:11px;color:#5F5E5A;line-height:1.6">
+          Sprint mais complexa do projeto. MOD-02 completamente funcional ao final. Marco importante para demonstração ao cliente.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SPRINT 4 ══ -->
+<div class="sprint">
+  <div class="sprint-header" style="background:#E1F5EE">
+    <span class="sprint-num s-mod03">Sprint 4 — MOD-03 Relatórios</span>
+    <span class="sprint-title">Geração XLSX, envio por e-mail sob demanda e agendamento</span>
+    <div class="sprint-meta">Semanas 9–10<br>Depende: Sprint 3 concluída, conta Gmail configurada</div>
+  </div>
+  <div class="sprint-body">
+    <div class="sprint-body-inner">
+      <div>
+        <div class="col-title">Itens do backlog</div>
+        <div class="item"><div class="item-dot dot-mod03"></div>Tela T-11 — Central de relatórios (4 tipos sob demanda)</div>
+        <div class="item"><div class="item-dot dot-mod03"></div>XlsxBuilder: geração XLSX com formatação condicional (lotes vencidos em vermelho)</div>
+        <div class="item"><div class="item-dot dot-mod03"></div>RelatorioService: movimentação por período, estoque atual, a vencer 30d, lotes vencidos</div>
+        <div class="item"><div class="item-dot dot-mod03"></div>GmailClient (MOD-04): envio SMTP com App Password criptografado (Fernet)</div>
+        <div class="item"><div class="item-dot dot-mod03"></div>Tela T-12 — Configuração de agendamento por tipo de relatório</div>
+        <div class="item"><div class="item-dot dot-mod03"></div>Tela T-13 — Configuração de estoque mínimo por produto</div>
+        <div class="item"><div class="item-dot dot-mod03"></div>Tela T-14 — Consulta posição estoque (perfil Gestora)</div>
+        <div class="item"><div class="item-dot dot-mod03"></div>Log de envio de relatórios</div>
+      </div>
+      <div>
+        <div class="col-title">Critérios de aceitação</div>
+        <div class="ac">Relatório de movimentação XLSX gerado corretamente para período definido</div>
+        <div class="ac">Lotes vencidos destacados em vermelho nos relatórios (RF-22)</div>
+        <div class="ac">Relatório enviado por e-mail e recebido na caixa da Gestora</div>
+        <div class="ac">Falha no envio SMTP registrada em log sem cancelar operação</div>
+        <div class="ac">Agendamento salvo e relatório enviado automaticamente no horário configurado</div>
+        <div class="ac">Estoque mínimo alterado pela Gestora reflete imediatamente nas consultas</div>
+      </div>
+      <div>
+        <div class="col-title">Entrega ao final da sprint</div>
+        <span class="delivery b-mod03">T-11 Relatórios</span>
+        <span class="delivery b-mod03">T-12 Agendamento</span>
+        <span class="delivery b-mod03">T-13 Estoque mín.</span>
+        <span class="delivery b-mod03">T-14 Consulta</span>
+        <span class="delivery b-mod03">XLSX geração</span>
+        <span class="delivery b-mod03">Gmail SMTP</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SPRINT 5 ══ -->
+<div class="sprint">
+  <div class="sprint-header" style="background:#FAEEDA">
+    <span class="sprint-num s-mod04">Sprint 5 — MOD-04 Notificações e scheduler</span>
+    <span class="sprint-title">Alertas automáticos de vencimento, estoque baixo e lotes vencidos</span>
+    <div class="sprint-meta">Semanas 11–12<br>Depende: Sprint 4 concluída (GmailClient pronto)</div>
+  </div>
+  <div class="sprint-body">
+    <div class="sprint-body-inner">
+      <div>
+        <div class="col-title">Itens do backlog</div>
+        <div class="item"><div class="item-dot dot-mod04"></div>NotificacaoService: lógica de alertas 15d, 7d, 2d e vencidos</div>
+        <div class="item"><div class="item-dot dot-mod04"></div>Controle de duplicidade via notificacao_log (mesmo lote + marco + dia)</div>
+        <div class="item"><div class="item-dot dot-mod04"></div>Scheduler APScheduler: job diário de notificações no horário configurado</div>
+        <div class="item"><div class="item-dot dot-mod04"></div>Alerta imediato de estoque baixo após retirada (evento de MOD-02)</div>
+        <div class="item"><div class="item-dot dot-mod04"></div>Alerta diário consolidado de lotes vencidos (e-mail + painel T-02)</div>
+        <div class="item"><div class="item-dot dot-mod04"></div>job_log: registro de cada execução do scheduler (sucesso ou falha)</div>
+        <div class="item"><div class="item-dot dot-mod04"></div>Painel de alertas na T-02 (lotes vencidos em estoque)</div>
+      </div>
+      <div>
+        <div class="col-title">Critérios de aceitação</div>
+        <div class="ac">E-mail de alerta recebido nos marcos de 15, 7 e 2 dias antes do vencimento</div>
+        <div class="ac">Mesmo alerta não enviado duas vezes no mesmo dia para o mesmo lote e marco</div>
+        <div class="ac">Alerta de estoque baixo enviado imediatamente após retirada que atinge o mínimo</div>
+        <div class="ac">Painel de lotes vencidos exibido na tela inicial quando existirem lotes vencidos</div>
+        <div class="ac">Falha no SMTP registrada em job_log sem interromper demais notificações</div>
+        <div class="ac">Scheduler executa no horário configurado independente de interação do usuário</div>
+      </div>
+      <div>
+        <div class="col-title">Entrega ao final da sprint</div>
+        <span class="delivery b-mod04">Alertas 15/7/2d</span>
+        <span class="delivery b-mod04">Alerta estoque baixo</span>
+        <span class="delivery b-mod04">Alerta lotes vencidos</span>
+        <span class="delivery b-mod04">Scheduler diário</span>
+        <span class="delivery b-mod04">job_log</span>
+        <div style="margin-top:10px;font-size:11px;color:#5F5E5A;line-height:1.6">
+          Ao final desta sprint o sistema está operacional para o cliente — todas as funcionalidades core estão funcionando.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SPRINT 6 ══ -->
+<div class="sprint">
+  <div class="sprint-header" style="background:#FAECE7">
+    <span class="sprint-num s-mod05">Sprint 6 — MOD-05 Administração</span>
+    <span class="sprint-title">Usuários, backup, log de operações e configuração Gmail</span>
+    <div class="sprint-meta">Semanas 13–14<br>Depende: Sprint 1 concluída (pode ser paralelizado)</div>
+  </div>
+  <div class="sprint-body">
+    <div class="sprint-body-inner">
+      <div>
+        <div class="col-title">Itens do backlog</div>
+        <div class="item"><div class="item-dot dot-mod05"></div>Tela T-15 — Listagem de usuários</div>
+        <div class="item"><div class="item-dot dot-mod05"></div>Tela T-16 — Cadastro/edição/desativação de usuário</div>
+        <div class="item"><div class="item-dot dot-mod05"></div>UsuarioService: criar, editar, desativar, redefinir senha</div>
+        <div class="item"><div class="item-dot dot-mod05"></div>Tela T-17 — Configuração da conta Gmail (SMTP + teste de envio)</div>
+        <div class="item"><div class="item-dot dot-mod05"></div>ConfigService: armazenamento seguro de App Password com Fernet</div>
+        <div class="item"><div class="item-dot dot-mod05"></div>Tela T-18 — Backup: disparo manual + configuração de diretório</div>
+        <div class="item"><div class="item-dot dot-mod05"></div>BackupManager: cópia do banco MySQL via mysqldump</div>
+        <div class="item"><div class="item-dot dot-mod05"></div>Tela T-19 — Log de operações com filtros por período e usuário</div>
+        <div class="item"><div class="item-dot dot-mod05"></div>Tela T-20 — Configuração de agendamento (acesso TI)</div>
+      </div>
+      <div>
+        <div class="col-title">Critérios de aceitação</div>
+        <div class="ac">TI cria usuário com perfil correto; novo usuário consegue fazer login</div>
+        <div class="ac">Usuário desativado não consegue mais fazer login</div>
+        <div class="ac">App Password armazenado criptografado — nunca visível em texto plano</div>
+        <div class="ac">Teste de envio na T-17 confirma configuração Gmail antes de salvar</div>
+        <div class="ac">Backup gera arquivo .sql datado no diretório configurado</div>
+        <div class="ac">Log exibe todas as operações de entrada, saída e alteração com usuário e data/hora</div>
+        <div class="ac">TI não consegue desativar o único usuário TI ativo (proteção de segurança)</div>
+      </div>
+      <div>
+        <div class="col-title">Entrega ao final da sprint</div>
+        <span class="delivery b-mod05">T-15 Usuários</span>
+        <span class="delivery b-mod05">T-16 Novo usuário</span>
+        <span class="delivery b-mod05">T-17 Gmail</span>
+        <span class="delivery b-mod05">T-18 Backup</span>
+        <span class="delivery b-mod05">T-19 Log ops</span>
+        <span class="delivery b-mod05">T-20 Agendamento</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SPRINT 7 ══ -->
+<div class="phase-sep"><div class="phase-line"></div><div class="phase-label">Fase 3 — Finalização</div><div class="phase-line"></div></div>
+
+<div class="sprint">
+  <div class="sprint-header" style="background:#EAF3DE">
+    <span class="sprint-num s-integ">Sprint 7 — Integração e testes</span>
+    <span class="sprint-title">Integração end-to-end, testes de todos os fluxos e empacotamento</span>
+    <div class="sprint-meta">Semanas 15–16<br>Depende: Sprints 0–6 concluídas</div>
+  </div>
+  <div class="sprint-body">
+    <div class="sprint-body-inner">
+      <div>
+        <div class="col-title">Itens do backlog</div>
+        <div class="item"><div class="item-dot dot-integ"></div>Testes de integração de todos os fluxos críticos (retirada multi-lote, scheduler, importação XML)</div>
+        <div class="item"><div class="item-dot dot-integ"></div>Testes de concorrência: Técnico + Gestora acessando simultaneamente</div>
+        <div class="item"><div class="item-dot dot-integ"></div>Testes de perfil: verificar que cada ator só acessa o que deve</div>
+        <div class="item"><div class="item-dot dot-integ"></div>Testes de borda: estoque zerado, lote expirado, NF duplicada</div>
+        <div class="item"><div class="item-dot dot-integ"></div>Ajustes de UX baseados em uso real do sistema montado</div>
+        <div class="item"><div class="item-dot dot-integ"></div>Build final .exe + instalador Inno Setup</div>
+        <div class="item"><div class="item-dot dot-integ"></div>Documentação de instalação e manual do usuário (TI, Técnico, Gestora)</div>
+        <div class="item"><div class="item-dot dot-integ"></div>Script de carga inicial (seed de dados de teste para homologação)</div>
+      </div>
+      <div>
+        <div class="col-title">Critérios de aceitação</div>
+        <div class="ac">Todos os 7 critérios de aceitação gerais da ERS v1.5 verificados e documentados</div>
+        <div class="ac">Concorrência: retirada e relatório simultâneos não causam erro ou dado incorreto</div>
+        <div class="ac">Instalador executa sem erros em máquina Windows 10 limpa</div>
+        <div class="ac">Manual de instalação validado pelo TI do cliente</div>
+        <div class="ac">Nenhum bug crítico em aberto</div>
+      </div>
+      <div>
+        <div class="col-title">Entrega ao final da sprint</div>
+        <span class="delivery b-integ">Build .exe final</span>
+        <span class="delivery b-integ">Instalador Inno Setup</span>
+        <span class="delivery b-integ">Relatório de testes</span>
+        <span class="delivery b-integ">Manual do usuário</span>
+        <span class="delivery b-integ">Script de seed</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SPRINT 8 ══ -->
+<div class="sprint">
+  <div class="sprint-header" style="background:#EAF3DE">
+    <span class="sprint-num s-homol">Sprint 8 — Homologação com o cliente</span>
+    <span class="sprint-title">Instalação em produção, treinamento e aceite formal</span>
+    <div class="sprint-meta">Semanas 17–18<br>Depende: Sprint 7 concluída</div>
+  </div>
+  <div class="sprint-body">
+    <div class="sprint-body-inner">
+      <div>
+        <div class="col-title">Itens do backlog</div>
+        <div class="item"><div class="item-dot dot-homol"></div>Instalação do SCE nas estações do Técnico, Gestora e TI</div>
+        <div class="item"><div class="item-dot dot-homol"></div>Configuração do MySQL Server no servidor do cliente</div>
+        <div class="item"><div class="item-dot dot-homol"></div>Configuração da conta Gmail (TI do cliente)</div>
+        <div class="item"><div class="item-dot dot-homol"></div>Carga inicial de produtos e fornecedores reais</div>
+        <div class="item"><div class="item-dot dot-homol"></div>Treinamento: Técnico (cadastros, entradas, retiradas)</div>
+        <div class="item"><div class="item-dot dot-homol"></div>Treinamento: Gestora (relatórios, dashboard, estoque mínimo)</div>
+        <div class="item"><div class="item-dot dot-homol"></div>Treinamento: TI (administração, backup, log, configurações)</div>
+        <div class="item"><div class="item-dot dot-homol"></div>Período de uso supervisionado (1 semana) + correção de bugs encontrados</div>
+        <div class="item"><div class="item-dot dot-homol"></div>Validação dos critérios de aceitação da ERS com o cliente</div>
+        <div class="item"><div class="item-dot dot-homol"></div>Emissão do termo de aceite formal</div>
+      </div>
+      <div>
+        <div class="col-title">Critérios de aceitação</div>
+        <div class="ac">Sistema instalado e funcionando nas 3 estações em rede real</div>
+        <div class="ac">Gestora recebe e-mail de teste de notificação</div>
+        <div class="ac">Técnico realiza entrada e retirada com produto real</div>
+        <div class="ac">TI executa backup e verifica arquivo gerado</div>
+        <div class="ac">Todos os stakeholders assinam o termo de aceite</div>
+      </div>
+      <div>
+        <div class="col-title">Entrega ao final da sprint</div>
+        <span class="delivery b-homol">Sistema em produção</span>
+        <span class="delivery b-homol">Usuários treinados</span>
+        <span class="delivery b-homol">Termo de aceite</span>
+        <span class="delivery b-homol">Suporte pós-entrega definido</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Resumo -->
+<div class="summary">
+  <div class="sum-card"><div class="sum-num">9</div><div class="sum-label">Sprints (S0 a S8)</div></div>
+  <div class="sum-card"><div class="sum-num">18</div><div class="sum-label">Semanas (~4,5 meses)</div></div>
+  <div class="sum-card"><div class="sum-num">22</div><div class="sum-label">Telas implementadas</div></div>
+  <div class="sum-card"><div class="sum-num">24</div><div class="sum-label">Requisitos funcionais</div></div>
+</div>
+
+<div style="margin-top:16px;padding:14px 16px;background:#E6F1FB;border-radius:8px;font-size:12px;color:#185FA5;line-height:1.7">
+  <strong>Cerimônias Scrum por sprint:</strong>
+  Planning (início da sprint, 2h) · Daily standup (diário, 15min) · Review com demonstração ao cliente (final, 1h) · Retrospectiva (final, 30min). &nbsp;
+  <strong>Backlog refinement:</strong> meio de cada sprint, para preparar itens da próxima. &nbsp;
+  <strong>Definition of Done:</strong> código implementado + testes unitários escritos + tela funcional demonstrável + sem regressão nos módulos anteriores.
+</div>
+
+</body>
+</html>

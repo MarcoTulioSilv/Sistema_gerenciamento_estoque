@@ -1,0 +1,165 @@
+import customtkinter as ctk
+from datetime import datetime
+
+# tema global
+ctk.set_appearance_mode("light")
+ctk.set_default_color_theme("blue")
+
+COR_AZUL      = "#1F4E79"
+COR_AZUL_M    = "#2E75B6"
+COR_SIDEBAR   = "#1F4E79"
+COR_SIDEBAR_H = "#2E75B6"   # hover
+COR_SIDEBAR_A = "#2E75B6"   # ativo
+COR_CINZA_E   = "#F2F1ED"
+COR_TEXTO     = "#3d3d3a"
+COR_VERMELHO  = "#A32D2D"
+
+class SCEApp(ctk.CTk):
+    # Janela raiz do sistema, gerencia login e navegação entre telas
+    def __init__(self):
+        super().__init__()
+
+        self.title("Sistema de Controle de Estoque - Centro de Uronefrologia")
+        self.geometry("1100x600")
+        self.minsize(900, 600)
+        self.configure(fg_color=COR_CINZA_E)
+
+        # Estado dee sessão
+        self.usuario_logado = None #objeto do usuário logado
+        self.session_timer = None
+
+        #exibe tela de login na inicialização
+        self._monstrar_login()
+
+#---- login/ logout ----
+    def _monstrar_login(self):
+        """limpa a janela e exibe a tela de login"""        
+        for widget in self.winfo_children():
+            widget.destroy()
+            from gui.telas.t01_login import TelaLogin
+            TelaLogin(self, on_login_success=self._on_login_success).pack(fill="both", expand=True)
+    
+    def _on_login_success(self, usuario):
+        """callback chamaado pelo mod-01 apos autenticação bem sucedida"""
+        self.usuario_logado = usuario
+        self._inicar_timer_sessao()
+        self._construir_layout_principal()
+
+    def logout(self):
+        """encerra sessão e volta para tela de login"""
+        if self.session_timer:
+            self.after_cancel(self.session_timer)
+        self.usuario_logado = None
+        self._monstrar_login()
+
+#----- sessão ---------------------------------------------------------------------------------
+    def _inicar_timer_sessao(self):
+        import os
+        timeout_min = int(os.getenv("SESSION_TIMEOUT_MIN", 30))
+        timeout_ms = timeout_min * 60 * 1000
+        if self.session_timer:
+            self.after_cancel(self.session_timer)
+        self.session_timer = self.after(timeout_ms, self._sessao_expirada)
+    
+    def resetar_timer_sessao(self):
+        """chamado por telas para resetar o timer a cada interação do usuário"""
+        self._inicar_timer_sessao()
+    
+    def _sessao_expirada(self):
+        from tkinter import messagebox
+        messagebox.showinfo("Sessão Expirada", "Sua sessão expirou por inatividade. Faça login novamente.")
+        self.logout()
+        """ tecnico deve ter tempo de sessão maior, dash board não deve expirar """
+
+#---- layout principal--------------------------------------------------------------------------------------
+
+    def _construir_layout_principal(self):
+        """Monta a estrutura de 3 faixas, titlebar, conteudo(sidebar + main)"""
+        for w in self.winfo_children():
+            w.destroy() 
+        #titlebar
+        self._titlebar = TitleBar(self, usuario=self.usuario_logado, on_logout=self.logout)
+        self._titlebar.pack(fill="x")
+
+        #corpo: sidebar + main
+        corpo= ctk.CTkFrame(self, fg_color=COR_CINZA_E)
+        corpo.pack(fill="both", expand=True)
+        corpo.grid_columnconfigure(1, weight=1)
+        corpo.grid_rowconfigure(0, weight=1)
+
+        self._sidebar = Sidebar(corpo, usuario=self.usuario_logado, on_navigate=self._navegar)
+        self._sidebar.grid(row=0, column=0, sticky="nsw")
+
+        self._area_conteudo = ctk.CTkFrame(corpo, fg_color=COR_CINZA_E)
+        self._area_conteudo.grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
+
+        #exibe tela inicial por padrão
+        self._navegar("inicio")
+
+    def _navegar(self, destino: str):
+        """troca o conteudo da area principal pela tela indicada """
+        self.resetar_timer_sessao()
+        for w in self._area_conteudo.winfo_children():
+            w.destroy()
+        
+        tela = self._resolver_tela(destino)
+        if tela:
+            tela.pack(fill="both", expand=True)
+    
+    def _resolver_tela(self, destino: str):
+        """mapeia o indicador de destino para a classe de tela correspondente"""
+        # sprint 0: apenas tela de placeholder.
+        # telas reais colocadas aqui nas proximas sprints
+        from gui.telas.placeholder import TelaPlaceholder
+        nomes = {
+            "incio":          "Tela de Início - T-02",
+            "produtos":       "Tela de Produtos - T-03",
+            "fornecedores":   "Tela de Fornecedores - T-04",
+            "entrada_manual": "Tela de Entrada Manual - T-07",
+            "importar_nfe":   "Tela de Importação de NF-e - T-08",
+            "retirada":       "Tela de Retirada - T-09",
+            "posicao":        "Tela de Posição de Estoque - T-10",
+            "dashboard":      "Tela de Dashboard - T-11",
+             "relatorios":     "Relatórios — T-11",
+            "agendamento":    "Agendamento — T-12",
+            "estoque_minimo": "Estoque Mínimo — T-13",
+            "usuarios":       "Usuários — T-15",
+            "gmail":          "Config. Gmail — T-17",
+            "backup":         "Backup — T-18",
+            "log":            "Log de Operações — T-19",
+        }
+        titulo = nomes.get(destino, destino)
+        return TelaPlaceholder(self._area_conteudo, titulo=titulo)
+
+#---- Componentes da janela principal (titlebar, sidebar) --------------------------------------------------------------
+
+class TitleBar(ctk.CTkFrame):
+    """Barra de titulo superior- CP-01"""
+
+    def __init__(self, master, usuario, on_logout):
+        super().__init__(master, fg_color=COR_AZUL, height=36, corner_radius=0)
+        self.pack_propagate(false)
+        
+        ctk.CTkLabel(
+            self, text= "Sistema de Controle de Estoque - Centro de Uro-nefrologia V1.0",
+            text_color="white", font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(side="left", padx=8)
+
+        #Informações do usuário e botão de logout
+        frame_direita = ctk.CTkFrame(self, fg_color="transparent")
+        frame_direita.pack(side="right", padx=12)
+
+
+        hora= datetime.now().strftime("%d/%m/%Y %H:%M")
+        nome_perfil= f"{usuario.nome} | ({usuario.perfil.value.capitalize()})"
+        ctk.CTkLabel(
+            frame direita,
+            text= f"{nome_perfil} . {hora}",
+            text_color="white", font=ctk.CTkFont(size=11)
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            frame_direita, text="Sair",width=50, height=24,
+            fg_color=COR_AZUL_M, hover_color="#1a5276", text_color="white",
+            font=ctk.CTkFont(size=11),command=on_logout
+        ).pack(side="left")

@@ -1,0 +1,32 @@
+# ─── Ambiente Python ──────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# ─── Configuração sensível ───────────────────────────────
+.env
+*.env
+
+# ─── Logs da aplicação ───────────────────────────────────
+*.log
+sce.log
+
+# ─── Build PyInstaller ────────────────────────────────────
+build/
+dist/
+*.spec
+
+# ─── Backups gerados pelo sistema ────────────────────────
+backups/
+*.sql.gz
+
+# ─── IDEs ────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+
+# ─── macOS ───────────────────────────────────────────────
+.DS_Store

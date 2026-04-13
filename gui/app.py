@@ -138,7 +138,7 @@ class TitleBar(ctk.CTkFrame):
 
     def __init__(self, master, usuario, on_logout):
         super().__init__(master, fg_color=COR_AZUL, height=36, corner_radius=0)
-        self.pack_propagate(false)
+        self.pack_propagate(False)
         
         ctk.CTkLabel(
             self, text= "Sistema de Controle de Estoque - Centro de Uro-nefrologia V1.0",
@@ -153,7 +153,7 @@ class TitleBar(ctk.CTkFrame):
         hora= datetime.now().strftime("%d/%m/%Y %H:%M")
         nome_perfil= f"{usuario.nome} | ({usuario.perfil.value.capitalize()})"
         ctk.CTkLabel(
-            frame direita,
+            frame_direita,
             text= f"{nome_perfil} . {hora}",
             text_color="white", font=ctk.CTkFont(size=11)
         ).pack(side="left")
@@ -163,3 +163,76 @@ class TitleBar(ctk.CTkFrame):
             fg_color=COR_AZUL_M, hover_color="#1a5276", text_color="white",
             font=ctk.CTkFont(size=11),command=on_logout
         ).pack(side="left")
+    
+class Sidebar(ctk.CTkFrame):
+    """Menu lateral com itens por perfil - CP-02"""
+    MENU= [
+        ("__label__",    "Estoque", None),
+        ("inicio",       "Início",       ["tecnico", "adimin","ti"]),
+        ("produtos",     "Produtos",     ["ti", "tecnico", "admin"]),
+        ("fornecedores", "Fornecedores", ["adimin", "tecnico"]),
+        ("__label__",    "Movimentações", None),
+        ("entrada_manual", "Entrada Manual", ["admin", "tecnico"]),
+        ("importar_nfe", "Importar NF-e",    ["admin", "tecnico"]),
+        ("retirada", "Retirada",             ["admin", "tecnico"]),
+        ("__label__", "Consulta", None),
+        ("posicao", "Posição de Estoque", ["admin", "tecnico", "ti"]),
+        ("dashboard", "Dashboard",        ["admin", "tecnico", "ti"]),
+        ("__label__", "Relatórios", None),
+        ("relatorios", "Gerar Relatórios",      ["admin", "ti"]),
+        ("agendamento", "Agendamento",          ["ti"]),
+        ("estoque_minimo","Estoque Mínimo" ,["admin", "ti"]),
+        ("__label__", "Configurações", None),
+        ("usuarios",    "Gerenciamento de Usuários" , ["ti"]),
+        ("gmail",       "Configurações Gmail" ,          ["ti"]),
+        ("backup",      "Backup do Sistema" ,           ["ti"]),
+        ("log",         "Log de Operações" ,               ["ti"]),
+    ]
+
+    def __init__(self, master, usuario, on_navigate):
+        super().__init__(master, fg_color=COR_SIDEBAR, width=200,corner_radius=0)
+        self.pack_propagate(False)
+        self._on_navigate = on_navigate
+        self._perfil = usuario.perfil.value
+        self._botoes = {}
+        self._ativo= None
+        self._construir()
+
+    def _construir(self):
+        for item in self.MENU:
+            destino, label, perfis = item
+
+            if destino == "__label__":
+                ctk.CTkLabel(
+                    self, text=label.upper(),
+                    text_color="#7fa8cc",
+                    font=ctk.CTkFont(size=9, weight="bold"),
+                    anchor="w",
+                ).pack(fill="x", padx=14, pady=(10,2))
+                continue
+
+            permitido= perfis and self._perfil in perfis
+            btn = ctk.CTkButton(
+                self,
+                text=f"  {label}",
+                anchor="w",
+                fg_color="transparent",
+                text_color="white" if permitido else "#5a7a99",
+                hover_color=COR_SIDEBAR_H if permitido else "transparent",
+                height=32,
+                corner_radius=6,
+                font=ctk.CTkFont(size=12),
+                state="normal" if permitido else "disabled",
+                command=(lambda d=destino: self._clicar(d)) if permitido else None,
+            )
+            btn.pack(fill="x", padx=6, pady=1)
+            self._botoes[destino]= btn
+
+    def _clicar(self, destino: str):
+        # Remove destaque anterior 
+        if self._ativo and self._ativo in self._botoes:
+            self._botoes[self._ativo].configure(fg_color="transparent")
+        # Destaca ativo
+        self._ativo = destino
+        self._botoes[destino].configure(fg_color=COR_SIDEBAR_A)
+        self._on_navigate(destino)

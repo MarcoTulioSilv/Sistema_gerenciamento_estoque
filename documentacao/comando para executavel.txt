@@ -1,0 +1,1 @@
+pyinstaller --noconsole --onefile --name "SCE" --paths "." --hidden-import modulo_06_dados --hidden-import modulo_06_dados.database --collect-all customtkinter main.py

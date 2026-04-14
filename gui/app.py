@@ -1,5 +1,9 @@
+import os
 import customtkinter as ctk
 from datetime import datetime
+from gui.telas.t01_login import TelaLogin
+from gui.telas.placeholder import TelaPlaceholder
+from tkinter import messagebox
 
 # tema global
 ctk.set_appearance_mode("light")
@@ -36,8 +40,7 @@ class SCEApp(ctk.CTk):
         """limpa a janela e exibe a tela de login"""        
         for widget in self.winfo_children():
             widget.destroy()
-            from gui.telas.t01_login import TelaLogin
-            TelaLogin(self, on_login_success=self._on_login_success).pack(fill="both", expand=True)
+        TelaLogin(self, on_login_success=self._on_login_success).pack(fill="both", expand=True)
     
     def _on_login_success(self, usuario):
         """callback chamaado pelo mod-01 apos autenticação bem sucedida"""
@@ -54,7 +57,7 @@ class SCEApp(ctk.CTk):
 
 #----- sessão ---------------------------------------------------------------------------------
     def _inicar_timer_sessao(self):
-        import os
+        
         timeout_min = int(os.getenv("SESSION_TIMEOUT_MIN", 30))
         timeout_ms = timeout_min * 60 * 1000
         if self.session_timer:
@@ -66,7 +69,7 @@ class SCEApp(ctk.CTk):
         self._inicar_timer_sessao()
     
     def _sessao_expirada(self):
-        from tkinter import messagebox
+       
         messagebox.showinfo("Sessão Expirada", "Sua sessão expirou por inatividade. Faça login novamente.")
         self.logout()
         """ tecnico deve ter tempo de sessão maior, dash board não deve expirar """
@@ -110,9 +113,9 @@ class SCEApp(ctk.CTk):
         """mapeia o indicador de destino para a classe de tela correspondente"""
         # sprint 0: apenas tela de placeholder.
         # telas reais colocadas aqui nas proximas sprints
-        from gui.telas.placeholder import TelaPlaceholder
+        
         nomes = {
-            "incio":          "Tela de Início - T-02",
+            "inicio":          "Tela de Início - T-02",
             "produtos":       "Tela de Produtos - T-03",
             "fornecedores":   "Tela de Fornecedores - T-04",
             "entrada_manual": "Tela de Entrada Manual - T-07",
@@ -170,7 +173,7 @@ class Sidebar(ctk.CTkFrame):
         ("__label__",    "Estoque", None),
         ("inicio",       "Início",       ["tecnico", "adimin","ti"]),
         ("produtos",     "Produtos",     ["ti", "tecnico", "admin"]),
-        ("fornecedores", "Fornecedores", ["adimin", "tecnico"]),
+        ("fornecedores", "Fornecedores", ["admin", "tecnico"]),
         ("__label__",    "Movimentações", None),
         ("entrada_manual", "Entrada Manual", ["admin", "tecnico"]),
         ("importar_nfe", "Importar NF-e",    ["admin", "tecnico"]),
@@ -218,7 +221,7 @@ class Sidebar(ctk.CTkFrame):
                 anchor="w",
                 fg_color="transparent",
                 text_color="white" if permitido else "#5a7a99",
-                hover_color=COR_SIDEBAR_H if permitido else "transparent",
+                hover_color=COR_SIDEBAR_H if permitido else COR_SIDEBAR,
                 height=32,
                 corner_radius=6,
                 font=ctk.CTkFont(size=12),

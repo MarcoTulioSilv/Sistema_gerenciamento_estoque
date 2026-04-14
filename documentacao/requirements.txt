@@ -1,0 +1,28 @@
+# ============================================================
+# SCE — Sistema de Controle de Estoque
+# requirements.txt — dependências Python
+# Instalar: pip install -r requirements.txt
+# ============================================================
+ 
+# Interface gráfica desktop
+customtkinter==5.2.2
+ 
+# Banco de dados
+SQLAlchemy==2.0.36
+PyMySQL==1.1.1          # driver MySQL para SQLAlchemy
+ 
+# Segurança
+bcrypt==4.2.1
+cryptography==43.0.3    # Fernet — criptografia do App Password Gmail
+ 
+# Scheduler de tarefas (notificações e relatórios agendados)
+APScheduler==3.10.4
+ 
+# Geração de planilhas XLSX
+openpyxl==3.1.5
+ 
+# Parser de XML NF-e
+lxml==5.3.0
+ 
+# Utilitários
+python-dotenv==1.0.1    # leitura de variáveis de ambiente

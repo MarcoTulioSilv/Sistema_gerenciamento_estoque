@@ -48,13 +48,13 @@ class TelaLogin(ctk.CTkFrame):
         
         #campos de login
         ctk.CTkLabel(card, text="Login", text_color="#5F5E5A",
-                     font=ctk.CTkFont(size=11, weight="bold"), anchor="w").place(x=30, y=158, width=300)
+                     font=ctk.CTkFont(size=11, weight="bold"), anchor="w",width=300).place(x=30, y=158)
         self._entry_login = ctk.CTkEntry(card, placeholder_text="Informe seu login",
                                           width=300, height=38, corner_radius=6)
         self._entry_login.place(x=30, y=176)
  
         ctk.CTkLabel(card, text="Senha", text_color="#5F5E5A",
-                     font=ctk.CTkFont(size=11, weight="bold"), anchor="w").place(x=30, y=224, width=300)
+                     font=ctk.CTkFont(size=11, weight="bold"), anchor="w", width=300).place(x=30, y=224)
         self._entry_senha = ctk.CTkEntry(card, placeholder_text="Informe sua senha",
                                           show="*", width=300, height=38, corner_radius=6)
         self._entry_senha.place(x=30, y=242)
@@ -62,15 +62,15 @@ class TelaLogin(ctk.CTkFrame):
 
         #Mensagem de erro
         self._label_erro = ctk.CTkLabel(card, text="", text_color=COR_ERRO,
-                                        font=ctk.CTkFont(size=11), wraplength=300)
-        self._label_erro.place(x=30, y=290, width=300)
+                                        font=ctk.CTkFont(size=11), wraplength=300, width=300)
+        self._label_erro.place(x=30, y=290)
 
         #Botão de login
         self._btn_login = ctk.CTkButton(card, text="Entrar",width=300, height=40,
                                          fg_color=COR_AZUL_M, hover_color="#1a5276",
                                          font= ctk.CTkFont(size=13,weight="bold"), 
                                          command=self._tentar_login)
-        self._btn_entrar.place(x=30, y=316)
+        self._btn_login.place(x=30, y=316)
 
         ctk.CTkLabel(card, text="Em caso de dificuldades, contate o suporte técnico.",
                       text_color="#AAAAAA",font=ctk.CTkFont(size=10)).place(relx=0.5, y=374, anchor="center")
@@ -85,7 +85,7 @@ class TelaLogin(ctk.CTkFrame):
         senha= self._entry_senha.get()
 
         if not login or not senha:
-            self._exibir_erro("Preencha ambos os campos para continuar.")
+            self._mostrar_erro("Preencha ambos os campos para continuar.")
             return
         
         #Delega autenticação ao MOD-01

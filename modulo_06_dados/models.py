@@ -19,7 +19,7 @@ from .database import Base
 
 class PerfilEnum(str, enum.Enum):
     tecnico = "tecnico"
-    gestora = "gestora"
+    admin = "admin"
     ti      = "ti"
 
 

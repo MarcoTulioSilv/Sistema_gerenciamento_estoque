@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Wireframes SCE — T-03 a T-06 Produtos e Fornecedores</title>
+<style>
+:root {
+  --azul:#1F4E79;--azul-m:#2E75B6;--azul-l:#D6E4F0;
+  --cinza-e:#F2F1ED;--cinza-b:#E8E6DE;--cinza-m:#888780;
+  --cinza-t:#3d3d3a;--branco:#ffffff;
+  --verde:#1D9E75;--amber:#BA7517;--vermelho:#A32D2D;
+  --sidebar-w:180px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#ECEAE4;color:var(--cinza-t);padding:24px;display:flex;flex-direction:column;gap:36px}
+.section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--cinza-m);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.section-title::after{content:'';flex:1;height:1px;background:var(--cinza-b)}
+.badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:8px}
+.b-gray{background:#F1EFE8;color:#5F5E5A}.b-blue{background:#E6F1FB;color:#185FA5}
+.b-green{background:#EAF3DE;color:#3B6D11}.b-amber{background:#FAEEDA;color:#854F0B}
+.b-red{background:#FCEBEB;color:#A32D2D}.b-purple{background:#EEEDFE;color:#534AB7}
+.window{background:var(--branco);border-radius:8px;border:1px solid var(--cinza-b);overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.win-titlebar{background:var(--azul);color:#fff;padding:7px 14px;font-size:12px;font-weight:500;display:flex;justify-content:space-between;align-items:center}
+.app-layout{display:flex;min-height:420px}
+.sidebar{width:var(--sidebar-w);background:var(--azul);flex-shrink:0;padding:8px 0}
+.menu-label{padding:6px 12px 2px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.4)}
+.menu-item{padding:7px 12px;font-size:11px;color:rgba(255,255,255,.75);cursor:pointer;display:flex;align-items:center;gap:7px}
+.menu-item.active{background:rgba(255,255,255,.18);color:#fff;font-weight:600}
+.menu-item.disabled{color:rgba(255,255,255,.25)}
+.mi{width:12px;height:12px;background:rgba(255,255,255,.2);border-radius:2px;flex-shrink:0}
+.main{flex:1;background:var(--cinza-e);display:flex;flex-direction:column}
+.topbar{background:var(--branco);padding:9px 16px;border-bottom:1px solid var(--cinza-b);display:flex;align-items:center;justify-content:space-between}
+.topbar-title{font-size:13px;font-weight:600;color:var(--azul)}
+.breadcrumb{font-size:11px;color:var(--cinza-m)}
+.breadcrumb span{color:var(--azul-m)}
+.content{padding:16px;flex:1}
+
+/* Botões */
+.btn{padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;border:none;cursor:pointer}
+.btn-primary{background:var(--azul-m);color:#fff}
+.btn-secondary{background:#fff;color:var(--cinza-t);border:1px solid var(--cinza-b)}
+.btn-danger{background:var(--vermelho);color:#fff}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-row{display:flex;gap:8px;align-items:center}
+
+/* Filtro / busca */
+.filter-bar{display:flex;gap:8px;margin-bottom:14px;align-items:center}
+.search-input{flex:1;padding:7px 12px;border:1px solid var(--cinza-b);border-radius:6px;font-size:12px;background:var(--branco)}
+.select-input{padding:7px 10px;border:1px solid var(--cinza-b);border-radius:6px;font-size:12px;background:var(--branco)}
+
+/* Tabela */
+.table-wrap{background:var(--branco);border-radius:8px;border:1px solid var(--cinza-b);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:7px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--cinza-m);background:#FAFAF8;border-bottom:2px solid var(--cinza-b)}
+td{padding:7px 12px;border-bottom:1px solid #F5F4F0;color:var(--cinza-t)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#FAFAF8}
+.act-btns{display:flex;gap:6px}
+.status{padding:2px 7px;border-radius:8px;font-size:10px;font-weight:600}
+.table-footer{padding:8px 12px;background:#FAFAF8;border-top:1px solid var(--cinza-b);font-size:11px;color:var(--cinza-m);display:flex;justify-content:space-between;align-items:center}
+.pagination{display:flex;gap:4px}
+.pg-btn{padding:3px 8px;border:1px solid var(--cinza-b);border-radius:4px;font-size:11px;background:var(--branco);color:var(--cinza-t)}
+.pg-btn.active{background:var(--azul-m);color:#fff;border-color:var(--azul-m)}
+
+/* Formulário */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid.cols3{grid-template-columns:1fr 1fr 1fr}
+.field{display:flex;flex-direction:column;gap:4px}
+.field.full{grid-column:1/-1}
+.field label{font-size:11px;font-weight:600;color:var(--cinza-m)}
+.field label.req::after{content:" *";color:var(--vermelho)}
+.field input,.field select,.field textarea{
+  padding:8px 10px;border:1px solid var(--cinza-b);border-radius:6px;
+  font-size:12px;color:var(--cinza-t);background:var(--cinza-e);
+}
+.field textarea{resize:vertical;min-height:56px}
+.field .hint{font-size:10px;color:var(--cinza-m)}
+.field .err{font-size:10px;color:var(--vermelho)}
+.form-section{background:var(--branco);border-radius:8px;border:1px solid var(--cinza-b);padding:16px;margin-bottom:14px}
+.form-section-title{font-size:12px;font-weight:700;color:var(--azul);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--cinza-b)}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+/* Barcode hint */
+.barcode-row{display:flex;gap:8px;align-items:flex-start}
+.barcode-row input{flex:1}
+.scan-badge{padding:6px 10px;background:var(--azul-l);border:1px solid var(--azul-m);border-radius:6px;font-size:10px;color:var(--azul-m);font-weight:600;white-space:nowrap;margin-top:0}
+
+/* Anotações */
+.wf-note{font-size:10px;color:#888;font-style:italic;background:#FFFDE7;border:1px dashed #F5C842;border-radius:4px;padding:3px 8px;display:inline-block}
+.annotations{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+</style>
+</head>
+<body>
+
+<!-- ═══ T-03: LISTAGEM DE PRODUTOS ═══ -->
+<div>
+  <div class="section-title">T-03 · Listagem de produtos <span class="badge b-blue">Técnico / TI</span> <span class="badge b-gray">UC-02 · UC-07</span></div>
+  <div class="window">
+    <div class="win-titlebar">SCE — Sistema de Controle de Estoque<span style="font-size:11px;opacity:.7">Técnico: João Silva</span></div>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="menu-label">Estoque</div>
+        <div class="menu-item"><div class="mi"></div>Início</div>
+        <div class="menu-item active"><div class="mi"></div>Produtos</div>
+        <div class="menu-item"><div class="mi"></div>Fornecedores</div>
+        <div class="menu-label">Movimentação</div>
+        <div class="menu-item"><div class="mi"></div>Entrada manual</div>
+        <div class="menu-item"><div class="mi"></div>Importar NF-e</div>
+        <div class="menu-item"><div class="mi"></div>Retirada</div>
+        <div class="menu-label">Consulta</div>
+        <div class="menu-item"><div class="mi"></div>Posição estoque</div>
+        <div class="menu-item"><div class="mi"></div>Dashboard</div>
+      </div>
+      <div class="main">
+        <div class="topbar">
+          <div>
+            <div class="topbar-title">Produtos</div>
+            <div class="breadcrumb">Início › <span>Produtos</span></div>
+          </div>
+          <button class="btn btn-primary btn-sm">+ Novo produto</button>
+        </div>
+        <div class="content">
+          <div class="filter-bar">
+            <input class="search-input" type="text" placeholder="Buscar por nome ou EAN...">
+            <select class="select-input"><option>Todos os centros</option><option>Almoxarifado</option><option>Farmácia</option></select>
+            <select class="select-input"><option>Todos os status</option><option>Ativo</option><option>Inativo</option></select>
+            <button class="btn btn-secondary btn-sm">Limpar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nome</th><th>EAN</th><th>Centro</th><th>Marca</th><th>Fornecedor</th><th>Estoque mín.</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Dipirona 500mg</strong></td><td>7896007009013</td><td>Farmácia</td><td>EMS</td><td>Distribuidora A</td><td>10</td><td><span class="status b-green">Ativo</span></td><td><div class="act-btns"><button class="btn btn-secondary btn-sm">Editar</button><button class="btn btn-secondary btn-sm">Ver lotes</button></div></td></tr>
+                <tr><td><strong>Soro Fisiológico 500ml</strong></td><td>7891024017264</td><td>Almoxarifado</td><td>Halex</td><td>Distribuidora B</td><td>5</td><td><span class="status b-green">Ativo</span></td><td><div class="act-btns"><button class="btn btn-secondary btn-sm">Editar</button><button class="btn btn-secondary btn-sm">Ver lotes</button></div></td></tr>
+                <tr><td><strong>Luva Cirúrgica M</strong></td><td>7898080461021</td><td>Almoxarifado</td><td>Supermax</td><td>Distribuidora A</td><td>20</td><td><span class="status b-amber">Estoque baixo</span></td><td><div class="act-btns"><button class="btn btn-secondary btn-sm">Editar</button><button class="btn btn-secondary btn-sm">Ver lotes</button></div></td></tr>
+                <tr><td><strong>Paracetamol 750mg</strong></td><td>7896261908082</td><td>Farmácia</td><td>Neo Química</td><td>Distribuidora C</td><td>15</td><td><span class="status b-green">Ativo</span></td><td><div class="act-btns"><button class="btn btn-secondary btn-sm">Editar</button><button class="btn btn-secondary btn-sm">Ver lotes</button></div></td></tr>
+                <tr><td><strong>Álcool Gel 70% 500ml</strong></td><td>7896261905890</td><td>Almoxarifado</td><td>Asseptgel</td><td>—</td><td>0</td><td><span class="status b-gray">Inativo</span></td><td><div class="act-btns"><button class="btn btn-secondary btn-sm">Editar</button><button class="btn btn-secondary btn-sm">Ver lotes</button></div></td></tr>
+              </tbody>
+            </table>
+            <div class="table-footer">
+              <span>47 produtos · exibindo 1–5</span>
+              <div class="pagination"><button class="pg-btn active">1</button><button class="pg-btn">2</button><button class="pg-btn">3</button><button class="pg-btn">→</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="annotations">
+    <span class="wf-note">Busca filtra por nome E por EAN simultaneamente</span>
+    <span class="wf-note">Fornecedor "—" = produto sem fornecedor vinculado (FK nullable)</span>
+    <span class="wf-note">"Ver lotes" vai para T-10 filtrado por este produto</span>
+    <span class="wf-note">Badge "Estoque baixo" calculado em tempo real comparando saldo total × estoque_minimo</span>
+  </div>
+</div>
+
+<!-- ═══ T-04: LISTAGEM DE FORNECEDORES ═══ -->
+<div>
+  <div class="section-title">T-04 · Listagem de fornecedores <span class="badge b-blue">Técnico / TI</span> <span class="badge b-gray">RF-23</span></div>
+  <div class="window">
+    <div class="win-titlebar">SCE — Sistema de Controle de Estoque<span style="font-size:11px;opacity:.7">Técnico: João Silva</span></div>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="menu-label">Estoque</div>
+        <div class="menu-item"><div class="mi"></div>Início</div>
+        <div class="menu-item"><div class="mi"></div>Produtos</div>
+        <div class="menu-item active"><div class="mi"></div>Fornecedores</div>
+        <div class="menu-label">Movimentação</div>
+        <div class="menu-item"><div class="mi"></div>Entrada manual</div>
+        <div class="menu-item"><div class="mi"></div>Importar NF-e</div>
+        <div class="menu-item"><div class="mi"></div>Retirada</div>
+      </div>
+      <div class="main">
+        <div class="topbar">
+          <div>
+            <div class="topbar-title">Fornecedores</div>
+            <div class="breadcrumb">Início › <span>Fornecedores</span></div>
+          </div>
+          <button class="btn btn-primary btn-sm">+ Novo fornecedor</button>
+        </div>
+        <div class="content">
+          <div class="filter-bar">
+            <input class="search-input" type="text" placeholder="Buscar por nome...">
+            <button class="btn btn-secondary btn-sm">Limpar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Nome do fornecedor</th><th>Produtos vinculados</th><th>Ações</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td><strong>Distribuidora A</strong></td><td>12 produtos</td><td><div class="act-btns"><button class="btn btn-secondary btn-sm">Editar</button></div></td></tr>
+                <tr><td>2</td><td><strong>Distribuidora B</strong></td><td>8 produtos</td><td><div class="act-btns"><button class="btn btn-secondary btn-sm">Editar</button></div></td></tr>
+                <tr><td>3</td><td><strong>Distribuidora C</strong></td><td>5 produtos</td><td><div class="act-btns"><button class="btn btn-secondary btn-sm">Editar</button></div></td></tr>
+              </tbody>
+            </table>
+            <div class="table-footer"><span>3 fornecedores</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="annotations">
+    <span class="wf-note">Fornecedor sem botão Excluir — exclusão lógica não prevista; TI pode editar nome</span>
+    <span class="wf-note">Contagem de produtos vinculados é somente leitura</span>
+  </div>
+</div>
+
+<!-- ═══ T-05: CADASTRO DE PRODUTO ═══ -->
+<div>
+  <div class="section-title">T-05 · Cadastro / edição de produto <span class="badge b-blue">Técnico / TI</span> <span class="badge b-gray">UC-02 · RF-01</span></div>
+  <div class="window">
+    <div class="win-titlebar">SCE — Sistema de Controle de Estoque<span style="font-size:11px;opacity:.7">Técnico: João Silva</span></div>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="menu-label">Estoque</div>
+        <div class="menu-item"><div class="mi"></div>Início</div>
+        <div class="menu-item active"><div class="mi"></div>Produtos</div>
+        <div class="menu-item"><div class="mi"></div>Fornecedores</div>
+      </div>
+      <div class="main">
+        <div class="topbar">
+          <div>
+            <div class="topbar-title">Novo produto</div>
+            <div class="breadcrumb">Início › Produtos › <span>Novo produto</span></div>
+          </div>
+        </div>
+        <div class="content">
+          <div class="form-section">
+            <div class="form-section-title">Identificação</div>
+            <div class="form-grid">
+              <div class="field full">
+                <label class="req">Nome do produto</label>
+                <input type="text" value="Dipirona Sódica 500mg Comprimido">
+              </div>
+              <div class="field">
+                <label class="req">Código de barras (EAN)</label>
+                <div class="barcode-row">
+                  <input type="text" value="7896007009013" placeholder="Leia ou digite o EAN">
+                  <div class="scan-badge">HID USB</div>
+                </div>
+                <div class="hint">Posicione o cursor e acione o leitor de barras</div>
+              </div>
+              <div class="field">
+                <label>Descrição</label>
+                <input type="text" placeholder="Opcional">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Classificação e estoque</div>
+            <div class="form-grid cols3">
+              <div class="field">
+                <label class="req">Centro de alocação</label>
+                <select><option>Farmácia</option><option>Almoxarifado</option></select>
+              </div>
+              <div class="field">
+                <label class="req">Unidade de estoque</label>
+                <select><option>CAIXA</option><option>PACOTE</option><option>UNIDADE</option><option>FRASCO</option><option>AMPOLA</option></select>
+              </div>
+              <div class="field">
+                <label class="req">Estoque mínimo</label>
+                <input type="number" value="10">
+                <div class="hint">Padrão: 0 (sem controle de mínimo)</div>
+              </div>
+              <div class="field">
+                <label>Marca</label>
+                <input type="text" value="EMS" placeholder="Texto livre">
+              </div>
+              <div class="field">
+                <label>Fornecedor</label>
+                <select><option value="">-- Nenhum --</option><option selected>Distribuidora A</option><option>Distribuidora B</option><option>Distribuidora C</option></select>
+                <div class="hint">Opcional — selecione ou deixe em branco</div>
+              </div>
+              <div class="field" style="align-items:flex-start;padding-top:20px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                  <input type="checkbox" checked> Produto ativo
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn-secondary">Cancelar</button>
+            <button class="btn btn-primary">Salvar produto</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="annotations">
+    <span class="wf-note">EAN validado como único ao sair do campo (feedback imediato, sem esperar submit)</span>
+    <span class="wf-note">Campos com * são obrigatórios — Salvar bloqueado se algum estiver vazio</span>
+    <span class="wf-note">No modo edição: título muda para "Editar produto — [nome]"</span>
+    <span class="wf-note">Fornecedor: dropdown carregado da tabela fornecedor; link rápido "+ Novo fornecedor" ao lado</span>
+  </div>
+</div>
+
+<!-- ═══ T-06: CADASTRO DE FORNECEDOR ═══ -->
+<div>
+  <div class="section-title">T-06 · Cadastro de fornecedor <span class="badge b-blue">Técnico / TI</span> <span class="badge b-gray">RF-23</span></div>
+  <div class="window" style="max-width:640px">
+    <div class="win-titlebar">SCE — Sistema de Controle de Estoque<span style="font-size:11px;opacity:.7">Técnico: João Silva</span></div>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="menu-label">Estoque</div>
+        <div class="menu-item"><div class="mi"></div>Produtos</div>
+        <div class="menu-item active"><div class="mi"></div>Fornecedores</div>
+      </div>
+      <div class="main">
+        <div class="topbar">
+          <div>
+            <div class="topbar-title">Novo fornecedor</div>
+            <div class="breadcrumb">Início › Fornecedores › <span>Novo fornecedor</span></div>
+          </div>
+        </div>
+        <div class="content">
+          <div class="form-section">
+            <div class="form-section-title">Dados do fornecedor</div>
+            <div class="field full">
+              <label class="req">Nome do fornecedor</label>
+              <input type="text" placeholder="Informe o nome completo do fornecedor">
+              <div class="hint">O fornecedor poderá ser vinculado a um ou mais produtos após o cadastro.</div>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary">Cancelar</button>
+            <button class="btn btn-primary">Salvar fornecedor</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="annotations">
+    <span class="wf-note">Tela simples — apenas campo Nome conforme especificação (tabela fornecedor: id + nome)</span>
+    <span class="wf-note">Após salvar: retorna para T-04 com novo fornecedor selecionado na listagem</span>
+    <span class="wf-note">Se acessada via link rápido de T-05: retorna para T-05 com novo fornecedor já selecionado no dropdown</span>
+  </div>
+</div>
+
+</body>
+</html>

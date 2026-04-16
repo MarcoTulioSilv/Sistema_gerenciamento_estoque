@@ -13,12 +13,12 @@ class SessionManager:
     Mantém referência ao objeto Usuário e ao timestamp do último acesso.
     Instância única por processo- a GUI é single-process, single-user.
     """
-    _usuario_atual=None
-    _inicio_sessao= datetime | None=None
-    _ultimo_acesso= datetime | None=None
+    _usuario_atual = None
+    _inicio_sessao: datetime | None = None
+    _ultimo_acesso: datetime | None = None
 
     @classmethod
-    def inicar_sessao(cls,usuario)->None:
+    def iniciar_sessao(cls,usuario)->None:
         """Registra o início de uma sessão após login bem-sucedido"""
         cls._usuario_atual= usuario
         cls._inicio_sessao= datetime.now()

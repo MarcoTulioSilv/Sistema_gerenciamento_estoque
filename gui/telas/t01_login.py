@@ -107,6 +107,7 @@ class TelaLogin(ctk.CTkFrame):
                 self._bloquear()
             else:
                 self._mostrar_erro(f"Login ou senha incorretos. Tentativas restantes: {restantes}")
+            return
         
         self._mostrar_erro("")
         self._on_sucess(usuario)

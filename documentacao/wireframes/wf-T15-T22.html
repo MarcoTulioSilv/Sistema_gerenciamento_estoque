@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Wireframes SCE — T-15 a T-22</title>
+<style>
+:root{--azul:#1F4E79;--azul-m:#2E75B6;--azul-l:#D6E4F0;--cinza-e:#F2F1ED;--cinza-b:#E8E6DE;--cinza-m:#888780;--cinza-t:#3d3d3a;--branco:#ffffff;--verde:#1D9E75;--amber:#BA7517;--vermelho:#A32D2D}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#ECEAE4;color:var(--cinza-t);padding:24px;display:flex;flex-direction:column;gap:36px}
+.section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--cinza-m);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.section-title::after{content:'';flex:1;height:1px;background:var(--cinza-b)}
+.badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:8px}
+.b-gray{background:#F1EFE8;color:#5F5E5A}.b-blue{background:#E6F1FB;color:#185FA5}
+.b-green{background:#EAF3DE;color:#3B6D11}.b-amber{background:#FAEEDA;color:#854F0B}
+.b-red{background:#FCEBEB;color:#A32D2D}.b-purple{background:#EEEDFE;color:#534AB7}
+.b-teal{background:#E1F5EE;color:#085041}
+.window{background:var(--branco);border-radius:8px;border:1px solid var(--cinza-b);overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.win-titlebar{background:var(--azul);color:#fff;padding:7px 14px;font-size:12px;font-weight:500;display:flex;justify-content:space-between}
+.app-layout{display:flex;min-height:380px}
+.sidebar{width:180px;background:var(--azul);flex-shrink:0;padding:8px 0}
+.menu-label{padding:6px 12px 2px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.4)}
+.menu-item{padding:7px 12px;font-size:11px;color:rgba(255,255,255,.75);display:flex;align-items:center;gap:7px}
+.menu-item.active{background:rgba(255,255,255,.18);color:#fff;font-weight:600}
+.mi{width:12px;height:12px;background:rgba(255,255,255,.2);border-radius:2px;flex-shrink:0}
+.main{flex:1;background:var(--cinza-e);display:flex;flex-direction:column}
+.topbar{background:var(--branco);padding:9px 16px;border-bottom:1px solid var(--cinza-b);display:flex;align-items:center;justify-content:space-between}
+.topbar-title{font-size:13px;font-weight:600;color:var(--azul)}
+.breadcrumb{font-size:11px;color:var(--cinza-m)}.breadcrumb span{color:var(--azul-m)}
+.content{padding:16px;flex:1;display:flex;flex-direction:column;gap:14px}
+.btn{padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;border:none;cursor:pointer}
+.btn-primary{background:var(--azul-m);color:#fff}
+.btn-success{background:var(--verde);color:#fff}
+.btn-secondary{background:#fff;color:var(--cinza-t);border:1px solid var(--cinza-b)}
+.btn-danger{background:var(--vermelho);color:#fff}
+.btn-sm{padding:4px 10px;font-size:11px}
+.form-section{background:var(--branco);border-radius:8px;border:1px solid var(--cinza-b);padding:14px}
+.form-section-title{font-size:12px;font-weight:700;color:var(--azul);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--cinza-b)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid.cols3{grid-template-columns:1fr 1fr 1fr}
+.field{display:flex;flex-direction:column;gap:4px}
+.field.full{grid-column:1/-1}
+.field label{font-size:11px;font-weight:600;color:var(--cinza-m)}
+.field label.req::after{content:" *";color:var(--vermelho)}
+.field input,.field select{padding:7px 10px;border:1px solid var(--cinza-b);border-radius:6px;font-size:12px;color:var(--cinza-t);background:var(--cinza-e)}
+.field .hint{font-size:10px;color:var(--cinza-m)}
+.form-actions{display:flex;gap:8px;justify-content:flex-end}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:7px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--cinza-m);background:#FAFAF8;border-bottom:2px solid var(--cinza-b)}
+td{padding:7px 12px;border-bottom:1px solid #F5F4F0}
+tr:last-child td{border-bottom:none}
+.status{padding:2px 7px;border-radius:8px;font-size:10px;font-weight:600}
+.table-wrap{background:var(--branco);border-radius:8px;border:1px solid var(--cinza-b);overflow:hidden}
+.table-footer{padding:7px 12px;background:#FAFAF8;border-top:1px solid var(--cinza-b);font-size:11px;color:var(--cinza-m)}
+.filter-bar{display:flex;gap:8px;margin-bottom:12px}
+.search-input{flex:1;padding:7px 12px;border:1px solid var(--cinza-b);border-radius:6px;font-size:12px;background:var(--branco)}
+.select-input{padding:7px 10px;border:1px solid var(--cinza-b);border-radius:6px;font-size:12px;background:var(--branco)}
+
+/* Dashboard específico */
+.dash-wrap{display:flex;flex-direction:column;height:100%}
+.dash-toolbar{padding:8px 14px;background:var(--branco);border-bottom:1px solid var(--cinza-b);display:flex;align-items:center;justify-content:space-between;font-size:11px}
+.dash-ts{color:var(--cinza-m)}.dash-ts strong{color:var(--verde)}
+.dash-body{padding:14px;flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;overflow:auto}
+.dash-card{background:var(--branco);border:1px solid var(--cinza-b);border-radius:8px;padding:12px;font-size:11px}
+.dash-card-title{font-size:12px;font-weight:700;margin-bottom:8px;color:var(--cinza-t)}
+.dash-card.vencido{border-color:#F09595;background:#FFFAFA}
+.dash-card.baixo{border-color:#EF9F27;background:#FFFCF5}
+.dash-card.ok{border-color:#97C459}
+.dash-lote-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--cinza-b);color:var(--cinza-t)}
+.dash-lote-row:last-child{border-bottom:none}
+.dash-status{font-size:10px;font-weight:600;padding:1px 6px;border-radius:6px}
+.conn-indicator{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--verde)}
+.conn-dot{width:7px;height:7px;border-radius:50%;background:var(--verde)}
+
+/* Backup card */
+.backup-card{background:var(--branco);border:1px solid var(--cinza-b);border-radius:8px;padding:16px}
+.backup-title{font-size:13px;font-weight:600;color:var(--azul);margin-bottom:4px}
+.backup-detail{font-size:11px;color:var(--cinza-m);margin-bottom:12px}
+.backup-last{font-size:11px;color:var(--cinza-m);padding:8px 12px;background:var(--cinza-e);border-radius:5px;margin-top:10px}
+.backup-last strong{color:var(--cinza-t)}
+
+.wf-note{font-size:10px;color:#888;font-style:italic;background:#FFFDE7;border:1px dashed #F5C842;border-radius:4px;padding:3px 8px;display:inline-block}
+.annotations{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+</style>
+</head>
+<body>
+
+<!-- ═══ T-15: LISTAGEM DE USUÁRIOS ═══ -->
+<div>
+  <div class="section-title">T-15 · Listagem de usuários <span class="badge b-purple">TI</span> <span class="badge b-gray">UC-09 · RF-18</span></div>
+  <div class="window">
+    <div class="win-titlebar">SCE — Sistema de Controle de Estoque<span style="font-size:11px;opacity:.7">TI: Carlos Admin</span></div>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="menu-label">Administração</div>
+        <div class="menu-item active"><div class="mi"></div>Usuários</div>
+        <div class="menu-item"><div class="mi"></div>Config. Gmail</div>
+        <div class="menu-item"><div class="mi"></div>Backup</div>
+        <div class="menu-item"><div class="mi"></div>Log operações</div>
+        <div class="menu-item"><div class="mi"></div>Agendamento</div>
+      </div>
+      <div class="main">
+        <div class="topbar">
+          <div><div class="topbar-title">Usuários do sistema</div><div class="breadcrumb">Início › <span>Usuários</span></div></div>
+          <button class="btn btn-primary btn-sm">+ Novo usuário</button>
+        </div>
+        <div class="content">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Status</th><th>Criado em</th><th>Ações</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Carlos Admin</strong></td><td>admin</td><td><span class="status b-purple">TI</span></td><td><span class="status b-green">Ativo</span></td><td>01/01/2025</td><td><div style="display:flex;gap:4px"><button class="btn btn-secondary btn-sm">Editar</button><button class="btn btn-secondary btn-sm" disabled style="opacity:.4">Desativar</button></div></td></tr>
+                <tr><td><strong>Maria Santos</strong></td><td>maria.gestora</td><td><span class="status b-teal">Gestora</span></td><td><span class="status b-green">Ativo</span></td><td>10/01/2025</td><td><div style="display:flex;gap:4px"><button class="btn btn-secondary btn-sm">Editar</button><button class="btn btn-danger btn-sm">Desativar</button></div></td></tr>
+                <tr><td><strong>João Silva</strong></td><td>joao.tecnico</td><td><span class="status b-blue">Técnico</span></td><td><span class="status b-green">Ativo</span></td><td>10/01/2025</td><td><div style="display:flex;gap:4px"><button class="btn btn-secondary btn-sm">Editar</button><button class="btn btn-danger btn-sm">Desativar</button></div></td></tr>
+                <tr><td><strong>Ana Lima</strong></td><td>ana.tecnico</td><td><span class="status b-blue">Técnico</span></td><td><span class="status b-gray">Inativo</span></td><td>05/01/2025</td><td><div style="display:flex;gap:4px"><button class="btn btn-secondary btn-sm">Editar</button><button class="btn btn-success btn-sm">Reativar</button></div></td></tr>
+              </tbody>
+            </table>
+            <div class="table-footer">4 usuários cadastrados</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="annotations">
+    <span class="wf-note">Desativar bloqueado para o único usuário TI ativo (proteção UC-09)</span>
+    <span class="wf-note">Usuário inativo: botão "Reativar" no lugar de "Desativar"</span>
+    <span class="wf-note">Redefinição de senha feita na tela T-16 (edição)</span>
+  </div>
+</div>
+
+<!-- ═══ T-16: CADASTRO/EDIÇÃO DE USUÁRIO ═══ -->
+<div>
+  <div class="section-title">T-16 · Cadastro / edição de usuário <span class="badge b-purple">TI</span> <span class="badge b-gray">UC-09 · RF-18</span></div>
+  <div class="window" style="max-width:680px">
+    <div class="win-titlebar">SCE — Sistema de Controle de Estoque<span style="font-size:11px;opacity:.7">TI: Carlos Admin</span></div>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="menu-label">Administração</div>
+        <div class="menu-item active"><div class="mi"></div>Usuários</div>
+      </div>
+      <div class="main">
+        <div class="topbar"><div><div class="topbar-title">Editar usuário</div><div class="breadcrumb">Início › Usuários › <span>Editar</span></div></div></div>
+        <div class="content">
+          <div class="form-section">
+            <div class="form-section-title">Dados do usuário</div>
+            <div class="form-grid">
+              <div class="field full"><label class="req">Nome completo</label><input type="text" value="João Silva"></div>
+              <div class="field"><label class="req">Login</label><input type="text" value="joao.tecnico"></div>
+              <div class="field"><label class="req">Perfil</label><select><option>Técnico</option><option>Gestora</option><option>TI</option></select></div>
+              <div class="field" style="flex-direction:row;align-items:center;gap:10px;padding-top:20px"><input type="checkbox" checked><label>Usuário ativo</label></div>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Redefinir senha (opcional)</div>
+            <div class="form-grid">
+              <div class="field"><label>Nova senha</label><input type="password" placeholder="Deixe em branco para não alterar"></div>
+              <div class="field"><label>Confirmar nova senha</label><input type="password" placeholder="Repita a nova senha"></div>
+            </div>
+            <div style="font-size:11px;color:var(--cinza-m);margin-top:8px">Mínimo 8 caracteres. O usuário deverá trocar a senha no próximo acesso.</div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary">Cancelar</button>
+            <button class="btn btn-primary">Salvar alterações</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="annotations">
+    <span class="wf-note">Login único — validado ao sair do campo</span>
+    <span class="wf-note">Senha em branco = não altera. Campo de confirmação visível apenas se nova senha preenchida</span>
+    <span class="wf-note">Senha armazenada como hash bcrypt (RNF-05) — nunca recuperável</span>
+  </div>
+</div>
+
+<!-- ═══ T-17: CONFIGURAÇÃO GMAIL ═══ -->
+<div>
+  <div class="section-title">T-17 · Configuração da conta Gmail <span class="badge b-purple">TI</span> <span class="badge b-gray">UC-18 · RNF-09</span></div>
+  <div class="window" style="max-width:680px">
+    <div class="win-titlebar">SCE — Sistema de Controle de Estoque<span style="font-size:11px;opacity:.7">TI: Carlos Admin</span></div>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="menu-label">Administração</div>
+        <div class="menu-item"><div class="mi"></div>Usuários</div>
+        <div class="menu-item active"><div class="mi"></div>Config. Gmail</div>
+        <div class="menu-item"><div class="mi"></div>Backup</div>
+      </div>
+      <div class="main">
+        <div class="topbar"><div><div class="topbar-title">Configuração do Gmail SMTP</div><div class="breadcrumb">Início › Administração › <span>Config. Gmail</span></div></div></div>
+        <div class="content">
+          <div class="form-section">
+            <div class="form-section-title">Conta de envio (Gmail)</div>
+            <div class="form-grid">
+              <div class="field full"><label class="req">Endereço Gmail (remetente)</label><input type="email" value="sce.notificacoes@gmail.com" placeholder="conta@gmail.com"></div>
+              <div class="field full">
+                <label class="req">App Password</label>
+                <input type="password" value="••••••••••••••••" placeholder="App Password gerado no Google">
+                <div class="hint">Gere em: Conta Google → Segurança → Verificação em 2 etapas → Senhas de app. Armazenado com criptografia AES (Fernet).</div>
+              </div>
+              <div class="field full"><label class="req">E-mail da Gestora (destinatária)</label><input type="email" value="gestora@empresa.com.br" placeholder="e-mail que receberá alertas e relatórios"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button class="btn btn-secondary">Testar envio</button>
+            <span style="font-size:11px;color:var(--verde)">✓ Último teste bem-sucedido em 14/01/2025 09:00</span>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary">Cancelar</button>
+            <button class="btn btn-primary">Salvar configuração</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="annotations">
+    <span class="wf-note">"Testar envio" valida conexão SMTP antes de salvar — não permite salvar se teste falhar</span>
+    <span class="wf-note">App Password exibido como •••• sempre — nunca descriptografado na tela</span>
+    <span class="wf-note">Servidor SMTP fixo: smtp.gmail.com:587 com TLS — não configurável pelo usuário</span>
+  </div>
+</div>
+
+<!-- ═══ T-18: BACKUP ═══ -->
+<div>
+  <div class="section-title">T-18 · Backup e restauração <span class="badge b-purple">TI</span> <span class="badge b-gray">UC-19 · RNF-04</span></div>
+  <div class="window" style="max-width:680px">
+    <div class="win-titlebar">SCE — Sistema de Controle de Estoque<span style="font-size:11px;opacity:.7">TI: Carlos Admin</span></div>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="menu-label">Administração</div>
+        <div class="menu-item"><div class="mi"></div>Usuários</div>
+        <div class="menu-item"><div class="mi"></div>Config. Gmail</div>
+        <div class="menu-item active"><div class="mi"></div>Backup</div>
+        <div class="menu-item"><div class="mi"></div>Log operações</div>
+      </div>
+      <div class="main">
+        <div class="topbar"><div><div class="topbar-title">Backup do banco de dados</div><div class="breadcrumb">Início › Administração › <span>Backup</span></div></div></div>
+        <div class="content">
+          <div class="backup-card">
+            <div class="backup-title">Backup manual</div>
+            <div class="backup-detail">Gera arquivo .sql (mysqldump) no diretório configurado abaixo.</div>
+            <div class="field" style="max-width:400px">
+              <label>Diretório de destino</label>
+              <div style="display:flex;gap:8px">
+                <input type="text" value="C:\SCE\backups" style="flex:1">
+                <button class="btn btn-secondary btn-sm">Escolher...</button>
+              </div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+              <button class="btn btn-primary">Executar backup agora</button>
+            </div>
+            <div class="backup-last">Último backup: <strong>14/01/2025 às 03:00</strong> — sce_db_20250114_030000.sql (2.3 MB) &nbsp;<span class="status b-green">OK</span></div>
+          </div>
+          <div class="backup-card">
+            <div class="backup-title">Backup automático diário</div>
+            <div class="backup-detail">Executado automaticamente às 03:00 enquanto o SCE estiver aberto (RNF-04).</div>
+            <div class="field" style="max-width:200px">
+              <label>Horário do backup automático</label>
+              <input type="time" value="03:00">
+            </div>
+            <div style="margin-top:10px;font-size:11px;color:var(--amber);background:#FAEEDA;padding:8px 10px;border-radius:5px">
+              Atenção: backup automático só executa se o SCE estiver aberto no horário configurado (Risco R-01).
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="annotations">
+    <span class="wf-note">Arquivo nomeado automaticamente: sce_db_YYYYMMDD_HHMMSS.sql</span>
+    <span class="wf-note">Restauração: via MySQL Workbench diretamente — não implementada na interface do SCE</span>
+  </div>
+</div>
+
+<!-- ═══ T-19: LOG DE OPERAÇÕES ═══ -->
+<div>
+  <div class="section-title">T-19 · Log de operações <span class="badge b-purple">TI</span> <span class="badge b-gray">UC-20 · RNF-06</span></div>
+  <div class="window">
+    <div class="win-titlebar">SCE — Sistema de Controle de Estoque<span style="font-size:11px;opacity:.7">TI: Carlos Admin</span></div>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="menu-label">Administração</div>
+        <div class="menu-item"><div class="mi"></div>Usuários</div>
+        <div class="menu-item"><div class="mi"></div>Config. Gmail</div>
+        <div class="menu-item"><div class="mi"></div>Backup</div>
+        <div class="menu-item active"><div class="mi"></div>Log operações</div>
+      </div>
+      <div class="main">
+        <div class="topbar"><div><div class="topbar-title">Log de operações</div><div class="breadcrumb">Início › Administração › <span>Log</span></div></div></div>
+        <div class="content">
+          <div class="filter-bar">
+            <input class="search-input" type="date" value="2025-01-14">
+            <input class="search-input" type="date" value="2025-01-14">
+            <select class="select-input" style="flex:1"><option>Todas as operações</option><option>Entradas</option><option>Saídas</option><option>Alertas</option><option>Configurações</option></select>
+            <select class="select-input" style="flex:1"><option>Todos os usuários</option><option>João Silva</option><option>Maria Santos</option><option>Carlos Admin</option></select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data/hora</th><th>Usuário</th><th>Operação</th><th>Detalhe</th><th>Resultado</th></tr></thead>
+              <tbody>
+                <tr><td>14/01 09:15</td><td>João Silva</td><td>Saída</td><td>Dipirona 500mg · 10 unid. · Lotes L2401+L2402</td><td><span class="status b-green">OK</span></td></tr>
+                <tr><td>14/01 09:00</td><td>Sistema</td><td>Alerta enviado</td><td>Estoque baixo: Dipirona 500mg (saldo: 3)</td><td><span class="status b-green">OK</span></td></tr>
+                <tr><td>14/01 08:50</td><td>João Silva</td><td>Entrada NF-e</td><td>NF 004521 · Soro Fisiológico 500ml · 50 unid.</td><td><span class="status b-green">OK</span></td></tr>
+                <tr><td>14/01 07:00</td><td>Sistema</td><td>Scheduler</td><td>Job notificações diárias executado</td><td><span class="status b-green">OK</span></td></tr>
+                <tr><td>14/01 07:00</td><td>Sistema</td><td>Alerta enviado</td><td>Vencimento 7d: Dipirona L2401 (15/01/2025)</td><td><span class="status b-amber">Falhou</span></td></tr>
+              </tbody>
+            </table>
+            <div class="table-footer">284 registros no período</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="annotations">
+    <span class="wf-note">Log somente leitura — nenhuma operação de exclusão ou edição</span>
+    <span class="wf-note">"Falhou" em alertas: TI pode reencaminhar manualmente via T-11</span>
+    <span class="wf-note">Filtragem por período obrigatória — sem período mínimo padrão de hoje</span>
+  </div>
+</div>
+
+<!-- ═══ T-21: TROCA DE SENHA ═══ -->
+<div>
+  <div class="section-title">T-21 · Troca de senha <span class="badge b-gray">Todos os perfis</span></div>
+  <div class="window" style="max-width:500px">
+    <div class="win-titlebar">SCE — Sistema de Controle de Estoque<span style="font-size:11px;opacity:.7">João Silva</span></div>
+    <div class="app-layout">
+      <div class="main">
+        <div class="topbar"><div><div class="topbar-title">Trocar minha senha</div></div></div>
+        <div class="content">
+          <div class="form-section">
+            <div class="form-section-title">Alteração de senha</div>
+            <div class="field" style="margin-bottom:12px"><label class="req">Senha atual</label><input type="password" placeholder="Confirme sua senha atual"></div>
+            <div class="field" style="margin-bottom:12px"><label class="req">Nova senha</label><input type="password" placeholder="Mínimo 8 caracteres"></div>
+            <div class="field"><label class="req">Confirmar nova senha</label><input type="password" placeholder="Repita a nova senha"></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary">Cancelar</button>
+            <button class="btn btn-primary">Salvar nova senha</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="annotations">
+    <span class="wf-note">Senha atual obrigatória — impede troca sem autenticação</span>
+    <span class="wf-note">Acesso via menu "Trocar senha" no rodapé da sidebar</span>
+  </div>
+</div>
+
+<!-- ═══ T-22: DASHBOARD DE MONITORAMENTO ═══ -->
+<div>
+  <div class="section-title">T-22 · Dashboard de monitoramento em tempo real <span class="badge b-blue">Técnico</span> <span class="badge b-teal">Gestora</span> <span class="badge b-gray">RF-24 · UC-07</span></div>
+  <div class="window">
+    <div class="win-titlebar">SCE — Sistema de Controle de Estoque · Dashboard de monitoramento<span style="font-size:11px;opacity:.7">Gestora: Maria Santos</span></div>
+    <div class="dash-wrap" style="min-height:480px;background:var(--cinza-e)">
+      <!-- Toolbar com status de atualização -->
+      <div class="dash-toolbar">
+        <div class="conn-indicator">
+          <div class="conn-dot"></div>
+          <span>Conectado ao banco</span>
+        </div>
+        <div class="dash-ts">Última atualização: <strong>14/01/2025 09:32:15</strong> &nbsp;·&nbsp; Próxima em: 28 seg</div>
+        <select style="padding:4px 8px;border:1px solid var(--cinza-b);border-radius:5px;font-size:11px;background:var(--cinza-e)">
+          <option>Atualizar a cada 30s</option><option>15s</option><option>60s</option><option>Manual</option>
+        </select>
+      </div>
+
+      <!-- Grid de cards -->
+      <div class="dash-body">
+
+        <!-- Vencido -->
+        <div class="dash-card vencido">
+          <div class="dash-card-title" style="color:var(--vermelho)">⚠ Lotes vencidos (2)</div>
+          <div class="dash-lote-row"><span>Luva Cirúrgica M · L2312</span><span><div class="dash-status b-red">Vencido</div></span></div>
+          <div class="dash-lote-row"><span>Atadura 15cm · L2310</span><span><div class="dash-status b-red">Vencido</div></span></div>
+        </div>
+
+        <!-- Vencendo 2d -->
+        <div class="dash-card" style="border-color:#E24B4A;background:#FFFAFA">
+          <div class="dash-card-title" style="color:var(--vermelho)">Vencimento em 2 dias (1)</div>
+          <div class="dash-lote-row"><span>Dipirona 500mg · L2401</span><span><div class="dash-status b-red">2 dias</div></span></div>
+        </div>
+
+        <!-- Vencendo 7d -->
+        <div class="dash-card baixo">
+          <div class="dash-card-title" style="color:var(--amber)">Vencimento em 7 dias (2)</div>
+          <div class="dash-lote-row"><span>Amoxicilina 500mg · L2403</span><span><div class="dash-status b-amber">6 dias</div></span></div>
+          <div class="dash-lote-row"><span>Ibuprofeno 600mg · L2404</span><span><div class="dash-status b-amber">7 dias</div></span></div>
+        </div>
+
+        <!-- Estoque baixo -->
+        <div class="dash-card baixo">
+          <div class="dash-card-title" style="color:var(--amber)">Estoque baixo (3)</div>
+          <div class="dash-lote-row"><span>Dipirona 500mg</span><span style="color:var(--amber)">3 / mín. 10</span></div>
+          <div class="dash-lote-row"><span>Luva Cirúrgica M</span><span style="color:var(--amber)">2 / mín. 20</span></div>
+          <div class="dash-lote-row"><span>Gaze Estéril 7,5cm</span><span style="color:var(--amber)">4 / mín. 15</span></div>
+        </div>
+
+        <!-- Vencendo 15d -->
+        <div class="dash-card ok">
+          <div class="dash-card-title" style="color:#3B6D11">Vencimento em 15 dias (3)</div>
+          <div class="dash-lote-row"><span>Paracetamol 750mg · L2406</span><span><div class="dash-status b-green">12 dias</div></span></div>
+          <div class="dash-lote-row"><span>Soro Fisiológico · L2407</span><span><div class="dash-status b-green">14 dias</div></span></div>
+          <div class="dash-lote-row"><span>Omeprazol 20mg · L2408</span><span><div class="dash-status b-green">15 dias</div></span></div>
+        </div>
+
+        <!-- Normais -->
+        <div class="dash-card ok">
+          <div class="dash-card-title" style="color:#3B6D11">Situação normal (38)</div>
+          <div style="font-size:11px;color:var(--cinza-m);padding:8px 0">38 lotes sem ocorrências. Último verificado: Paracetamol 750mg (vence 08/2026).</div>
+          <button class="btn btn-secondary btn-sm" style="width:100%">Ver todos os lotes normais</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <div class="annotations">
+    <span class="wf-note">Tela somente leitura — sem ações de entrada ou retirada (RF-24)</span>
+    <span class="wf-note">Auto-refresh via APScheduler in-process: sem thread extra, usa pool de conexões do MOD-06</span>
+    <span class="wf-note">Indicador de conexão: ponto verde (conectado) ou vermelho + timestamp congelado (desconectado) — mitigação R-06</span>
+    <span class="wf-note">Intervalo de atualização configurável pelo usuário: 15s, 30s (padrão), 60s ou Manual</span>
+    <span class="wf-note">Projetada para monitor secundário aberto o dia todo — sem timeout de sessão nesta tela</span>
+    <span class="wf-note">Situação calculada em tempo real pela query — sem coluna persistida no banco (DAS 5.3)</span>
+  </div>
+</div>
+
+</body>
+</html>

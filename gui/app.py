@@ -4,7 +4,9 @@ from datetime import datetime
 from gui.telas.t01_login import TelaLogin
 from gui.telas.placeholder import TelaPlaceholder
 from tkinter import messagebox
-
+from Modulo_01_autenticacao import SessionManager
+from gui.telas.t02_inicio import TelaInicio
+from gui.telas.t21_troca_senha import TelaTrocaSenha
 # tema global
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
@@ -45,18 +47,20 @@ class SCEApp(ctk.CTk):
     def _on_login_success(self, usuario):
         """callback chamaado pelo mod-01 apos autenticação bem sucedida"""
         self.usuario_logado = usuario
-        self._inicar_timer_sessao()
+        SessionManager.iniciar_sessao(usuario)
+        self._iniciar_timer_sessao()
         self._construir_layout_principal()
 
     def logout(self):
         """encerra sessão e volta para tela de login"""
         if self.session_timer:
             self.after_cancel(self.session_timer)
+        SessionManager.encerrar_sessao()
         self.usuario_logado = None
         self._monstrar_login()
 
 #----- sessão ---------------------------------------------------------------------------------
-    def _inicar_timer_sessao(self):
+    def _iniciar_timer_sessao(self):
         
         timeout_min = int(os.getenv("SESSION_TIMEOUT_MIN", 30))
         timeout_ms = timeout_min * 60 * 1000
@@ -66,7 +70,7 @@ class SCEApp(ctk.CTk):
     
     def resetar_timer_sessao(self):
         """chamado por telas para resetar o timer a cada interação do usuário"""
-        self._inicar_timer_sessao()
+        self._iniciar_timer_sessao()
     
     def _sessao_expirada(self):
        
@@ -97,7 +101,7 @@ class SCEApp(ctk.CTk):
         self._area_conteudo.grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
 
         #exibe tela inicial por padrão
-        self._navegar("inicio")
+        self._navegar("troca_senha")
 
     def _navegar(self, destino: str):
         """troca o conteudo da area principal pela tela indicada """
@@ -111,11 +115,13 @@ class SCEApp(ctk.CTk):
     
     def _resolver_tela(self, destino: str):
         """mapeia o indicador de destino para a classe de tela correspondente"""
-        # sprint 0: apenas tela de placeholder.
+        # sprint 1: telas reia de autenticação plugadas.
         # telas reais colocadas aqui nas proximas sprints
-        
+        if destino=="inicio":
+            return TelaInicio(self._area_conteudo, usuario=self.usuario_logado)
+        if destino=="troca_senha":
+            return TelaTrocaSenha(self._area_conteudo, usuario=self.usuario_logado)
         nomes = {
-            "inicio":          "Tela de Início - T-02",
             "produtos":       "Tela de Produtos - T-03",
             "fornecedores":   "Tela de Fornecedores - T-04",
             "entrada_manual": "Tela de Entrada Manual - T-07",
@@ -123,7 +129,7 @@ class SCEApp(ctk.CTk):
             "retirada":       "Tela de Retirada - T-09",
             "posicao":        "Tela de Posição de Estoque - T-10",
             "dashboard":      "Tela de Dashboard - T-11",
-             "relatorios":     "Relatórios — T-11",
+            "relatorios":     "Relatórios — T-11",
             "agendamento":    "Agendamento — T-12",
             "estoque_minimo": "Estoque Mínimo — T-13",
             "usuarios":       "Usuários — T-15",

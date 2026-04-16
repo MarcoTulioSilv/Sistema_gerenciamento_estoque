@@ -12,7 +12,7 @@ from venv import logger
 #Garante que o diretório raiz esteja no path quando executado via pyInstaller
 sys.path.insert(0, str(Path(__file__).parent))
 
-from modulo_06_dados import init_db
+from Modulo_06_dados import init_db
 from gui.app import SCEApp
 
 #---------------------------Logging---------------------------------------------------

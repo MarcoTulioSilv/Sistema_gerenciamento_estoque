@@ -6,7 +6,7 @@ Sprint 1- AuthService: autenticação real com banco MySQL com bcrypt
 import logging
 import bcrypt
 
-from modulo_06_dados import get_session, Usuario
+from Modulo_06_dados import get_session, Usuario
 
 logger= logging.getLogger(__name__)
 

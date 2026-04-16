@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Wireframes SCE — T-01 Login · T-02 Tela Inicial</title>
+<style>
+:root {
+  --azul: #1F4E79; --azul-m: #2E75B6; --azul-l: #D6E4F0;
+  --cinza-e: #F2F1ED; --cinza-b: #E8E6DE; --cinza-m: #888780;
+  --cinza-t: #3d3d3a; --branco: #ffffff;
+  --verde: #1D9E75; --amber: #BA7517; --vermelho: #A32D2D;
+  --sidebar-w: 200px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #ECEAE4; color: var(--cinza-t); }
+
+/* ─── LAYOUT GERAL ─── */
+.page { padding: 32px; display: flex; flex-direction: column; gap: 40px; }
+.section-title {
+  font-size: 13px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--cinza-m); margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-title::after { content:''; flex:1; height:1px; background:var(--cinza-b); }
+.badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 8px; }
+.b-gray { background: #F1EFE8; color: #5F5E5A; }
+.b-blue { background: #E6F1FB; color: #185FA5; }
+.b-green { background: #EAF3DE; color: #3B6D11; }
+.b-amber { background: #FAEEDA; color: #854F0B; }
+.b-red   { background: #FCEBEB; color: #A32D2D; }
+
+/* ─── JANELA DESKTOP ─── */
+.window {
+  background: var(--branco); border-radius: 8px;
+  border: 1px solid var(--cinza-b); overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,.08);
+}
+.win-titlebar {
+  background: var(--azul); color: #fff; padding: 8px 16px;
+  font-size: 13px; font-weight: 500; display: flex;
+  justify-content: space-between; align-items: center;
+  user-select: none;
+}
+.win-controls { display: flex; gap: 6px; }
+.wc { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.3); }
+
+/* ─── TELA T-01: LOGIN ─── */
+.login-wrap {
+  min-height: 480px; display: flex; align-items: center;
+  justify-content: center; background: var(--azul-l); padding: 40px;
+}
+.login-card {
+  background: var(--branco); border-radius: 10px; padding: 36px 40px;
+  width: 340px; border: 1px solid var(--cinza-b);
+}
+.login-logo {
+  text-align: center; margin-bottom: 28px;
+}
+.login-logo .logo-mark {
+  width: 48px; height: 48px; background: var(--azul); border-radius: 10px;
+  margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;
+}
+.logo-mark svg { width: 26px; height: 26px; fill: #fff; }
+.login-logo h2 { font-size: 17px; font-weight: 600; color: var(--azul); }
+.login-logo p { font-size: 11px; color: var(--cinza-m); margin-top: 2px; }
+
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 12px; font-weight: 500; color: var(--cinza-m); margin-bottom: 5px; }
+.field input {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--cinza-b);
+  border-radius: 6px; font-size: 13px; color: var(--cinza-t);
+  background: var(--cinza-e); outline: none;
+}
+.field input:focus { border-color: var(--azul-m); background: #fff; }
+.field.error input { border-color: var(--vermelho); }
+.field .error-msg { font-size: 11px; color: var(--vermelho); margin-top: 4px; }
+
+.btn-login {
+  width: 100%; padding: 10px; background: var(--azul-m); color: #fff;
+  border: none; border-radius: 6px; font-size: 13px; font-weight: 500;
+  cursor: pointer; margin-top: 4px;
+}
+.login-note { font-size: 11px; color: var(--cinza-m); text-align: center; margin-top: 14px; }
+
+/* ─── TELA T-02: TELA INICIAL ─── */
+.app-layout { display: flex; min-height: 520px; }
+
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-w); background: var(--azul); flex-shrink: 0;
+  display: flex; flex-direction: column;
+}
+.sidebar-user {
+  padding: 14px 14px 10px; border-bottom: 1px solid rgba(255,255,255,.12);
+}
+.su-name { font-size: 12px; font-weight: 600; color: #fff; }
+.su-role { font-size: 10px; color: rgba(255,255,255,.55); margin-top: 1px; }
+.su-role span { background: rgba(255,255,255,.15); padding: 1px 6px; border-radius: 6px; }
+
+.menu-group { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+.menu-label {
+  padding: 4px 14px 2px; font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.4);
+}
+.menu-item {
+  padding: 8px 14px; font-size: 12px; color: rgba(255,255,255,.8);
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+}
+.menu-item:hover { background: rgba(255,255,255,.1); }
+.menu-item.active { background: rgba(255,255,255,.18); color: #fff; font-weight: 600; }
+.menu-item.disabled { color: rgba(255,255,255,.25); cursor: default; }
+.menu-icon {
+  width: 14px; height: 14px; background: rgba(255,255,255,.2);
+  border-radius: 3px; flex-shrink: 0;
+}
+.sidebar-bottom { margin-top: auto; padding: 10px 14px; border-top: 1px solid rgba(255,255,255,.1); }
+.btn-sair {
+  font-size: 11px; color: rgba(255,255,255,.5); background: none;
+  border: none; cursor: pointer; padding: 0;
+}
+
+/* Main content */
+.main-content { flex: 1; background: var(--cinza-e); display: flex; flex-direction: column; }
+.topbar {
+  background: var(--branco); padding: 10px 20px;
+  border-bottom: 1px solid var(--cinza-b); display: flex;
+  align-items: center; justify-content: space-between;
+}
+.topbar-title { font-size: 14px; font-weight: 600; color: var(--azul); }
+.topbar-info { font-size: 11px; color: var(--cinza-m); }
+
+.dashboard-body { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+
+/* Banner alerta vencidos */
+.alert-banner {
+  background: #FCEBEB; border: 1px solid #F09595; border-radius: 8px;
+  padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+}
+.alert-icon { font-size: 18px; }
+.alert-text { font-size: 12px; color: #791F1F; flex: 1; }
+.alert-text strong { display: block; font-size: 13px; margin-bottom: 2px; }
+.alert-link { font-size: 11px; color: var(--azul-m); font-weight: 500; }
+
+/* Cards KPI */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.kpi-card {
+  background: var(--branco); border-radius: 8px; padding: 14px 16px;
+  border: 1px solid var(--cinza-b);
+}
+.kpi-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--cinza-m); margin-bottom: 6px; }
+.kpi-value { font-size: 26px; font-weight: 700; color: var(--azul); line-height: 1; }
+.kpi-sub { font-size: 11px; color: var(--cinza-m); margin-top: 4px; }
+.kpi-card.warn .kpi-value { color: var(--amber); }
+.kpi-card.danger .kpi-value { color: var(--vermelho); }
+
+/* Tabela resumo */
+.table-card {
+  background: var(--branco); border-radius: 8px;
+  border: 1px solid var(--cinza-b); overflow: hidden; flex: 1;
+}
+.table-head {
+  padding: 10px 16px; background: var(--cinza-e);
+  border-bottom: 1px solid var(--cinza-b); font-size: 12px;
+  font-weight: 600; color: var(--cinza-t); display: flex;
+  justify-content: space-between; align-items: center;
+}
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { padding: 8px 12px; text-align: left; font-size: 10px; font-weight: 700;
+     text-transform: uppercase; letter-spacing: .05em; color: var(--cinza-m);
+     background: #FAFAF8; border-bottom: 1px solid var(--cinza-b); }
+td { padding: 8px 12px; border-bottom: 1px solid #F5F4F0; color: var(--cinza-t); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #FAFAF8; }
+.status { padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+
+/* Anotações de wireframe */
+.wf-note {
+  font-size: 10px; color: #888; font-style: italic;
+  background: #FFFDE7; border: 1px dashed #F5C842;
+  border-radius: 4px; padding: 4px 8px; display: inline-block;
+}
+.annotations { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ═══════════════════════════════════════════════
+     T-01 — LOGIN
+════════════════════════════════════════════════ -->
+<div>
+  <div class="section-title">
+    T-01 · Login
+    <span class="badge b-gray">Todos os perfis</span>
+    <span class="badge b-blue">UC-01</span>
+  </div>
+
+  <div class="window" style="max-width:640px">
+    <div class="win-titlebar">
+      Sistema de Controle de Estoque — SCE v1.0
+      <div class="win-controls"><div class="wc"></div><div class="wc"></div><div class="wc"></div></div>
+    </div>
+
+    <div class="login-wrap">
+      <div class="login-card">
+        <div class="login-logo">
+          <div class="logo-mark">
+            <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm0 12H4V9h16v10zM8 3h8v2H8z"/></svg>
+          </div>
+          <h2>SCE</h2>
+          <p>Sistema de Controle de Estoque</p>
+        </div>
+
+        <div class="field">
+          <label>Login</label>
+          <input type="text" value="tecnico01" placeholder="Informe seu login">
+        </div>
+
+        <div class="field error">
+          <label>Senha</label>
+          <input type="password" value="••••••••">
+          <div class="error-msg">Credenciais inválidas. Verifique login e senha.</div>
+        </div>
+
+        <button class="btn-login">Entrar</button>
+        <p class="login-note">Em caso de dificuldade de acesso, contate o TI.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="annotations">
+    <span class="wf-note">CP-01 — barra de título sem usuário (não logado ainda)</span>
+    <span class="wf-note">Após 3 tentativas → bloqueio 10 min + mensagem específica</span>
+    <span class="wf-note">Sessão expira: 30 min inatividade → retorna aqui (RNF-05)</span>
+    <span class="wf-note">Enter no campo senha = clicar em Entrar</span>
+    <span class="wf-note">Sem link "esqueci senha" — redefinição feita pelo TI via T-16</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     T-02 — TELA INICIAL / DASHBOARD (perfil Técnico)
+════════════════════════════════════════════════ -->
+<div>
+  <div class="section-title">
+    T-02 · Tela inicial — perfil Técnico
+    <span class="badge b-gray">Todos os perfis</span>
+    <span class="badge b-blue">UC-07 · UC-17 · RF-22</span>
+  </div>
+
+  <div class="window">
+    <div class="win-titlebar">
+      Sistema de Controle de Estoque — SCE v1.0
+      <div style="font-size:11px;opacity:.7">Técnico: João Silva &nbsp;|&nbsp; 14/01/2025 09:32</div>
+    </div>
+
+    <div class="app-layout">
+      <!-- Sidebar Técnico -->
+      <div class="sidebar">
+        <div class="sidebar-user">
+          <div class="su-name">João Silva</div>
+          <div class="su-role"><span>Técnico</span></div>
+        </div>
+
+        <div class="menu-group">
+          <div class="menu-label">Estoque</div>
+          <div class="menu-item active"><div class="menu-icon"></div> Início</div>
+          <div class="menu-item"><div class="menu-icon"></div> Produtos</div>
+          <div class="menu-item"><div class="menu-icon"></div> Fornecedores</div>
+        </div>
+        <div class="menu-group">
+          <div class="menu-label">Movimentação</div>
+          <div class="menu-item"><div class="menu-icon"></div> Entrada manual</div>
+          <div class="menu-item"><div class="menu-icon"></div> Importar NF-e</div>
+          <div class="menu-item"><div class="menu-icon"></div> Retirada</div>
+        </div>
+        <div class="menu-group">
+          <div class="menu-label">Consulta</div>
+          <div class="menu-item"><div class="menu-icon"></div> Posição estoque</div>
+          <div class="menu-item"><div class="menu-icon"></div> Dashboard</div>
+        </div>
+        <div class="menu-group">
+          <div class="menu-label">Acesso restrito</div>
+          <div class="menu-item disabled"><div class="menu-icon"></div> Relatórios</div>
+          <div class="menu-item disabled"><div class="menu-icon"></div> Administração</div>
+        </div>
+
+        <div class="sidebar-bottom">
+          <button class="btn-sair">Trocar senha &nbsp;·&nbsp; Sair</button>
+        </div>
+      </div>
+
+      <!-- Conteúdo principal -->
+      <div class="main-content">
+        <div class="topbar">
+          <div class="topbar-title">Início — painel de situação</div>
+          <div class="topbar-info">Última atualização: agora</div>
+        </div>
+
+        <div class="dashboard-body">
+          <!-- Alerta lotes vencidos -->
+          <div class="alert-banner">
+            <div class="alert-icon">⚠</div>
+            <div class="alert-text">
+              <strong>2 lotes vencidos em estoque</strong>
+              Providencie a baixa ou descarte desses itens imediatamente.
+            </div>
+            <a class="alert-link" href="#">Ver lotes vencidos →</a>
+          </div>
+
+          <!-- KPIs -->
+          <div class="kpi-row">
+            <div class="kpi-card">
+              <div class="kpi-label">Produtos ativos</div>
+              <div class="kpi-value">47</div>
+              <div class="kpi-sub">de 100 máx.</div>
+            </div>
+            <div class="kpi-card warn">
+              <div class="kpi-label">Lotes a vencer (30d)</div>
+              <div class="kpi-value">8</div>
+              <div class="kpi-sub">próximos 30 dias</div>
+            </div>
+            <div class="kpi-card danger">
+              <div class="kpi-label">Estoque baixo</div>
+              <div class="kpi-value">3</div>
+              <div class="kpi-sub">abaixo do mínimo</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Movimentações hoje</div>
+              <div class="kpi-value">12</div>
+              <div class="kpi-sub">entradas + saídas</div>
+            </div>
+          </div>
+
+          <!-- Tabela últimas movimentações -->
+          <div class="table-card">
+            <div class="table-head">
+              Últimas movimentações
+              <a class="alert-link" href="#">Ver todas →</a>
+            </div>
+            <table>
+              <thead><tr>
+                <th>Produto</th><th>Tipo</th><th>Qtd</th><th>Lote</th><th>Hora</th><th>Situação lote</th>
+              </tr></thead>
+              <tbody>
+                <tr><td>Dipirona 500mg</td><td>Saída</td><td>10</td><td>L2401</td><td>09:15</td><td><span class="status b-amber">Vence em 7d</span></td></tr>
+                <tr><td>Soro Fisiológico 500ml</td><td>Entrada NF-e</td><td>50</td><td>L2405</td><td>08:50</td><td><span class="status b-green">Normal</span></td></tr>
+                <tr><td>Luva Cirúrgica M</td><td>Saída</td><td>3</td><td>L2312</td><td>08:30</td><td><span class="status b-red">Vencido</span></td></tr>
+                <tr><td>Paracetamol 750mg</td><td>Entrada manual</td><td>100</td><td>L2406</td><td>07:45</td><td><span class="status b-green">Normal</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="annotations">
+    <span class="wf-note">Menu lateral muda conforme perfil — Gestora não vê Entrada/Retirada; TI vê tudo</span>
+    <span class="wf-note">Banner de lotes vencidos só aparece se existirem lotes vencidos com saldo > 0 (RF-22)</span>
+    <span class="wf-note">KPIs calculados em tempo real — query ao banco a cada abertura da tela</span>
+    <span class="wf-note">Itens desabilitados (cinza) são visíveis mas não clicáveis — comunicam existência sem dar acesso</span>
+    <span class="wf-note">CP-02 — menu lateral; CP-07 — banner de alerta; CP-06 — tabela de listagem</span>
+  </div>
+</div>
+
+</div><!-- fim .page -->
+</body>
+</html>

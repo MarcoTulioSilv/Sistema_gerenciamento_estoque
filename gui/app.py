@@ -6,6 +6,7 @@ from gui.telas.placeholder import TelaPlaceholder
 from tkinter import messagebox
 from Modulo_01_autenticacao import SessionManager
 from gui.telas.t02_inicio import TelaInicio
+from gui.telas.t03_produtos import TelaProdutos
 from gui.telas.t21_troca_senha import TelaTrocaSenha
 # tema global
 ctk.set_appearance_mode("light")
@@ -115,14 +116,18 @@ class SCEApp(ctk.CTk):
     
     def _resolver_tela(self, destino: str):
         """mapeia o indicador de destino para a classe de tela correspondente"""
+        nav= self._on_navigate_com_extra
         # sprint 1: telas reia de autenticação plugadas.
         # telas reais colocadas aqui nas proximas sprints
         if destino=="inicio":
             return TelaInicio(self._area_conteudo, usuario=self.usuario_logado)
         if destino=="troca_senha":
             return TelaTrocaSenha(self._area_conteudo, usuario=self.usuario_logado)
+        #______ Sprint 2A_ MOD-02 cadastros
+        if destino=="produtos":
+            return TelaProdutos(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
+            
         nomes = {
-            "produtos":       "Tela de Produtos - T-03",
             "fornecedores":   "Tela de Fornecedores - T-04",
             "entrada_manual": "Tela de Entrada Manual - T-07",
             "importar_nfe":   "Tela de Importação de NF-e - T-08",
@@ -139,6 +144,15 @@ class SCEApp(ctk.CTk):
         }
         titulo = nomes.get(destino, destino)
         return TelaPlaceholder(self._area_conteudo, titulo=titulo)
+    
+    def _on_navigate_com_extra(self, destino: str, extra=None):
+        """Versão do _navegar que aceita parâmetro extra(ex: produto_id)"""
+        self.resetar_timer_sessao()
+        for w in self._area_conteudo.winfo_children():
+            w.destroy()
+        tela= self._resolver_tela(destino, extra= extra)
+        if tela:
+            tela.pack(fill="both", expand= True)
 
 #---- Componentes da janela principal (titlebar, sidebar) --------------------------------------------------------------
 

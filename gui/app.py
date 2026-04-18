@@ -114,7 +114,7 @@ class SCEApp(ctk.CTk):
         if tela:
             tela.pack(fill="both", expand=True)
     
-    def _resolver_tela(self, destino: str):
+    def _resolver_tela(self, destino: str, extra=None):
         """mapeia o indicador de destino para a classe de tela correspondente"""
         nav= self._on_navigate_com_extra
         # sprint 1: telas reia de autenticação plugadas.

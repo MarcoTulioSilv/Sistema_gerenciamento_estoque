@@ -27,6 +27,30 @@ _STATUS_COR={
     "Estoque baixo":  ("#FAEEDA", "#854F0B"),
 }
 
+# Colunas: (header, largura)
+_COLUNAS = [
+    ("Nome",      220),
+    ("EAN",       140),
+    ("Centro",    110),
+    ("Marca",     110),
+    ("Est.mín.",   70),
+    ("Status",    110),
+    ("Ações",     160),
+]
+
+def _centro_str(centro_alocacao) -> str:
+    """
+    Extrai o valor string do campo centro_alocacao independente de como
+    o SQLAlchemy o retorna (pode ser Enum, string 'almoxarifado', ou
+    string 'CentroAlocacaoEnum.almoxarifado' dependendo da versão).
+    """
+    val = str(centro_alocacao)
+    # Se veio como 'CentroAlocacaoEnum.almoxarifado', pega só a parte após '.'
+    if "." in val and not val.startswith("0"):
+        val = val.split(".")[-1]
+    return val.lower()
+
+
 class TelaProdutos(ctk.CTkFrame):
     """Listagem de produtos com filtros e ações de navegação"""
 
@@ -46,7 +70,8 @@ class TelaProdutos(ctk.CTkFrame):
         ctk.CTkLabel(topbar, text="Produtos",
                      font= ctk.CTkFont(size=13, weight="bold"),
                      text_color= COR_AZUL).pack(side="left", padx=16, pady=10)
-        ctk.CTkButton(topbar, text="+ Novo produto", hover_color="#1a5276",
+        ctk.CTkButton(topbar, text="+ Novo produto", width=130, height= 28,
+                      fg_color= COR_AZUL_M, hover_color="#1a5276",
                       font= ctk.CTkFont(size=12),
                       command=lambda: self._on_navigate("novo_produto")).pack(side="right", padx=16, pady=8)
         
@@ -60,7 +85,7 @@ class TelaProdutos(ctk.CTkFrame):
         self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
 
         self._opt_centro = ctk.CTkOptionMenu(
-            filt, values=["Almoxarifado", "Farmácia"],
+            filt, values=["Todos os centros","Almoxarifado", "Farmácia"],
             width=160, height=32, corner_radius=6,
             fg_color= COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
             command= lambda _: self._filtrar(),
@@ -77,13 +102,10 @@ class TelaProdutos(ctk.CTkFrame):
         hdr= ctk.CTkFrame(self, fg_color="#FAFAF8", corner_radius=0,
                           border_width=1, border_color=COR_CINZA_B)
         hdr.pack(fill="x", padx=16, pady=(10,0))
-        for col,(txt,w) in enumerate([
-             ("Nome", 220), ("EAN", 140), ("Centro", 110),
-            ("Marca", 110), ("Est.mín.", 70), ("Status", 100), ("Ações", 160),
-        ]):
+        for col,(txt,largura) in enumerate(_COLUNAS):
             ctk.CTkLabel(hdr, text= txt.upper(), text_color="#888780",
                          font=ctk.CTkFont(size=10, weight="bold"),
-                         width=w, anchor="w").grid(row=0, column=col, padx=8, pady=6, stick="w")
+                         width=largura, anchor="w").grid(row=0, column=col, padx=8, pady=6, stick="w")
         
         # Área scrollável de linhas
         self._scroll = ctk.CTkScrollableFrame(
@@ -92,27 +114,29 @@ class TelaProdutos(ctk.CTkFrame):
             corner_radius=0,
         )
         self._scroll.pack(fill="both", expand=True, padx=16, pady=(0,16))
-
-        self._lbl_vazio= ctk.CTkLabel(
-            self._scroll, text="Nenhum produto encontrado",
-            text_color="#888780", font= ctk.CTkFont(size=12),
-        )
     
     def _carregar(self):
         try:
             self._produtos= EstoqueService.listar_produtos(apenas_ativos=False)
         except Exception as exc:
             logger.error("Erro ao carregar produtos: %s", exc)
-            self._renderizar(self._produtos)
+            self._produtos=[]
+        self._renderizar(self._produtos)
     
     def _filtrar(self):
         busca= self._entry_busca.get().lower()
         centro= self._opt_centro.get()
-        filtrados=[
-            p for p in self._produtos
-            if (busca in p.nome.lower() or busca in p.ean.lower())
-            and (centro=="Todos os centros" or p.centro_alocacao.value==centro.lower())
-        ]
+        filtrados=[]
+        for p in self._produtos:
+           nome_ok= busca in p.nome.lower() or busca in p.ean.lower()
+           centro_ok=(
+               centro =="Todos os centros"
+               or _centro_str(p.centro_alocacao)==centro.lower()
+           )
+           if nome_ok and centro_ok:
+            filtrados.append(p)
+
+        
         self._renderizar(filtrados)
     
     def _limpar_filtros(self):
@@ -125,7 +149,12 @@ class TelaProdutos(ctk.CTkFrame):
             w.destroy()
         
         if not produtos:
-            self._lbl_vazio.pack(pady=24)
+            ctk.CTkLabel(
+                self._scroll,
+                text="Nenhum produto encontrado",
+                text_color="#888780",
+                font= ctk.CTkFont(size=12),
+            ).pack(pady=24)
             return
         
         hoje= date.today()
@@ -139,21 +168,35 @@ class TelaProdutos(ctk.CTkFrame):
             if not p.ativo:
                 status="Inativo"
             else:
-                lotes = LoteRepo.listar_por_produto(p.id)
-                saldo=sum(l.quantidade_atual for l in lotes if l.data_vencimento>=hoje)
-                status="Estoque baixo" if p.estoque_minimo>0 and saldo <= p.estoque_minimo else "Ativo"
+                try:
+                    lotes = LoteRepo.listar_por_produto(p.id)
+                    saldo=sum(l.quantidade_atual for l in lotes if l.data_vencimento>=hoje)
+                    status=("Estoque baixo" if p.estoque_minimo>0 and saldo <= p.estoque_minimo else "Ativo")
+                except Exception:
+                    status="Ativo"
+            centro_label= _centro_str(p.centro_alocacao).capitalize()
+
+            valores = [
+                p.nome[:28],
+                p.ean,
+                centro_label,
+                p.marca or "—",
+                str(p.estoque_minimo),
+            ]
+            for col, (val, (_, largura)) in enumerate(zip(valores, _COLUNAS)):
+                ctk.CTkLabel(
+                    row, text=val, text_color="#3d3d3a",
+                    font=ctk.CTkFont(size=12), width=largura, anchor="w",
+                ).grid(row=0, column=col, padx=8, pady=7, sticky="w")
+
             
             fg,tc=_STATUS_COR.get(status, ("#F1EFE8", "#5F5E5A"))
 
-            for val, w in[
-                 (p.nome[:28], 220), (p.ean, 140),
-                (p.centro_alocacao.value.capitalize(), 110),
-                (p.marca or "—", 110), (str(p.estoque_minimo), 70),
-            ]:
-                ctk.CTkLabel(row, text=val, text_color="#3d3d3a",
-                             font= ctk.ctkFont(size=12), width= w, 
-                             anchor="w").grid(row=0, column=list([220,140,110,110,70]).index(w),
-                                              padx=8, pady=7, sticky="w")
+            ctk.CTkLabel(row, text=status, 
+                            fg_color=fg,text_color=tc,
+                            font= ctk.CTkFont(size=10,weight="bold"), 
+                            corner_radius=8, padx=5, pady=2, width=110, 
+                            ).grid(row=0, column=(5), padx=8, pady=7, sticky="w")
             
             #Badge status
             ctk.CTkLabel(row, text=status, fg_color=fg, text_color=tc,

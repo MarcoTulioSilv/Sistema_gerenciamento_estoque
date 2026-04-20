@@ -38,7 +38,7 @@ class FornecedorRepo:
         with get_session() as s:
             f= s.get(Fornecedor,id_)
             if not f:
-                raise ValueError(f"Fornecedor {id} não encontrado")
+                raise ValueError(f"Fornecedor {id_} não encontrado")
             f.nome= nome.strip()
             s.flush()
             s.expunge(f)

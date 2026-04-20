@@ -17,7 +17,7 @@ _PERMISSOES: dict[str,list[str]]={
     "t21_troca_senha": ["tecnico", "admin", "ti"],
     # Telas — Técnico e TI
     "t03_produtos":       ["tecnico", "ti"],
-    "t04_fornecedores":   ["tecnico", "ti"],
+    "t04_fornecedores":   ["tecnico", "ti", "admin"],
     "t05_novo_produto":   ["ti", "admin"],
     "t06_novo_fornecedor":["ti", "admin"],
     "t07_entrada_manual": ["tecnico","admin"],
@@ -39,8 +39,8 @@ _PERMISSOES: dict[str,list[str]]={
     "t19_log":            ["ti"],
     "t20_agendamento_ti": ["ti"],
     # Ações de negócio (usadas pelos serviços)
-    "registrar_entrada":  ["tecnico"],
-    "registrar_retirada": ["tecnico"],
+    "registrar_entrada":  ["tecnico","admin", "ti"],
+    "registrar_retirada": ["tecnico","admin", "ti"],
     "gerar_relatorio":    ["admin", "ti"],
     "alterar_estoque_minimo": ["admin", "ti"],
     "gerenciar_usuarios": ["ti"],

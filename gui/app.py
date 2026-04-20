@@ -8,6 +8,7 @@ from Modulo_01_autenticacao import SessionManager
 from gui.telas.t02_inicio import TelaInicio
 from gui.telas.t03_produtos import TelaProdutos
 from gui.telas.t21_troca_senha import TelaTrocaSenha
+from gui.telas.t04_fornecedores import TelaFornecedores
 # tema global
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
@@ -126,9 +127,9 @@ class SCEApp(ctk.CTk):
         #______ Sprint 2A_ MOD-02 cadastros
         if destino=="produtos":
             return TelaProdutos(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
-            
+        if destino=="fornecedores":
+            return TelaFornecedores(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
         nomes = {
-            "fornecedores":   "Tela de Fornecedores - T-04",
             "entrada_manual": "Tela de Entrada Manual - T-07",
             "importar_nfe":   "Tela de Importação de NF-e - T-08",
             "retirada":       "Tela de Retirada - T-09",
@@ -193,7 +194,7 @@ class Sidebar(ctk.CTkFrame):
         ("__label__",    "Estoque", None),
         ("inicio",       "Início",       ["tecnico", "adimin","ti"]),
         ("produtos",     "Produtos",     ["ti", "tecnico", "admin"]),
-        ("fornecedores", "Fornecedores", ["admin", "tecnico"]),
+        ("fornecedores", "Fornecedores", ["admin", "tecnico", "ti"]),
         ("__label__",    "Movimentações", None),
         ("entrada_manual", "Entrada Manual", ["admin", "tecnico"]),
         ("importar_nfe", "Importar NF-e",    ["admin", "tecnico"]),

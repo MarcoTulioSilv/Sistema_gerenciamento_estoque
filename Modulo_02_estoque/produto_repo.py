@@ -59,7 +59,7 @@ class ProdutoRepo:
     
     @staticmethod
     def criar(dados: dict)-> Produto:
-        with get_read_session() as s:
+        with get_session() as s:
             p= Produto(**dados)
             s.add(p)
             s.flush()
@@ -73,7 +73,7 @@ class ProdutoRepo:
             p= s.get(Produto, id_)
             if not p:
                 raise ValueError(f"Produto {id_} não encontrado.")
-            for k,v in dados.itens():
+            for k,v in dados.items():
                 setattr(p,k,v)
             s.flush()
             s.refresh(p)

@@ -105,9 +105,10 @@ class CampoBarras(ctk.CTkFrame):
     on_leitura: callback chamado quando usuário preenche o campo e pressiona enter
     """
 
-    def __init__(self, master, label:str="Código de barras(EAN)",
+    def __init__(self, master, label:str="Código de barras(EAN)", obrigatorio: bool=True,
                  on_leitura=None, largura: int=300, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
+        self._obrigatorio= obrigatorio
         self._on_leitura= on_leitura
 
         ctk.CTkLabel(self, text=f"{label}*", text_color="#5F5E5A",
@@ -123,6 +124,7 @@ class CampoBarras(ctk.CTkFrame):
         )
         self._entry.pack(side="left", fill="x", expand=True)
         self._entry.bind("<Return>", self._disparar)
+        self._entry.bind("<FocusOut>", self._disparar)
 
         ctk.CTkLabel(row, text="HIB USB", fg_color=COR_AZUL_M,
                      text_color="white", corner_radius=5, 
@@ -149,6 +151,13 @@ class CampoBarras(ctk.CTkFrame):
         self._entry.delete(0,"end")
         self.erro("")
     
+    def validar(self)-> bool:
+        if self._obrigatorio and not self.get():
+            self.erro("Campo obrigatório")
+            return False
+        self.erro("")
+        return True
+
     def focus(self):
         self._entry.focus()
     
@@ -192,7 +201,7 @@ class SecaoFormulario(ctk.CTkFrame):
             fill="x", padx=14, pady=(6,10))
 
 
-class FeebbackBanner(ctk.CTkFrame):
+class FeedbackBanner(ctk.CTkFrame):
     """Banner de feedback- sucesso ou erro- exibido temporariamente"""
 
     def __init__(self, master, **kwargs):
@@ -205,7 +214,12 @@ class FeebbackBanner(ctk.CTkFrame):
         self._lbl.configure(text=msg, fg_color="#EAF3DE", text_color="#27500A")
         self._lbl.pack(fill="x")
         self._agendar_ocultar(duração_ms)
-    
+
+    def erro(self, msg: str, duração_ms: int=4000):
+        self._lbl.configure(text=msg, fg_color="#FCEBEB", text_color="#A32D2D")
+        self._lbl.pack(fill="x")
+        self._agendar_ocultar(duração_ms)
+
     def _agendar_ocultar(self, ms: int):
         if self._timer:
             self.after_cancel(self._timer)

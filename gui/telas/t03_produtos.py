@@ -191,18 +191,12 @@ class TelaProdutos(ctk.CTkFrame):
 
             
             fg,tc=_STATUS_COR.get(status, ("#F1EFE8", "#5F5E5A"))
-
-            ctk.CTkLabel(row, text=status, 
-                            fg_color=fg,text_color=tc,
-                            font= ctk.CTkFont(size=10,weight="bold"), 
-                            corner_radius=8, padx=5, pady=2, width=110, 
-                            ).grid(row=0, column=(5), padx=8, pady=7, sticky="w")
             
             #Badge status
             ctk.CTkLabel(row, text=status, fg_color=fg, text_color=tc,
                          font=ctk.CTkFont(size=10,weight="bold"),
                          corner_radius=8, padx=8, pady=2,
-                         width=100).grid(row=0, column=5, padx=8, pady=7, stick="w")
+                         width=1).grid(row=0, column=5, padx=8, pady=2, stick="w")
             
             # Ações
             acoes= ctk.CTkFrame(row, fg_color="transparent")

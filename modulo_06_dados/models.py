@@ -29,11 +29,16 @@ class CentroAlocacaoEnum(str, enum.Enum):
 
 
 class UnidadeEstoqueEnum(str, enum.Enum):
-    caixa   = "CAIXA"
-    pacote  = "PACOTE"
-    unidade = "UNIDADE"
-    frasco  = "FRASCO"
-    ampola  = "AMPOLA"
+    caixa   =   "caixa"
+    pacote  =   "pacote"
+    unidade =   "unidade"
+    fardo   =   "Fardo"
+    ampola  =   "ampola"
+    galao   =   "galao"
+    litro   =   "litro"
+    rolo    =   "rolo"
+    kit     =   "kit"
+    dose    =   "dose"
 
 
 class TipoMovimentacaoEnum(str, enum.Enum):

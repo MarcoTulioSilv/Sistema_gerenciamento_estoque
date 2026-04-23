@@ -18,7 +18,7 @@ COR_AZUL_M = "#2E75B6"
 COR_CINZA_E= "#F2F1ED"
 COR_BRANCO = "#FFFFFF"
 
-UNIDADES = ["caixa", "pacote", "unidade", "frasco", "ampola"]
+UNIDADES = ["caixa","pacote","unidade","ampola","galao","fardo","litro","rolo","kit","dose"]
 CENTROS  = ["almoxarifado", "farmacia"]
 
 class TelaNovoProduto(ctk.CTkFrame):

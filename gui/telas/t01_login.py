@@ -112,18 +112,6 @@ class TelaLogin(ctk.CTkFrame):
         self._mostrar_erro("")
         self._on_sucess(usuario)
     
-    def _login_stub(self, login, senha):
-        """ Stub de autenticação para sprint 0- aceita adimin/adimin para perminir testar a janela prinicipal"""
-        if login == "admin" and senha == "admin":
-            #cria objeto minimo que a gui precisa
-            class UsuarioStub:
-                id = 1
-                nome = "Administrador"
-                login= "admin"
-                class perfil:
-                    value= "ti"
-            return UsuarioStub()
-        return None
     
     def _mostrar_erro(self, mensagem):
         self._label_erro.configure(text=mensagem)

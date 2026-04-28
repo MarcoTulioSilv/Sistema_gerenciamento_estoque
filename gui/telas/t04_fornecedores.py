@@ -6,7 +6,7 @@ import logging
 import customtkinter as ctk
 
 from Modulo_02_estoque import EstoqueService
-from Modulo_02_estoque import FornecedorRepo
+#from Modulo_02_estoque import FornecedorRepo
 
 logger = logging.getLogger(__name__)
 

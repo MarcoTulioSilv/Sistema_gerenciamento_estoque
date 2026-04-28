@@ -9,7 +9,6 @@ from decimal import Decimal
 
 from Modulo_06_dados import TipoMovimentacaoEnum, CentroAlocacaoEnum,UnidadeEstoqueEnum, get_session, Lote, Movimentacao, get_read_session, Produto
 from .produto_repo import ProdutoRepo
-from .fornecedor_repo import FornecedorRepo
 from .lote_repo import LoteRepo
 from .fefo_selector import FEFOSelector
 logger= logging.getLogger(__name__)
@@ -17,22 +16,22 @@ logger= logging.getLogger(__name__)
 class EstoqueService:
     #__________ Fornecedores __________________________________________________________________
 
-    @staticmethod
+    """  @staticmethod
     def listar_fornecedores():
         return FornecedorRepo.listar()
-    
-    @staticmethod
+    """
+    """  @staticmethod
     def criar_fornecedor(nome: str):
         if not nome or not nome.strip():
             raise ValueError("Nome do fornecedor é obrigatório.")
         return FornecedorRepo.criar(nome)
-    
-    @staticmethod
+    """
+    """  @staticmethod
     def atualizar_fornecedor(id_: int, nome: str):
         if not nome or not nome.strip():
             raise ValueError("Nome do fornecedor é obrigatório.")
         return FornecedorRepo.atualizar(id_, nome)
-    
+    """
     #__________ Produtos_________________________________________________________________________
     @staticmethod
     def listar_produtos(apenas_ativos: bool = True):
@@ -52,7 +51,7 @@ class EstoqueService:
         estoque_minimo: int   = 0,
         descricao: str        = None,
         marca: str            = None,
-        fornecedor_id: int    = None,
+        fornecedor: str    = None,
     ):
         # Validações
         if not nome or not nome.strip():
@@ -72,7 +71,7 @@ class EstoqueService:
             estoque_minimo  = estoque_minimo,
             descricao       = descricao.strip() if descricao else None,
             marca           = marca.strip() if marca else None,
-            fornecedor_id   = fornecedor_id,
+            fornecedor   = fornecedor,
             ativo           = True,
         )
         produto = ProdutoRepo.criar(dados)

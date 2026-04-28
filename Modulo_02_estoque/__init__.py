@@ -4,14 +4,13 @@ Sprint 2A: Estoque Service, ProdutoRepo, FornecedoresRepo, LoteRepo.
 """
 from .estoque_service import EstoqueService
 from .produto_repo    import ProdutoRepo
-from .fornecedor_repo import FornecedorRepo
 from .lote_repo       import LoteRepo, MovimentacaoRepo
 from .nfe_parser      import NFeParser, DadosNFe, ItemNFe
 from .fefo_selector   import FEFOSelector, PlanoConsumo, ItemPlano
 
 __all__ = [
     "EstoqueService",
-    "ProdutoRepo", "FornecedorRepo", "LoteRepo", "MovimentacaoRepo",
+    "ProdutoRepo", "LoteRepo", "MovimentacaoRepo",
     "NFeParser", "DadosNFe", "ItemNFe",
     "FEFOSelector", "PlanoConsumo", "ItemPlano",
 ]

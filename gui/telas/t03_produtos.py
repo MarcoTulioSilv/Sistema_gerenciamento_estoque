@@ -36,6 +36,7 @@ _COLUNAS = [
     ("Est.mín.",   70),
     ("Status",    110),
     ("Ações",     160),
+    ("Fornecedor", 220),
 ]
 
 def _centro_str(centro_alocacao) -> str:

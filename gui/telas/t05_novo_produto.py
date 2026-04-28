@@ -30,11 +30,7 @@ class TelaNovoProduto(ctk.CTkFrame):
         self._on_navigate = on_navigate
         self._produto_id  = produto_id # None = novo, int = edição
         
-        self._fornecedores = []
         self._construir()
-        self._carregar_fornecedores()
-        if produto_id:
-            self._preencher_produto(produto_id)
     
     def _construir(self):
         titulo= "Editar produto" if self._produto_id else "Novo produto"
@@ -105,17 +101,11 @@ class TelaNovoProduto(ctk.CTkFrame):
                      font=ctk.CTkFont(size=11, weight="bold"), anchor="w").pack(fill="x")
         row_frn= ctk.CTkFrame(frn_frame, fg_color="transparent")
         row_frn.pack(fill="x")
-        self._opt_fornecedor= ctk.CTkOptionMenu(
+        self._opt_fornecedor= ctk.CTkComboBox(
             row_frn, values=["-Nenhum-"], width=200, height=32,
             fg_color=COR_CINZA_E, button_color=COR_AZUL_M, text_color="#3d3d3a",
         )
         self._opt_fornecedor.pack(side="left")
-        ctk.CTkButton(row_frn, text="+ Novo", width=70, height=34,
-                        fg_color=COR_BRANCO, text_color="#3d3d3a",
-                        border_width=1, border_color="#E8E6DE",
-                        hover_color=COR_CINZA_E, 
-                        command=lambda: self._on_navigate("novo_fornecedor")
-                      ).pack(side="right", padx=(6,0))
         self._ativo_var= ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(sec2, text="Produto ativo",
                         variable=self._ativo_var,
@@ -148,11 +138,7 @@ class TelaNovoProduto(ctk.CTkFrame):
         self._estoque_min.set(str(p.estoque_minimo))
         self._marca.set(p.marca or "")
         self._ativo_var.set(p.ativo)
-        if p.fornecedor_id:
-            for f in self._fornecedores:
-                if f.id == p.fornecedor_id:
-                    self._opt_fornecedor.set(f.nome)
-                    break
+        self._fornecedor.set(p.fornecedor)
     
     def _ao_ler_ean(self, ean: str):
         # Feedback visual ao ler código de barras.
@@ -199,7 +185,7 @@ class TelaNovoProduto(ctk.CTkFrame):
                     unidade_estoque = self._unidade.get(),
                     estoque_minimo  = estoque_min,
                     marca           = self._marca.get() or None,
-                    fornecedor_id   = fornecedor_id,
+                    fornecedor   = self._fornecedor.get(),
                     ativo           = self._ativo_var.get(),
                 )
                 self._banner.sucesso("Produto atualizado com sucesso.")
@@ -212,7 +198,7 @@ class TelaNovoProduto(ctk.CTkFrame):
                     unidade_estoque = self._unidade.get(),
                     estoque_minimo  = estoque_min,
                     marca           = self._marca.get() or None,
-                    fornecedor_id   = fornecedor_id,
+                    fornecedor  = self._fornecedor.get(),
                 )
                 self._banner.sucesso("Produto criado com sucesso.")
                 self._limpar()

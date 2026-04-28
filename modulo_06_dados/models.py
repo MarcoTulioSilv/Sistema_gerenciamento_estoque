@@ -89,17 +89,6 @@ class Usuario(Base):
         return f"<Usuario {self.login} [{self.perfil}]>"
 
 
-class Fornecedor(Base):
-    """Tabela: fornecedor — MOD-02"""
-    __tablename__ = "fornecedor"
-
-    id:   Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    nome: Mapped[str] = mapped_column(String(150), nullable=False)
-
-    produtos: Mapped[list["Produto"]] = relationship(back_populates="fornecedor")
-
-    def __repr__(self):
-        return f"<Fornecedor {self.id}: {self.nome}>"
 
 
 class Produto(Base):
@@ -107,7 +96,7 @@ class Produto(Base):
     __tablename__ = "produto"
 
     id:               Mapped[int]                  = mapped_column(Integer, primary_key=True, autoincrement=True)
-    fornecedor_id:    Mapped[int | None]            = mapped_column(Integer, ForeignKey("fornecedor.id", ondelete="SET NULL"), nullable=True)
+    fornecedor:       Mapped[str | None]            = mapped_column(String(150), nullable=True)
     nome:             Mapped[str]                   = mapped_column(String(120), nullable=False)
     descricao:        Mapped[str | None]            = mapped_column(String(255), nullable=True)
     ean:              Mapped[str]                   = mapped_column(String(20),  nullable=False, unique=True)
@@ -118,7 +107,6 @@ class Produto(Base):
     ativo:            Mapped[bool]                  = mapped_column(Boolean, nullable=False, default=True)
     criado_em:        Mapped[datetime]              = mapped_column(DateTime, nullable=False, default=func.now())
 
-    fornecedor: Mapped["Fornecedor | None"]  = relationship(back_populates="produtos")
     lotes:      Mapped[list["Lote"]]         = relationship(back_populates="produto", order_by="Lote.data_vencimento")
 
     def __repr__(self):

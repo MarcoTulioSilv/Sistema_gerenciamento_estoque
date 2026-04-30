@@ -22,7 +22,7 @@ class ItemPlano:
     nota_fiscal: str
     saldo_atual: int 
     qtd_a_retirar: int
-    saldo_atual: int 
+    saldo_restante: int 
 
     @property
     def lote_esgotado(self)-> bool:
@@ -85,8 +85,8 @@ class FEFOSelector:
             l for l in lotes
             if l.quantidade_atual> 0 and l.data_vencimento>=hoje
         ]
-        lotes_ativos.sort(Key=lambda l: l.data_vencimento)
-        saldo_total= sum(l.quantidadte_atual for l in lotes_ativos)
+        lotes_ativos.sort(key=lambda l: l.data_vencimento)
+        saldo_total= sum(l.quantidade_atual for l in lotes_ativos)
         itens_plano=[]
         restante = quantidade
 

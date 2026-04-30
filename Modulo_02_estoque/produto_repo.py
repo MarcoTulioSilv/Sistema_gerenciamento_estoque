@@ -14,7 +14,6 @@ class ProdutoRepo:
     def listar(apenas_ativos: bool=True)-> list[Produto]:
         with get_read_session() as s:
             q=(s.query(Produto)
-               .options(joinedload(Produto.fornecedor))
                .options(joinedload(Produto.lotes))
             )
             if apenas_ativos:
@@ -27,7 +26,6 @@ class ProdutoRepo:
     def buscar_por_id(id_: int)-> Produto | None:
         with get_read_session() as s :
             obj= (s.query(Produto)
-                  .options(joinedload(Produto.fornecedor))
                   .options(joinedload(Produto.lotes))
                   .filter(Produto.id==id_)
                   .first()
@@ -41,7 +39,6 @@ class ProdutoRepo:
         with get_read_session() as s:
             obj=(
                 s.query(Produto)
-                .options(joinedload(Produto.fornecedor))
                 .filter(Produto.ean==ean.strip())
                 .first()
             )
@@ -79,3 +76,21 @@ class ProdutoRepo:
             s.refresh(p)
             s.expunge(p)
             return p
+
+    @staticmethod
+    def listar_fornecedore_unicos()->list[str]:
+        """
+        Retorna lista de valores únicos do campo fornecedor já cadastrados.
+        Usado pleo CTKComboBox  em T-05 para sugestões de autocomplete.
+        """
+
+        with get_read_session() as s:
+            rows=(
+                s.query(Produto.fornecedor)
+                .filter(Produto.fornecedor.isnot(None),
+                        Produto.fornecedor!="")
+                        .distinct()
+                        .order_by(Produto.fornecedor)
+                        .all()
+            )
+            return [r[0] for r in rows]

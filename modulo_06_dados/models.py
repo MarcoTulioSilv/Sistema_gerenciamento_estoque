@@ -32,7 +32,7 @@ class UnidadeEstoqueEnum(str, enum.Enum):
     caixa   =   "caixa"
     pacote  =   "pacote"
     unidade =   "unidade"
-    fardo   =   "Fardo"
+    fardo   =   "fardo"
     ampola  =   "ampola"
     galao   =   "galao"
     litro   =   "litro"

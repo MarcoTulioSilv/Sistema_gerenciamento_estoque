@@ -4,7 +4,7 @@ Tela t-09- Registro de retirada multi-lote FEFO
 (UC-06, RF-07, RF-09, RN-08)
 """
 
-import logging
+import logging 
 from decimal import InvalidOperation
 
 import customtkinter as ctk
@@ -28,11 +28,11 @@ COR_AMBER  = "#BA7517"
 class TelaRetirada(ctk.CTkFrame):
     #Registro de retirada com plano FEFO multi-lote exibido antes da confirmação.
 
-    def __int__(self, master, usuario,on_navigate, produto_id: int=None):
+    def __init__(self, master, usuario,on_navigate, produto_id: int=None):
         super().__init__(master, fg_color=COR_CINZA_E, corner_radius=0)
         self._usuario= usuario
         self._on_navigate= on_navigate
-        self._produto_self= None
+        self._produto_sel= None
         self._plano= None
         self._construir()   
         if produto_id:
@@ -113,7 +113,7 @@ class TelaRetirada(ctk.CTkFrame):
         ctk.CTkLabel(self._sec3,
                      text="Quando preenchido, aparece em todos os registros desta retirada.",
                      text_color="#888780", font=ctk.CTkFont(size=10)
-        ).pack(anchor="w", padx="w", pady=(0,12))
+        ).pack(anchor="w", padx=0, pady=(0,12))
 
         #______Botões
 
@@ -123,7 +123,7 @@ class TelaRetirada(ctk.CTkFrame):
             width=180, height=36, 
             fg_color="#1D9E75", hover_color="#0F6E56",
             state="disabled",
-            command=self._btn_confirmar)
+            command=self._confirmar)
         ctk.CTkButton(self._row_btns, text="Cancelar",
                       width=100, height=36,
                       fg_color=COR_BRANCO, text_color="#3d3d3a",
@@ -146,7 +146,7 @@ class TelaRetirada(ctk.CTkFrame):
         if produto is None:
             self._campo_ean.erro(f"EAN'{ean}' não cadastrado.")
             self._frame_produto.pack_forget()
-            self._produto_self=None
+            self._produto_sel=None
             return
         
         lotes= LoteRepo.listar_por_produto(produto.id)
@@ -154,7 +154,7 @@ class TelaRetirada(ctk.CTkFrame):
                    if l.data_vencimento>= date.today())
         
         self._campo_ean.erro("")
-        self._produto_self= produto
+        self._produto_sel= produto
         self._lbl_produto.configure(
             text=(f"{produto.nome}\n"
                   f"Centro: {produto.centro_alocacao.value.capitalize()}."
@@ -179,7 +179,7 @@ class TelaRetirada(ctk.CTkFrame):
     #______Plano FEFO_______________________________________________________________________
 
     def _calcular_plano(self):
-        if not self._produto_self:
+        if not self._produto_sel:
             self._banner.erro("Leia ou digite o código do produto primeiro")
             return
         try:
@@ -192,10 +192,11 @@ class TelaRetirada(ctk.CTkFrame):
         self._campo_qtd.erro("")
 
         try:
-            plano= EstoqueService.calular_plano_fefo(self._produto_self.id, qtd)
+            plano= EstoqueService.calcular_plano_fefo(self._produto_sel.id, qtd)
         
         except Exception as exc:
             self._banner.erro(f"Erro ao calcular plano: {exc}")
+            logger.error("erro ao calcular plano:%s",exc)
             return
         
         self._plano= plano
@@ -245,7 +246,7 @@ class TelaRetirada(ctk.CTkFrame):
 
             ctk.CTkLabel(
                 linha,
-                text=f"Vence: {item.data_vencimento.strtime('%d/%m/%Y')}",
+                text=f"Vence: {item.data_vencimento.strftime('%d/%m/%Y')}",
                 text_color="#888780", font=ctk.CTkFont(size=11),
                 anchor="w", width=160
             ).grid(row=0,column=1, padx=8,sticky="w")
@@ -259,7 +260,8 @@ class TelaRetirada(ctk.CTkFrame):
 
             ctk.CTkLabel(
                 linha,
-                text="#3d3d3a", font=ctk.CTkFont(size=11),
+                text=f"Atual:{item.saldo_atual}",
+                text_color="#3d3d3a", font=ctk.CTkFont(size=11),
                 anchor="w", width=120
             ).grid(row=0,column=3, padx=8, pady=8, sticky="w")
 
@@ -296,12 +298,12 @@ class TelaRetirada(ctk.CTkFrame):
     def _confirmar(self):
         if not self._plano:
             return
-        obs= self._campo_obs.get(0).strip() or None
+        obs= self._campo_obs.get().strip() or None
         try:
             estoque_baixo= EstoqueService.registrar_retirada(
                 self._plano, self._usuario.id, obs)
             msg=(f"Retirada registrada:{self._plano.quantidade_pedida} unid."
-                 f" de '{self._produto_self.nome}'.")
+                 f" de '{self._produto_sel.nome}'.")
             if estoque_baixo:
                 msg += "\n Estoque abaixo do mínimo- alerta enviado."
                 self._banner.sucesso(msg)

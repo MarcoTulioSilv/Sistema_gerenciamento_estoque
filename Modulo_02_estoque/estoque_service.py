@@ -16,22 +16,10 @@ logger= logging.getLogger(__name__)
 class EstoqueService:
     #__________ Fornecedores __________________________________________________________________
 
-    """  @staticmethod
-    def listar_fornecedores():
-        return FornecedorRepo.listar()
-    """
-    """  @staticmethod
-    def criar_fornecedor(nome: str):
-        if not nome or not nome.strip():
-            raise ValueError("Nome do fornecedor é obrigatório.")
-        return FornecedorRepo.criar(nome)
-    """
-    """  @staticmethod
-    def atualizar_fornecedor(id_: int, nome: str):
-        if not nome or not nome.strip():
-            raise ValueError("Nome do fornecedor é obrigatório.")
-        return FornecedorRepo.atualizar(id_, nome)
-    """
+    def listar_fornecedores_unicos()->list[str]:
+        #Retorna valores únicos de forncedor para sugestões no ComboBox de T-05
+        return ProdutoRepo.listar_fornecedore_unicos()
+    
     #__________ Produtos_________________________________________________________________________
     @staticmethod
     def listar_produtos(apenas_ativos: bool = True):
@@ -141,7 +129,7 @@ class EstoqueService:
         return lote
     
     @staticmethod
-    def calular_plano_fefo(produto_id: int, quantidade:int):
+    def calcular_plano_fefo(produto_id: int, quantidade:int):
         """
         RF-08- calcula e retorna plano de consumo FEFO sem gravar no banco.
         O plano é exibido em T-09 antes da confirmação.
@@ -184,13 +172,13 @@ class EstoqueService:
                     quantidade = item.qtd_a_retirar,
                     numero_nf= None,
                     observacao= observacao or None,
-                    date_hora= datetime.utcnow(),
+                    data_hora= datetime.utcnow(),
                 )
                 session.add(mov)
             
             logger.info(
                 "Retirada registrada: produto_id=%s qtd=%s lotes=%s usuario=%s",
-                plano.produto_id, plano.quantidad_pedida, len(plano.itens), usuario_id,
+                plano.produto_id, plano.quantidade_pedida, len(plano.itens), usuario_id,
             )
 
             #verifica estoque minimo apos commit e sinaliza para alerta(RF-13)

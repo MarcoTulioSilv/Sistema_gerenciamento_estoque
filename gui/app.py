@@ -12,6 +12,7 @@ from gui.telas.t05_novo_produto import TelaNovoProduto
 from gui.telas.t07_entrada_manual import TelaEntradaManual
 from gui.telas.t08_importar_nfe import TelaImportarNFe
 from gui.telas.t09_retirada import TelaRetirada
+from gui.telas.t10_posicao_estoque import TelaPosicaoEstoque
 # tema global
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
@@ -138,8 +139,9 @@ class SCEApp(ctk.CTk):
             return TelaImportarNFe(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
         if destino=="retirada":
             return TelaRetirada(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        if destino=="posicao":
+            return TelaPosicaoEstoque(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
         nomes = {
-            "posicao":        "Tela de Posição de Estoque - T-10",
             "dashboard":      "Tela de Dashboard - T-11",
             "relatorios":     "Relatórios — T-11",
             "agendamento":    "Agendamento — T-12",

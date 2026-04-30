@@ -130,17 +130,10 @@ class SCEApp(ctk.CTk):
         #______ Sprint 2A_ MOD-02 cadastros
         if destino=="produtos":
             return TelaProdutos(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
-        """if destino=="fornecedores":
-            return TelaFornecedores(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
-            
-        
-        if destino in("novo_fornecedor", "editar_fornecedor"):
-            return TelaNovoFornecedor(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, fornecedor_id= extra)
-            """
         if destino in("novo_produto", "editar_produto"):
             return TelaNovoProduto(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, produto_id= extra)
         if destino=="entrada_manual":
-            return TelaEntradaManual(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
+            return TelaEntradaManual(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, produto_id=extra)
         if destino=="importar_nfe":
             return TelaImportarNFe(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
         if destino=="retirada":

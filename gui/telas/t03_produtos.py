@@ -32,11 +32,10 @@ _COLUNAS = [
     ("Nome",      220),
     ("EAN",       140),
     ("Centro",    110),
-    ("Marca",     110),
+    ("Marca",     220),
     ("Est.mín.",   70),
-    ("Status",    110),
+    ("Status",    150),
     ("Ações",     160),
-    ("Fornecedor", 220),
 ]
 
 def _centro_str(centro_alocacao) -> str:
@@ -86,7 +85,7 @@ class TelaProdutos(ctk.CTkFrame):
         self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
 
         self._opt_centro = ctk.CTkOptionMenu(
-            filt, values=["Todos os centros","Almoxarifado", "Farmácia"],
+            filt, values=["Todos os centros","Almoxarifado", "Farmácia", "Depósito"],
             width=160, height=32, corner_radius=6,
             fg_color= COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
             command= lambda _: self._filtrar(),

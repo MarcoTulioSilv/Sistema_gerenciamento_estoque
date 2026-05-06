@@ -198,6 +198,7 @@ class TelaNovoProduto(ctk.CTkFrame):
                     ativo           = self._ativo_var.get(),
                 )
                 self._banner.sucesso("Produto atualizado com sucesso.")
+                
             else:
                 EstoqueService.criar_produto(
                     nome            = self._nome.get(),
@@ -211,8 +212,10 @@ class TelaNovoProduto(ctk.CTkFrame):
                 )
                 self._banner.sucesso("Produto criado com sucesso.")
                 self._limpar()
+                
             # Recarrega sugestões caso o fornecedor seja inédito
             self._carregar_sugestoes_fornecedor()
+            self._on_navigate("produtos")
  
         except ValueError as exc:
             self._banner.erro(str(exc))

@@ -244,7 +244,7 @@ class TelaEntradaManual(ctk.CTkFrame):
                       f"  ·  Estoque mín.: {produto.estoque_minimo}")
             )
             self._card_produto.pack(fill="x", padx=14, pady=(0, 8))
-            self._banner.limpar()
+            self._banner._limpar()
         else:
             # Produto não encontrado — abre mini-form inline
             self._ean_pendente = ean

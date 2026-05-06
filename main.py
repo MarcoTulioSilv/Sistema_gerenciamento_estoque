@@ -7,7 +7,6 @@ sprint 0- inicializa o banco, controi janela prinicipal e inicia o loop da GUI
 import sys
 import logging
 from pathlib import Path
-from venv import logger
 
 #Garante que o diretório raiz esteja no path quando executado via pyInstaller
 sys.path.insert(0, str(Path(__file__).parent))

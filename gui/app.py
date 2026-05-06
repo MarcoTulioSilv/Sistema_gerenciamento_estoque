@@ -8,10 +8,12 @@ from Modulo_01_autenticacao import SessionManager
 from gui.telas.t02_inicio import TelaInicio
 from gui.telas.t03_produtos import TelaProdutos
 from gui.telas.t21_troca_senha import TelaTrocaSenha
-from gui.telas.t04_fornecedores import TelaFornecedores
 from gui.telas.t05_novo_produto import TelaNovoProduto
-from gui.telas.t06_novo_fornecedor import TelaNovoFornecedor
 from gui.telas.t07_entrada_manual import TelaEntradaManual
+from gui.telas.t08_importar_nfe import TelaImportarNFe
+from gui.telas.t09_retirada import TelaRetirada
+from gui.telas.t10_posicao_estoque import TelaPosicaoEstoque
+from gui.telas.t22_dashboard import TelaDashboard
 # tema global
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
@@ -106,7 +108,7 @@ class SCEApp(ctk.CTk):
         self._area_conteudo.grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
 
         #exibe tela inicial por padrão
-        self._navegar("troca_senha")
+        self._navegar("inicio")
 
     def _navegar(self, destino: str):
         """troca o conteudo da area principal pela tela indicada """
@@ -130,19 +132,19 @@ class SCEApp(ctk.CTk):
         #______ Sprint 2A_ MOD-02 cadastros
         if destino=="produtos":
             return TelaProdutos(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
-        if destino=="fornecedores":
-            return TelaFornecedores(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
         if destino in("novo_produto", "editar_produto"):
             return TelaNovoProduto(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, produto_id= extra)
-        if destino in("novo_fornecedor", "editar_fornecedor"):
-            return TelaNovoFornecedor(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, fornecedor_id= extra)
         if destino=="entrada_manual":
-            return TelaEntradaManual(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
+            return TelaEntradaManual(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, produto_id=extra)
+        if destino=="importar_nfe":
+            return TelaImportarNFe(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        if destino=="retirada":
+            return TelaRetirada(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        if destino=="posicao":
+            return TelaPosicaoEstoque(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        if destino=="dashboard":
+            return TelaDashboard(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
         nomes = {
-            "importar_nfe":   "Tela de Importação de NF-e - T-08",
-            "retirada":       "Tela de Retirada - T-09",
-            "posicao":        "Tela de Posição de Estoque - T-10",
-            "dashboard":      "Tela de Dashboard - T-11",
             "relatorios":     "Relatórios — T-11",
             "agendamento":    "Agendamento — T-12",
             "estoque_minimo": "Estoque Mínimo — T-13",
@@ -202,7 +204,6 @@ class Sidebar(ctk.CTkFrame):
         ("__label__"        ,"Estoque",                       None),
         ("inicio"           ,"Início",                        ["tecnico", "adimin","ti"]),
         ("produtos"         ,"Produtos",                      ["ti", "tecnico", "admin"]),
-        ("fornecedores"     ,"Fornecedores",                  ["admin", "tecnico", "ti"]),
         ("__label__"        ,"Movimentações",                 None),
         ("entrada_manual"   ,"Entrada Manual",                ["admin", "tecnico", "ti"]),
         ("importar_nfe"     ,"Importar NF-e",                 ["admin", "tecnico", "ti"]),

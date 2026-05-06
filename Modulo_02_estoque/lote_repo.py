@@ -14,7 +14,7 @@ class LoteRepo:
 
     @staticmethod
     def listar_por_produto(produto_id: int, apenas_com_saldo: bool= True)-> list[Lote]:
-        with get_read_session as s:
+        with get_read_session() as s:
             q= (s.query(Lote)
                 .filter(Lote.produto_id==produto_id)
                 .order_by(Lote.data_vencimento))

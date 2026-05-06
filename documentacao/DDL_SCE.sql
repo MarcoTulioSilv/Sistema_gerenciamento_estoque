@@ -15,25 +15,12 @@ SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,N
 -- [FIX-01] Renomeado de mydb para sce_db
 -- [FIX-02] charset alterado de utf8 para utf8mb4
 -- -------------------------------------------------------------
-DROP SCHEMA IF EXISTS `sce_db`;
+DROP SCHEMA IF exists `sce_db`;
 CREATE SCHEMA IF NOT EXISTS `sce_db`
   DEFAULT CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
 USE `sce_db`;
-
--- -------------------------------------------------------------
--- Tabela: fornecedor  (MOD-02)
--- Sem alterações estruturais; apenas remoção do ZEROFILL
--- [FIX-03] Removido INT ZEROFILL (deprecated MySQL 8.0.17+)
--- -------------------------------------------------------------
-DROP TABLE IF EXISTS `sce_db`.`fornecedor`;
-
-CREATE TABLE IF NOT EXISTS `sce_db`.`fornecedor` (
-  `id`   INT          NOT NULL AUTO_INCREMENT,
-  `nome` VARCHAR(150) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE = InnoDB;
 
 
 -- -------------------------------------------------------------
@@ -50,7 +37,7 @@ CREATE TABLE IF NOT EXISTS `sce_db`.`usuario` (
   `nome`        VARCHAR(100) NOT NULL,
   `login`       VARCHAR(60)  NOT NULL,
   `senha_hash`  VARCHAR(255) NOT NULL,
-  `perfil`      ENUM('tecnico','gestora','ti') NOT NULL,
+  `perfil`      ENUM('tecnico','admin','ti') NOT NULL,
   `ativo`       TINYINT(1)   NOT NULL DEFAULT 1,
   `criado_em`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -61,8 +48,6 @@ CREATE TABLE IF NOT EXISTS `sce_db`.`usuario` (
 -- -------------------------------------------------------------
 -- Tabela: produto  (MOD-02)
 -- [FIX-04] PK composta removida → PK apenas id
--- [FIX-05] Campo fornecedor VARCHAR removido (redundante com FK)
--- [FIX-06] fornecedor_id tornado NULL (fornecedor é opcional)
 -- [FIX-07] 'unidade de estoque' → 'unidade_estoque'
 -- [FIX-08] EAN INT → VARCHAR(20) UNIQUE (suporta zeros à esquerda)
 -- [FIX-09] Adicionado criado_em
@@ -72,24 +57,18 @@ DROP TABLE IF EXISTS `sce_db`.`produto`;
 
 CREATE TABLE IF NOT EXISTS `sce_db`.`produto` (
   `id`               INT          NOT NULL AUTO_INCREMENT,
-  `fornecedor_id`    INT          NULL,
+  `fornecedor`    	VARCHAR(150),
   `nome`             VARCHAR(120) NOT NULL,
   `descricao`        VARCHAR(255) NULL,
-  `ean`              VARCHAR(20)  NOT NULL,
-  `unidade_estoque`  ENUM('CAIXA','PACOTE','UNIDADE','FRASCO','AMPOLA') NOT NULL,
+  `ean`              VARCHAR(15)  NOT NULL,
+  `unidade_estoque`  ENUM('caixa','pacote','unidade','ampola','galao','fardo','litro','rolo','kit','dose') NOT NULL,
   `marca`            VARCHAR(100) NULL,
   `centro_alocacao`  ENUM('almoxarifado','farmacia') NOT NULL,
   `estoque_minimo`   INT          NOT NULL DEFAULT 0,
   `ativo`            TINYINT(1)   NOT NULL DEFAULT 1,
   `criado_em`        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE INDEX `uq_produto_ean` (`ean`),
-  INDEX `idx_produto_fornecedor` (`fornecedor_id`),
-  CONSTRAINT `fk_produto_fornecedor`
-    FOREIGN KEY (`fornecedor_id`)
-    REFERENCES `sce_db`.`fornecedor` (`id`)
-    ON DELETE SET NULL
-    ON UPDATE CASCADE
+  UNIQUE INDEX `uq_produto_ean` (`ean`)
 ) ENGINE = InnoDB;
 
 
@@ -251,7 +230,6 @@ CREATE TABLE IF NOT EXISTS `sce_db`.`relatorio_agendamento` (
 -- Índices adicionais recomendados pelo DAS v1.2
 -- -------------------------------------------------------------
 -- produto(ean)                     → já criado como UNIQUE
--- produto(fornecedor_id)           → já criado como INDEX
 -- lote(produto_id, data_vencimento)→ já criado como INDEX
 -- movimentacao(lote_id, data_hora) → já criado como INDEX
 -- notificacao_log(lote_id, tipo_alerta, enviado_em) → já criado como INDEX

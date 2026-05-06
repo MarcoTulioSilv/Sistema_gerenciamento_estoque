@@ -225,5 +225,11 @@ class FeedbackBanner(ctk.CTkFrame):
             self.after_cancel(self._timer)
         self._timer=self.after(ms, self._ocultar)
     
+    def _limpar(self):
+        if self._timer:
+            self.after_cancel(self._timer)
+            self._timer=None
+            self._lbl.pack_forget()
+
     def _ocultar(self):
         self._lbl.pack_forget()

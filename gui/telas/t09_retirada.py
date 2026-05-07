@@ -96,7 +96,7 @@ class TelaRetirada(ctk.CTkFrame):
 
         #Aviso de estoque insuficiente
         self._frame_insuf=ctk.CTkFrame(
-            self._sec2, fg_color="#FCEBEB", corner_radius=6,
+            sec1, fg_color="#FCEBEB", corner_radius=6,
             border_width=1, border_color="#F09595")
         self._lbl_insuf=ctk.CTkLabel(
             self._frame_insuf, text="", text_color=COR_VERM,
@@ -157,8 +157,8 @@ class TelaRetirada(ctk.CTkFrame):
         self._produto_sel= produto
         self._lbl_produto.configure(
             text=(f"{produto.nome}\n"
-                  f"Centro: {produto.centro_alocacao.value.capitalize()}."
-                  f"Saldo total disponivel:{saldo} unid. em "
+                  f"Centro de alocação: {produto.centro_alocacao.value.capitalize()}.\n"
+                  f"Saldo total disponivel: {saldo} unid. em "
                   f"{len([l for l in lotes if l.quantidade_atual>0])} lote(s)")
         )
         self._frame_produto.pack(fill="x", padx=14, pady=(0,8))
@@ -184,7 +184,7 @@ class TelaRetirada(ctk.CTkFrame):
             return
         try:
             qtd= int(self._campo_qtd.get())
-            if qtd<=0 :
+            if qtd<=0  :
                 raise ValueError()
         except ValueError:
             self._campo_qtd.erro("Informe um número inteiro maior que zero.")
@@ -193,12 +193,23 @@ class TelaRetirada(ctk.CTkFrame):
 
         try:
             plano= EstoqueService.calcular_plano_fefo(self._produto_sel.id, qtd)
-        
+            if not plano.atendido_completo:
+                #RF-09- estoque insuficiente 
+                self._lbl_insuf.configure(
+                    text=(f"Estoque insufiente para {plano.quantidade_pedida} unidade(s).\n"
+                        f"Quantidade máxima disponível: {plano.quantidade_maxima_disponivel} unid.")
+                )
+                self._frame_insuf.pack(fill="x", padx=14, pady=(0,8))
+                self._btn_confirmar.configure(state="disabled")
+                return
+            
+            self._frame_insuf.pack_forget()
         except Exception as exc:
             self._banner.erro(f"Erro ao calcular plano: {exc}")
             logger.error("erro ao calcular plano:%s",exc)
             return
-        
+            
+
         self._plano= plano
         self._exibir_plano(plano)
 
@@ -206,22 +217,8 @@ class TelaRetirada(ctk.CTkFrame):
         #Limpar frame do plano
         for w in self._frame_plano.winfo_children():
             w.destroy()
-        
-        if not plano.atendido_completo:
-            #RF-09- estoque insuficiente 
-            self._lbl_insuf.configure(
-                text=(f"Estoque insufiente para {plano.quantidade_pedida} unidade(s).\n"
-                      f"Quantidade máxima disponível: {plano.quantidade_maxima_disponiel} unid.")
-            )
-            self._frame_insuf.pack(fill="x", padx=14, pady=(0,8))
-            self._btn_confirmar.configure(state="disabled")
-            self._sec2.pack(fill="x", padx=16, pady=(10,0))
-            self._row_btns.pack(anchor="e", padx=16, pady=(0,16))
-            return
-        
-        self._frame_insuf.pack_forget()
 
-        # Cabeçalho do plano7
+        # Cabeçalho do plano
         ctk.CTkLabel(
             self._frame_plano,
             text=(f"Serão retiradas{plano.quantidade_pedida} unidade(s)"

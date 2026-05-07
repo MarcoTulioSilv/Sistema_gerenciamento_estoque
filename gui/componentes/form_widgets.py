@@ -165,6 +165,65 @@ class CampoBarras(ctk.CTkFrame):
         if self._on_leitura and self.get():
             self._on_leitura(self.get())
 
+class CampoNome(ctk.CTkFrame):
+    """
+    on_leitura: callback chamado quando usuário preenche o campo e pressiona enter
+    """
+
+    def __init__(self, master, label:str="Nome do Produto", obrigatorio: bool=True,
+                 on_leitura=None, largura: int=300, **kwargs):
+        super().__init__(master, fg_color="transparent", **kwargs)
+        self._obrigatorio= obrigatorio
+        self._on_leitura= on_leitura
+
+        ctk.CTkLabel(self, text=f"{label}*", text_color="#5F5E5A",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     anchor="w").pack(fill="x", pady=(0,3))
+        
+        row= ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(fill="x")
+
+        self._entry= ctk.CTkEntry(
+            row, placeholder_text="Digite o nome do Produto",
+            height=34, corner_radius=6,
+        )
+        self._entry.pack(side="left", fill="x", expand=True)
+        self._entry.bind("<Return>", self._disparar)
+        self._entry.bind("<FocusOut>", self._disparar)
+
+        self._lbl_erro= ctk.CTkLabel(
+            self, text="", text_color=COR_ERRO,
+            font=ctk.CTkFont(size=10), anchor="w",
+        )
+        self._lbl_erro.pack(fill="x")
+
+    def get(self)-> str:
+        return self._entry.get().strip()
+    
+    def set(self, valor:str):
+        self._entry.delete(0,"end")
+        self._entry.insert(0,valor)
+
+    def erro(self, mensagem: str=""):
+        self._lbl_erro.configure(text=mensagem)
+    
+    def limpar(self):
+        self._entry.delete(0,"end")
+        self.erro("")
+    
+    def validar(self)-> bool:
+        if self._obrigatorio and not self.get():
+            self.erro("Campo obrigatório")
+            return False
+        self.erro("")
+        return True
+
+    def focus(self):
+        self._entry.focus()
+    
+    def _disparar(self, _event=None):
+        if self._on_leitura and self.get():
+            self._on_leitura(self.get())
 
 class BotoesFormulario(ctk.CTkFrame):
     """Linha de botões Cancelar/ Salvar- CP-05."""

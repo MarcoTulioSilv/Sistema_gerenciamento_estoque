@@ -21,9 +21,9 @@ COR_VERM   = "#A32D2D"
 
 _SITUACAO_COR = {
     "Vencido":       ("#FCEBEB", "#A32D2D"),
-    "Vence em 2d":   ("#FCEBEB", "#A32D2D"),
-    "Vence em 7d":   ("#FAEEDA", "#854F0B"),
-    "Vence em 15d":  ("#FAEEDA", "#854F0B"),
+    "Vence em 7d":   ("#FCEBEB", "#A32D2D"),
+    "Vence em 15d":   ("#FAEEDA", "#854F0B"),
+    "Vence em 30d":  ("#FAEEDA", "#854F0B"),
     "Estoque baixo": ("#FAEEDA", "#854F0B"),
     "Normal":        ("#EAF3DE", "#27500A"),
 }
@@ -44,12 +44,12 @@ def _calcular_situacao(lote, estoque_minimo:int, hoje:date)->str:
     if lote.data_vencimento<hoje:
         return "Vencido"
     diff=(lote.data_vencimento-hoje).days
-    if diff<=2:
-        return "Vence em 2d"
-    if diff<= 7:
+    if diff<= 7 :
         return "Vence em 7d"
-    if diff<=15:
-        return"Vence em 15d"
+    if diff<= 15 and diff>7:
+        return "Vence em 15d"
+    if diff<= 30 and diff>15:
+        return"Vence em 30d"
     if lote.quantidade_atual<= estoque_minimo:
         return"Estoque baixo"
     return"Normal"
@@ -100,7 +100,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         self._opt_situacao= ctk.CTkOptionMenu(
             filt,
             values=["Todas as situações", "Normal", "Estoque baixo", 
-                    "Vence em 15d", "Vence em 7d", "Vence em 2d", "Vencido"],
+                    "Vence em 30d", "Vence em 15d", "Vence em 7d", "Vencido"],
                     width=170, height=32, corner_radius=6,
                     fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#161614",
                     command=lambda _: self._filtrar())
@@ -194,7 +194,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         self._entry_busca.delete(0,"end")
         self._opt_centro.set("Todos os centros")
         self._opt_situacao.set("todas as situações")
-        self._renderizar()
+        self._renderizar(self._linhas)
 
     
     #_______Renderização______________________________________________________
@@ -211,7 +211,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
             return
         
         for i, (lote, produto, situacao) in enumerate(linhas):
-            bg=COR_BRANCO if i%2 ==0 else "#6AA6DF"
+            bg=COR_BRANCO if i%2 ==0 else "#A1C3E4"
             row= ctk.CTkFrame(self._scroll,fg_color=bg, corner_radius=0)
             row.pack(fill="x")
 

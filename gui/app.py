@@ -14,6 +14,10 @@ from gui.telas.t08_importar_nfe import TelaImportarNFe
 from gui.telas.t09_retirada import TelaRetirada
 from gui.telas.t10_posicao_estoque import TelaPosicaoEstoque
 from gui.telas.t22_dashboard import TelaDashboard
+from gui.telas.t11_relatorios import TelaCentralRelatorios
+from gui.telas.t12_agendamento import TelaAgendamento
+from gui.telas.t13_estoque_minimo import TelaEstoqueMinimo
+
 # tema global
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
@@ -144,10 +148,13 @@ class SCEApp(ctk.CTk):
             return TelaPosicaoEstoque(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
         if destino=="dashboard":
             return TelaDashboard(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        if destino=="relatorios":
+            return TelaCentralRelatorios(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        if destino=="agendamento":
+            return TelaAgendamento(self._area_conteudo,usuario= self.usuario_logado, on_navigate= nav)
+        if destino=="estoque_minimo":
+            return TelaEstoqueMinimo(self._area_conteudo, usuario=self.usuario_logado, on_navigate= nav)
         nomes = {
-            "relatorios":     "Relatórios — T-11",
-            "agendamento":    "Agendamento — T-12",
-            "estoque_minimo": "Estoque Mínimo — T-13",
             "usuarios":       "Usuários — T-15",
             "gmail":          "Config. Gmail — T-17",
             "backup":         "Backup — T-18",

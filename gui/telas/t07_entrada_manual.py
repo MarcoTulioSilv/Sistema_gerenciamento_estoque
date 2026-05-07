@@ -15,7 +15,7 @@ from decimal import Decimal, InvalidOperation
  
 import customtkinter as ctk
 from gui.componentes.form_widgets import (
-    Campo, CampoBarras, BotoesFormulario, SecaoFormulario, FeedbackBanner
+    CampoNome, CampoBarras, BotoesFormulario, SecaoFormulario, FeedbackBanner, Campo
 )
 from Modulo_02_estoque import EstoqueService, ProdutoRepo, LoteRepo
  
@@ -64,19 +64,23 @@ class TelaEntradaManual(ctk.CTkFrame):
  
         self._banner = FeedbackBanner(self)
         self._banner.pack(fill="x", padx=16, pady=(8, 0))
- 
-        self._scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=0)
-        self._scroll.pack(fill="both", expand=True, padx=16, pady=8)
+        self._scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=8, border_width=1, border_color=COR_CINZA_B)
+        self._scroll.pack(fill="both", expand=True, padx=16, pady=1)
  
         # ── Seção 1: Identificar produto ──────────────────────────────────────
         self._sec1 = SecaoFormulario(self._scroll, "1. Identificar produto")
         self._sec1.pack(fill="x", pady=(0, 8))
  
-        self._ean = CampoBarras(self._sec1, on_leitura=self._on_leitura_ean)
-        self._ean.pack(side="left", padx=14, pady=(0, 6))
+        frame_identificacao = ctk.CTkFrame(self._sec1, fg_color="transparent")
+        frame_identificacao.pack(fill="x", padx=14, pady=(0, 6))
 
-        self._ean = CampoBarras(self._sec1, on_leitura=self._on_leitura_nome)
-        self._ean.pack(side="right", padx=14, pady=(0, 6))
+        frame_identificacao.grid_columnconfigure((0, 1), weight=1)
+
+        self._ean = CampoBarras(frame_identificacao, on_leitura=self._on_leitura_ean)
+        self._ean.grid(row=0,column=0,padx=(0,8), sticky="ew")
+
+        self._nome = CampoNome(frame_identificacao, on_leitura=self._on_leitura_nome)
+        self._nome.grid(row=0,column=1, sticky="ew")
  
         # Card: produto encontrado (verde)
         self._card_produto = ctk.CTkFrame(

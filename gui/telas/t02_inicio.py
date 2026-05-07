@@ -7,11 +7,11 @@ Sprint 1: KPIs reais com consultados do banco via MOD-06
 import logging
 from datetime import date, datetime
 from datetime import timedelta
-
+from sqlalchemy.orm import joinedload
 import customtkinter as ctk
 from tkinter import messagebox
-
-from Modulo_06_dados import Movimentacao
+from sqlalchemy import func
+from Modulo_06_dados import Movimentacao, get_read_session, Produto, Lote
 
 logger= logging.getLogger(__name__)
 
@@ -30,17 +30,16 @@ def _consultar_kpis()->dict:
     Consulta os KPIs de situação de estoque no banco
     Retorna dicionário com contagens para exibição nos cards.
     """
-    from Modulo_06_dados import get_read_session,Produto,Lote
-    from sqlalchemy import func
-
     hoje= date.today()
+    limite_15=  hoje+ timedelta(days=15)
     kpis={
         "produtos_ativos":  0,
         "lotes_vencidos":   0,
-        "lotes_vencidos_7": 0,
+        "lotes_vencendo_15": 0,
         "estoque_baixo":    0,
         "mov_hoje":         0,
         "nomes_vencidos":   [],
+        "nomes_vencendo_15":[],
     }
 
     try:
@@ -52,35 +51,19 @@ def _consultar_kpis()->dict:
                 .scalar() or 0
             )
 
-            #Lotes Vencidos com saldo > 0
-            lotes_vencidos=(
-                session.query(Lote)
-                .join(Produto)
-                .filter(
-                    Lote.data_vencimento<hoje,
-                    Lote.quantidade_atual>0,
-                    Produto.ativo==True,
-                )
-                .all()
-            )
-            kpis["lotes_vencidos"]= len(lotes_vencidos)
-            kpis["nomes_vencidos"]=[
-              f"{l.produto.nome} · {l.num_lote}" for l in lotes_vencidos[:5]
-            ]
+            lotes=(session.query(Lote)
+                    .options(joinedload(Lote.produto)) # Carrega o nome do produto junto
+                    .filter(Lote.quantidade_atual > 0)
+                    .all())
 
-            #Lotes vencendo em até 7 dias
-            limite= hoje+timedelta(days=7)
-            kpis["lotes_vencidos_7"]=(
-                session.query(func.count(Lote.id))
-                .join(Produto)
-                .filter(
-                    Lote.data_vencimento>=hoje,
-                    Lote.data_vencimento<=limite,
-                    Lote.quantidade_atual>0,
-                    Produto.ativo==True,
-                )
-                .scalar() or 0
-            )
+            for l in lotes:
+                detalhe= f"• {l.produto.nome} (Lote: {l.num_lote}) - Vence em: {l.data_vencimento.strftime('%d/%m/%Y')}"
+                if l.data_vencimento<hoje:
+                    kpis["lotes_vencidos"]+=1
+                    kpis["nomes_vencidos"].append(detalhe)
+                elif hoje<= l.data_vencimento<=limite_15:
+                    kpis["lotes_vencendo_15"]+=1
+                    kpis["nomes_vencendo_15"].append(detalhe)
 
             #Produtos com estoque abaixo do mínimo
             todos_produtos=(
@@ -124,7 +107,7 @@ class TelaInicio(ctk.CTkFrame):
         topbar= ctk.CTkFrame(self,fg_color=COR_BRANCO, height=44, corner_radius=0)
         topbar.pack(fill="x")
         topbar.pack_propagate(False)
-        ctk.CTkLabel(topbar, text="Inicio-Painel de situação",
+        ctk.CTkLabel(topbar, text="Painel de situação",
                      font=ctk.CTkFont(size=13, weight="bold"),
                      text_color= COR_AZUL).pack(side="left", padx=16, pady=10)
         self._lbl_ts = ctk.CTkLabel(topbar, text="", text_color="#888780", 
@@ -139,11 +122,13 @@ class TelaInicio(ctk.CTkFrame):
             font=ctk.CTkFont(size=12), wraplength=800,justify="left"
         )
         self._lbl_banner.pack(side="left",padx=14,pady=8)
-        ctk.CTkButton(
-            self._banner,text="Ver Detalhes →", width=100, height=26,
-            fg_color="transparent",text_color=COR_AZUL_M,
-            hover_color=COR_AZUL_L,font= ctk.CTkFont(size=11),
-        ).pack(side="left",padx=10)
+        self._btn_detalhes=ctk.CTkButton(
+            self._banner,text="Ver Detalhes", width=110, height=31,
+            fg_color=COR_VERM,text_color="#FFFFFF",
+            hover_color=COR_VERDE,font= ctk.CTkFont(size=11, weight="bold"),
+            command= self._mostrar_detalhes_vencidos
+        )
+        self._btn_detalhes.pack(side="right", padx=10)
 
         #Grid de KPIs cards
         self._frame_kpis= ctk.CTkFrame(self, fg_color="transparent")
@@ -177,7 +162,17 @@ class TelaInicio(ctk.CTkFrame):
         frame_tab= ctk.CTkFrame(self,fg_color=COR_BRANCO,corner_radius=8,
                                 border_width=1,border_color=COR_CINZA_B)
         frame_tab.pack(fill="both", expand=True, padx=16,pady=12)
-        ctk.CTkLabel(frame_tab,text="Lotes a vencer em 7 dias",
+        ctk.CTkLabel(frame_tab,text="Lotes a vencer em 15 dias",
+                     font=ctk.CTkFont(size=12,weight="bold"),
+                     text_color=COR_AZUL).pack(anchor="w",padx=14,pady=(10,4))
+        self._lbl_tabela_15= ctk.CTkLabel(
+            frame_tab,text="Carregando...",text_color="#888780",
+            font=ctk.CTkFont(size=12), justify="left"
+        )
+        self._lbl_tabela_15.pack(anchor="w",padx=14,pady=(0,12))
+
+        #tabela Vencidos
+        ctk.CTkLabel(frame_tab,text="Lotes Vencidos", 
                      font=ctk.CTkFont(size=12,weight="bold"),
                      text_color=COR_AZUL).pack(anchor="w",padx=14,pady=(10,4))
         self._lbl_tabela= ctk.CTkLabel(
@@ -200,26 +195,38 @@ class TelaInicio(ctk.CTkFrame):
         
         # Banner de vencidos
         n_venc= kpis.get("lotes_vencidos",0)
+        self._lista_vencidos=kpis.get("nomes_vencidos",[])
+
         if n_venc>0:
-            nomes="\n".join(kpis.get("nomes_vencidos",[]))
             self._lbl_banner.configure(
-                text=f"{n_venc} lote(s) vencidos(s) com saldo em estoque\n{nomes}"
+                text=f"ATENÇÂO {n_venc} lote(s) vencidos(s) com saldo em estoque\n", 
             )
+            self._banner.pack(fill="x", padx=16, pady=10, before= self._frame_kpis)
         else:
             self._banner.pack_forget()
         
-        # Tabela de lotes a vencer emm 7 dias
-        n_7=kpis.get("lotes_vencendo_7",0)
-        if n_7>0: 
-            self._lbl_tabela.configure(
-                text=f"{n_7} lote(s) com vencimento nos próximos 7 dias. Acesse Posição do estoque para mais detalhes."
-            )
+        # Tabela de lotes a vencer em 15 dias
+        n_15=kpis.get("lotes_vencendo_15",0)
+        if n_15>0: 
+           lista_detalhada="\n".join(kpis.get("nomes_vencendo_15",[]))
+           self._lbl_tabela.configure(
+                text=f"Lotes vencendo em até 15 dias({n_15}):\n {lista_detalhada}"
+           )
         else:
-            self._lbl_tabela.configure(text="Nenhum lote a vencer nos proximos 7 dias.")
+            self._lbl_tabela.configure(text="Nenhum lote a vencer nos proximos 15 dias.")
         
         #Timestamp
         self._timer=self.after(self.REFRESH_MS,self._atualizar)
     
+    def _mostrar_detalhes_vencidos(self):
+        """Abre uma janela (messagebox) com os detalhes dos lotes vencidos"""
+        if hasattr(self, '_lista_vencidos') and self._lista_vencidos:
+            detalhes = "\n".join(self._lista_vencidos)
+            messagebox.showwarning(
+                "Atenção - Lotes Vencidos", 
+                f"Os seguintes lotes já passaram da data de validade:\n\n{detalhes}\n\nFavor realizar a retirada de estoque."
+            )
+
     def destroy(self):
         """Cancela o timer ao destruir tela"""
         if self._timer:

@@ -239,35 +239,49 @@ class Sidebar(ctk.CTkFrame):
         self._construir()
 
     def _construir(self):
+        self._menu_scroll = ctk.CTkScrollableFrame(
+        self, 
+        fg_color="transparent", 
+        corner_radius=0,
+        label_text="" 
+        )
+        self._menu_scroll.pack(fill="both", expand=True)
+
+        label_pendente= None
         for item in self.MENU:
             destino, label, perfis = item
 
             if destino == "__label__":
-                ctk.CTkLabel(
-                    self, text=label.upper(),
-                    text_color="#7fa8cc",
-                    font=ctk.CTkFont(size=9, weight="bold"),
-                    anchor="w",
-                ).pack(fill="x", padx=14, pady=(10,2))
+                label_pendente=label    
                 continue
 
             permitido= perfis and self._perfil in perfis
-            btn = ctk.CTkButton(
-                self,
-                text=f"  {label}",
-                anchor="w",
-                fg_color="transparent",
-                text_color="white" if permitido else "#5a7a99",
-                hover_color=COR_SIDEBAR_H if permitido else COR_SIDEBAR,
-                height=32,
-                corner_radius=6,
-                font=ctk.CTkFont(size=12),
-                state="normal" if permitido else "disabled",
-                command=(lambda d=destino: self._clicar(d)) if permitido else None,
-            )
-            btn.pack(fill="x", padx=6, pady=1)
-            self._botoes[destino]= btn
+            if permitido:
+                if label_pendente:
+                    ctk.CTkLabel(
+                        self._menu_scroll, 
+                        text=label_pendente.upper(),
+                        text_color="#7fa8cc",
+                        font=ctk.CTkFont(size=9, weight="bold"),
+                        anchor="w",
+                    ).pack(fill="x", padx=14, pady=(10, 2))
 
+                    label_pendente = None
+                btn = ctk.CTkButton(
+                    self._menu_scroll,
+                    text=f"  {label}",
+                    anchor="w",
+                    fg_color="transparent",
+                    text_color="white",
+                    hover_color=COR_SIDEBAR_H,
+                    height=32,
+                    corner_radius=6,
+                    font=ctk.CTkFont(size=12),
+                    state="normal",
+                    command=lambda d=destino: self._clicar(d)
+                )
+                btn.pack(fill="x", padx=6, pady=1)
+                self._botoes[destino] = btn
     def _clicar(self, destino: str):
         # Remove destaque anterior 
         if self._ativo and self._ativo in self._botoes:

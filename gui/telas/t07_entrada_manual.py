@@ -33,7 +33,7 @@ COR_AMBER_T = "#854F0B"
 COR_VERM    = "#A32D2D"
  
 UNIDADES = ["caixa","pacote","unidade","ampola","galao","fardo","litro","rolo","kit","dose"]
-CENTROS  = ["almoxarifado", "farmacia"]
+CENTROS  = ["almoxarifado", "farmacia","deposito"]
  
  
 class TelaEntradaManual(ctk.CTkFrame):
@@ -73,7 +73,10 @@ class TelaEntradaManual(ctk.CTkFrame):
         self._sec1.pack(fill="x", pady=(0, 8))
  
         self._ean = CampoBarras(self._sec1, on_leitura=self._on_leitura_ean)
-        self._ean.pack(fill="x", padx=14, pady=(0, 6))
+        self._ean.pack(side="left", padx=14, pady=(0, 6))
+
+        self._ean = CampoBarras(self._sec1, on_leitura=self._on_leitura_nome)
+        self._ean.pack(side="right", padx=14, pady=(0, 6))
  
         # Card: produto encontrado (verde)
         self._card_produto = ctk.CTkFrame(
@@ -255,11 +258,50 @@ class TelaEntradaManual(ctk.CTkFrame):
             self._frame_cadastro_rapido.pack(fill="x", padx=14, pady=(0, 8))
             self._rap_nome.focus()
  
+    def _on_leitura_nome(self, nome: str):
+        """Chamado ao pressionar Enter no campo NOME."""
+        self._card_produto.pack_forget()
+        self._frame_cadastro_rapido.pack_forget()
+        self._produto_sel  = None
+        self._nome_pendente = None
+ 
+        if not nome.strip():
+            return
+ 
+        try:
+            produto = EstoqueService.buscar_produto_por_nome(nome)
+        except Exception as exc:
+            self._banner.erro(f"Erro ao buscar produto: {exc}")
+            return
+ 
+        if produto:
+            # Produto encontrado — exibe card verde
+            self._produto_sel = produto
+            self._lbl_produto.configure(
+                text=(f"  {produto.nome}\n"
+                      f"  Centro: {produto.centro_alocacao.value if hasattr(produto.centro_alocacao,'value') else produto.centro_alocacao}"
+                      f"  ·  Fornecedor: {produto.fornecedor or '—'}"
+                      f"  ·  Estoque mín.: {produto.estoque_minimo}")
+            )
+            self._card_produto.pack(fill="x", padx=14, pady=(0, 8))
+            self._banner._limpar()
+        """else:
+            # Produto não encontrado — abre mini-form inline
+            self._nome_pendente = nome
+            self._lbl_ean_rap.configure(text=f"  EAN lido: {nome}")
+            self._rap_nome.limpar()
+            self._rap_fornecedor.limpar()
+            self._rap_marca.limpar()
+            self._frame_cadastro_rapido.pack(fill="x", padx=14, pady=(0, 8))
+            self._rap_nome.focus() 
+    """
     def _buscar_produto_por_id(self, id_: int):
         p = ProdutoRepo.buscar_por_id(id_)
         if p:
             self._ean.set(p.ean)
             self._on_leitura_ean(p.ean)
+    
+
  
     # ── Cadastro rápido ───────────────────────────────────────────────────────
  

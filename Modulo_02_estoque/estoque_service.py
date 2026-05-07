@@ -31,6 +31,9 @@ class EstoqueService:
         return ProdutoRepo.buscar_por_ean(ean)
  
     @staticmethod
+    def buscar_produto_por_nome(nome:str):
+        return ProdutoRepo.buscar_por_nome(nome)
+    @staticmethod
     def criar_produto(
         nome: str,
         ean: str,

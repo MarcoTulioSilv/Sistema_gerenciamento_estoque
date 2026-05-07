@@ -45,7 +45,18 @@ class ProdutoRepo:
             if obj:
                 s.expunge(obj)
             return obj
-    
+    @staticmethod 
+    def buscar_por_nome(nome:str)-> Produto | None:
+        with get_read_session() as s:
+            obj=(
+                s.query(Produto)
+                .filter(Produto.nome==nome.strip())
+                .first()
+            )
+            if obj:
+                s.expunge(obj)
+            return obj
+
     @staticmethod
     def ean_existe(ean: str, excluir_id: int | None = None) -> bool:
         with get_read_session() as s:

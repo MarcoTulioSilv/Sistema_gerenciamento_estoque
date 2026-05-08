@@ -20,7 +20,6 @@ COR_VERM   = "#A32D2D"
 COR_VERDE  = "#1D9E75"
 
 _SITUACAO_COR = {
-    "Abaixo do mínimo": ("#FAEEDA", "#854F0B"),
     "Normal":           ("#EAF3DE", "#27500A"),
     "Sem controle":     ("#F1EFE8", "#5F5E5A"),
 }
@@ -77,7 +76,7 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
         self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
 
         self._opt_centro = ctk.CTkOptionMenu(
-            filt, values=["Todos os centros", "Almoxarifado", "Farmacia"],
+            filt, values=["Todos os centros", "Almoxarifado", "Farmacia", "Deposito"],
             width=150, height=32, corner_radius=6,
             fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#161614",
             command=lambda _: self._filtrar())
@@ -93,11 +92,12 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
         hdr = ctk.CTkFrame(self, fg_color=COR_BRANCO, corner_radius=0,
                            border_width=1, border_color=COR_CINZA_B)
         hdr.pack(fill="x", padx=16, pady=(10, 0))
-        for col, (txt, largura) in enumerate(_COLUNAS):
+        hdr.grid_columnconfigure(3, weight=1)
+        for col, (txt, largura) in enumerate(_COLUNAS):           
             ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
                          font=ctk.CTkFont(size=10, weight="bold"),
                          width=largura, anchor="w").grid(
-                row=0, column=col, padx=6, pady=6, sticky="w")
+                row=0, column=col, padx=6, pady=6, sticky="w" if col<4 else"e" if col==5 else"w")
 
         # Área de scroll
         self._scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E,
@@ -178,6 +178,7 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
             row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
             row.pack(fill="x")
 
+            row.grid_columnconfigure(3, weight=1)
             # Nome do produto
             ctk.CTkLabel(row, text=d["nome"][:28], text_color="#3d3d3a",
                          font=ctk.CTkFont(size=11), width=220,
@@ -191,12 +192,12 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
             # Saldo atual
             ctk.CTkLabel(row, text=str(d["saldo"]), text_color="#3d3d3a",
                          font=ctk.CTkFont(size=11, weight="bold"), width=90,
-                         anchor="center").grid(row=0, column=2, padx=6, pady=7)
+                         anchor="center").grid(row=0, column=2, padx=6, pady=7, sticky="w")
 
             # Campo de edição do mínimo — pré-preenchido
             entry_min = ctk.CTkEntry(row, width=80, height=28, corner_radius=4)
             entry_min.insert(0, str(d["estoque_minimo"]))
-            entry_min.grid(row=0, column=3, padx=6, pady=7)
+            entry_min.grid(row=0, column=3, padx=6, pady=7, sticky="w")
 
             # Badge de situação calculada em tempo real
             situacao = _calcular_situacao(d["saldo"], d["estoque_minimo"])
@@ -205,7 +206,7 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
                          fg_color=fg_s, text_color=tc_s,
                          font=ctk.CTkFont(size=9, weight="bold"),
                          corner_radius=6, padx=6, pady=2, width=120).grid(
-                row=0, column=4, padx=6, pady=7)
+                row=0, column=4, padx=6, pady=7, sticky="w")
 
             # Botão salvar por linha (RNF-06: alteração registrada em log)
             pid = d["id"]
@@ -214,7 +215,7 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
                 fg_color=COR_AZUL_M, hover_color="#1a5276",
                 font=ctk.CTkFont(size=11),
                 command=lambda p=pid, e=entry_min: self._salvar_linha(p, e),
-            ).grid(row=0, column=5, padx=6, pady=7)
+            ).grid(row=0, column=5, padx=6, pady=7, sticky="e")
 
             self._linhas.append({"id": pid, "entry": entry_min, "dados": d})
 
@@ -249,7 +250,7 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
         except Exception as exc:
             logger.error("Erro ao salvar estoque mínimo (produto %s): %s", produto_id, exc)
             self._banner.erro(f"Erro ao salvar: {exc}")
-
+        self._renderizar(self._dados)
 
 # ── Utilitários ───────────────────────────────────────────────────────────────
 
@@ -257,6 +258,4 @@ def _calcular_situacao(saldo: int, minimo: int) -> str:
     """Retorna rótulo de situação para o badge."""
     if minimo == 0:
         return "Sem controle"
-    if saldo <= minimo:
-        return "Abaixo do mínimo"
     return "Normal"

@@ -55,7 +55,8 @@ def _consultar_kpis()->dict:
                     .options(joinedload(Lote.produto)) # Carrega o nome do produto junto
                     .filter(Lote.quantidade_atual > 0)
                     .all())
-
+            
+            # Percorre lotes e identifica vencidos e prestes a vencer
             for l in lotes:
                 detalhe= f"• {l.produto.nome} (Lote: {l.num_lote}) - Vence em: {l.data_vencimento.strftime('%d/%m/%Y')}"
                 if l.data_vencimento<hoje:
@@ -171,15 +172,6 @@ class TelaInicio(ctk.CTkFrame):
         )
         self._lbl_tabela_15.pack(anchor="w",padx=14,pady=(0,12))
 
-        #tabela Vencidos
-        ctk.CTkLabel(frame_tab,text="Lotes Vencidos", 
-                     font=ctk.CTkFont(size=12,weight="bold"),
-                     text_color=COR_AZUL).pack(anchor="w",padx=14,pady=(10,4))
-        self._lbl_tabela= ctk.CTkLabel(
-            frame_tab,text="Carregando...",text_color="#888780",
-            font=ctk.CTkFont(size=12), justify="left"
-        )
-        self._lbl_tabela.pack(anchor="w",padx=14,pady=(0,12))
     
     def _atualizar(self):
         """Consulta KPIs e atualiza a interface"""
@@ -209,11 +201,11 @@ class TelaInicio(ctk.CTkFrame):
         n_15=kpis.get("lotes_vencendo_15",0)
         if n_15>0: 
            lista_detalhada="\n".join(kpis.get("nomes_vencendo_15",[]))
-           self._lbl_tabela.configure(
+           self._lbl_tabela_15.configure(
                 text=f"Lotes vencendo em até 15 dias({n_15}):\n {lista_detalhada}"
            )
         else:
-            self._lbl_tabela.configure(text="Nenhum lote a vencer nos proximos 15 dias.")
+            self._lbl_tabela_15.configure(text="Nenhum lote a vencer nos proximos 15 dias.")
         
         #Timestamp
         self._timer=self.after(self.REFRESH_MS,self._atualizar)

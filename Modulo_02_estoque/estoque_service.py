@@ -20,6 +20,8 @@ class EstoqueService:
         #Retorna valores únicos de forncedor para sugestões no ComboBox de T-05
         return ProdutoRepo.listar_fornecedore_unicos()
     
+    def listar_nomes_unicos()-> list[str]:
+        return ProdutoRepo.listar_nomes_unicos()
     #__________ Produtos_________________________________________________________________________
     @staticmethod
     def listar_produtos(apenas_ativos: bool = True):

@@ -11,6 +11,7 @@ from gui.telas.t21_troca_senha import TelaTrocaSenha
 from gui.telas.t05_novo_produto import TelaNovoProduto
 from gui.telas.t07_entrada_manual import TelaEntradaManual
 from gui.telas.t08_importar_nfe import TelaImportarNFe
+from gui.telas.t07c_entrada_danfe import TelaEntradaDANFE
 from gui.telas.t09_retirada import TelaRetirada
 from gui.telas.t10_posicao_estoque import TelaPosicaoEstoque
 from gui.telas.t22_dashboard import TelaDashboard
@@ -142,6 +143,8 @@ class SCEApp(ctk.CTk):
             return TelaEntradaManual(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, produto_id=extra)
         if destino=="importar_nfe":
             return TelaImportarNFe(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        if destino=="entrada_danfe":
+            return TelaEntradaDANFE(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav, produto_id=extra)
         if destino=="retirada":
             return TelaRetirada(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
         if destino=="posicao":
@@ -208,6 +211,7 @@ class Sidebar(ctk.CTkFrame):
         ("__label__"        ,"Movimentações",                 None),
         ("entrada_manual"   ,"Entrada Manual",                ["admin", "tecnico", "ti"]),
         ("importar_nfe"     ,"Importar NF-e",                 ["admin", "tecnico", "ti"]),
+        ("entrada_danfe"    ,"Entrada DANFE",                 ["admin", "tecnico", "ti"]),
         ("retirada"         ,"Retirada",                      ["admin", "tecnico", "ti"]),
         ("__label__"        ,"Consulta",                      None),
         ("posicao"          ,"Posição de Estoque",            ["admin", "tecnico", "ti"]),

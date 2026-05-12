@@ -33,7 +33,7 @@ COR_AMBER_T = "#854F0B"
 COR_VERM    = "#A32D2D"
  
 UNIDADES = ["caixa","pacote","unidade","ampola","galao","fardo","litro","rolo","kit","dose"]
-CENTROS  = ["almoxarifado", "farmacia","deposito"]
+CENTROS  = ["deposito","almoxarifado", "farmacia"]
  
  
 class TelaEntradaManual(ctk.CTkFrame):
@@ -173,7 +173,7 @@ class TelaEntradaManual(ctk.CTkFrame):
                                   placeholder="Número da NF física")
         self._nota_fiscal.grid(row=0, column=1, sticky="ew")
         ctk.CTkLabel(self._sec2,
-                     text="Nota fiscal obrigatória — RN-07: rastreabilidade fiscal.",
+                     text="Nota fiscal opcional na entrada manual.",
                      text_color="#888780",
                      font=ctk.CTkFont(size=10), anchor="w").pack(
             fill="x", padx=14, pady=(0, 6))
@@ -289,16 +289,6 @@ class TelaEntradaManual(ctk.CTkFrame):
             )
             self._card_produto.pack(fill="x", padx=14, pady=(0, 8))
             self._banner._limpar()
-        """else:
-            # Produto não encontrado — abre mini-form inline
-            self._nome_pendente = nome
-            self._lbl_ean_rap.configure(text=f"  EAN lido: {nome}")
-            self._rap_nome.limpar()
-            self._rap_fornecedor.limpar()
-            self._rap_marca.limpar()
-            self._frame_cadastro_rapido.pack(fill="x", padx=14, pady=(0, 8))
-            self._rap_nome.focus() 
-    """
     def _buscar_produto_por_id(self, id_: int):
         p = ProdutoRepo.buscar_por_id(id_)
         if p:
@@ -381,7 +371,6 @@ class TelaEntradaManual(ctk.CTkFrame):
  
         valido = all([
             self._num_lote.validar(),
-            self._nota_fiscal.validar(),
             self._data_venc.validar(),
             self._quantidade.validar(),
             self._valor_unit.validar(),
@@ -421,7 +410,7 @@ class TelaEntradaManual(ctk.CTkFrame):
             EstoqueService.registrar_entrada_manual(
                 produto_id      = self._produto_sel.id,
                 num_lote        = self._num_lote.get(),
-                nota_fiscal     = self._nota_fiscal.get(),
+                nota_fiscal     = self._nota_fiscal.get() or None,
                 data_vencimento = data_venc,
                 data_fabricacao = data_fab,
                 quantidade      = qtd,
@@ -448,9 +437,10 @@ class TelaEntradaManual(ctk.CTkFrame):
  
         nome_prod = self._produto_sel.nome
         nf        = self._nota_fiscal.get()
+        nf_text   = f".NF{nf}" if nf else""
         self._banner.sucesso(
             f"Entrada registrada: {qtd} unid. de '{nome_prod}' · "
-            f"Lote: {self._num_lote.get()} · NF: {nf}.{aviso}"
+            f"Lote: {self._num_lote.get()} · NF: {nf_text}.{aviso}"
         )
  
         # ── Modo lote em lote: oferecer próxima ação ──────────────────────────

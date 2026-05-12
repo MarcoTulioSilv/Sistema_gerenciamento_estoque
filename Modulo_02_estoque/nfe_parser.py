@@ -46,6 +46,7 @@ class DadosNFe:
     cnpj_emitente:  str
     nome_emitente:  str
     itens:          list[ItemNFe] = field(default_factory=list)
+    chave_acesso: str= ""
     # Erros de parsing (campos ausentes, schema inválido)
     erros:          list[str] = field(default_factory=list)
     
@@ -127,6 +128,20 @@ class NFeParser:
 
         data_emissao= _parse_data_nfe(data_str) if data_str else date.today()
 
+        # Chave de acesso NF-e (44 dígitos) — atributo Id do infNFe sem o prefixo 'NFe'
+        chave_acesso = ""
+        if infNFe is not None:
+            id_attr = infNFe.get("Id", "")
+            if id_attr.startswith("NFe"):
+                chave_acesso = id_attr[3:]  # remove prefixo 'NFe'
+            elif len(id_attr) == 44:
+                chave_acesso = id_attr
+        # Alternativa: buscar em protNFe/infProt/chNFe
+        if not chave_acesso:
+            prot = root.find(".//nfe:protNFe/nfe:infProt/nfe:chNFe", _NS)
+            if prot is not None and prot.text:
+                chave_acesso = prot.text.strip()
+
         #Itens
         itens=[]
         dets= infNFe.findall("nfe:det",_NS)
@@ -142,6 +157,7 @@ class NFeParser:
                 erros.append(f"Erro no item{num}:{exc}")
         
         dados = DadosNFe(
+            chave_acesso= chave_acesso,
             numero_nf    = numero_nf,
             serie        = serie,
             data_emissao = data_emissao,
@@ -227,6 +243,7 @@ def _txt(elem, tag:str, ns: dict, default:str="")->str:
     child = elem.find(tag,ns)
     if child is None or child.text is None:
         return default
+    return child.text
 
 def _parse_data_nfe(texto:str)-> date:
     """ converte datas no formato NF-e para date.

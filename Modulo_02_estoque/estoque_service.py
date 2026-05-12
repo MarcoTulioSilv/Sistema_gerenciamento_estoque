@@ -11,6 +11,7 @@ from Modulo_06_dados import TipoMovimentacaoEnum, CentroAlocacaoEnum,UnidadeEsto
 from .produto_repo import ProdutoRepo
 from .lote_repo import LoteRepo
 from .fefo_selector import FEFOSelector
+
 logger= logging.getLogger(__name__)
 
 class EstoqueService:
@@ -39,8 +40,8 @@ class EstoqueService:
     def criar_produto(
         nome: str,
         ean: str,
-        centro_alocacao: str,
         unidade_estoque: str,
+        centro_alocacao: str = "deposito",
         estoque_minimo: int   = 0,
         descricao: str        = None,
         marca: str            = None,
@@ -90,12 +91,12 @@ class EstoqueService:
     def registrar_entrada_manual(
         produto_id:      int,
         num_lote:        str,
-        nota_fiscal:     str,
         data_vencimento: date,
         quantidade:      int,
         valor_unitario:  Decimal,
         usuario_id:      int,
         data_fabricacao: date = None,
+        nota_fiscal:     str= None,
     ):
         """
         UC-04 — Registrar entrada manual.
@@ -112,11 +113,13 @@ class EstoqueService:
             raise ValueError("Valor unitário deve ser maior que zero.")
  
         valor_total = Decimal(str(valor_unitario)) * quantidade
- 
+        nf_limpa= nota_fiscal.strip() if nota_fiscal and nota_fiscal.strip() else None
+
         dados = dict(
             produto_id         = produto_id,
             num_lote           = num_lote.strip(),
-            nota_fiscal        = nota_fiscal.strip(),
+            nota_fiscal        = nf_limpa,
+            chave_acesso       = None,
             data_vencimento    = data_vencimento,
             data_fabricacao    = data_fabricacao,
             quantidade_inicial = quantidade,
@@ -129,10 +132,61 @@ class EstoqueService:
         lote = LoteRepo.criar(dados)
         logger.info(
             "Entrada manual registrada: produto_id=%s lote=%s qtd=%s nf=%s",
-            produto_id, num_lote, quantidade, nota_fiscal,
+            produto_id, num_lote, quantidade, nf_limpa or "(sem NF)",
         )
         return lote
     
+    @staticmethod
+    def registrar_entrada_danfe(
+        produto_id:      int,
+        num_lote:        str,
+        nota_fiscal:     str,        # obrigatória — extraída da chave automaticamente
+        chave_acesso:    str,        # 44 dígitos validados pelo DanfeEntryAssistant
+        data_vencimento: date,
+        quantidade:      int,
+        valor_unitario:  Decimal,
+        usuario_id:      int,
+        data_fabricacao: date = None,
+    ):
+        """
+        RF-04b — Entrada assistida por chave de acesso DANFE.
+        nota_fiscal e chave_acesso são obrigatórias (extraídas automaticamente
+        pelo DanfeEntryAssistant antes de chegar aqui).
+        """
+        if not nota_fiscal or not nota_fiscal.strip():
+            raise ValueError("Número da NF é obrigatório no fluxo DANFE (extraído da chave).")
+        if not chave_acesso or len(chave_acesso.strip()) != 44:
+            raise ValueError("Chave de acesso inválida (deve ter 44 dígitos).")
+        if not num_lote or not num_lote.strip():
+            raise ValueError("Número do lote é obrigatório.")
+        if quantidade <= 0:
+            raise ValueError("Quantidade deve ser maior que zero.")
+        if valor_unitario <= 0:
+            raise ValueError("Valor unitário deve ser maior que zero.")
+
+        valor_total = Decimal(str(valor_unitario)) * quantidade
+
+        dados = dict(
+            produto_id         = produto_id,
+            num_lote           = num_lote.strip(),
+            nota_fiscal        = nota_fiscal.strip(),
+            chave_acesso       = chave_acesso.strip(),
+            data_vencimento    = data_vencimento,
+            data_fabricacao    = data_fabricacao,
+            quantidade_inicial = quantidade,
+            quantidade_atual   = quantidade,
+            valor_unitario     = Decimal(str(valor_unitario)),
+            valor_total        = valor_total,
+            usuario_id         = usuario_id,
+            tipo               = TipoMovimentacaoEnum.entrada_danfe,
+        )
+        lote = LoteRepo.criar(dados)
+        logger.info(
+            "Entrada DANFE: produto_id=%s lote=%s qtd=%s nf=%s chave=...%s",
+            produto_id, num_lote, quantidade, nota_fiscal, chave_acesso[-4:],
+        )
+        return lote
+
     @staticmethod
     def calcular_plano_fefo(produto_id: int, quantidade:int):
         """

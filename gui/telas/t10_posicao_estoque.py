@@ -91,7 +91,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
 
         self._opt_centro= ctk.CTkOptionMenu(
-            filt, values=["Todos os centros", "Almoxarifado", "Farmacia"],
+            filt, values=["Todos os centros", "Almoxarifado", "Farmacia","Deposito"],
             width=150, height=32, corner_radius=6,
             fg_color=COR_BRANCO, button_color= COR_AZUL_M, text_color="#161614",
             command=lambda _: self._filtrar())

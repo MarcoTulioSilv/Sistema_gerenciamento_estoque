@@ -350,6 +350,11 @@ class FeedbackBanner(ctk.CTkFrame):
         self._lbl.configure(text=msg, fg_color="#FCEBEB", text_color="#A32D2D")
         self._lbl.pack(fill="x")
         self._agendar_ocultar(duração_ms)
+    
+    def aviso(self, msg: str, duração_ms: int=4000):
+        self._lbl.configure(text=msg, fg_color="#FAEEDA", text_color="#854F0B")
+        self._lbl.pack(fill="x")
+        self._agendar_ocultar(duração_ms)
 
     def _agendar_ocultar(self, ms: int):
         if self._timer:

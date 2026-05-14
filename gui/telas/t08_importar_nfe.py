@@ -135,7 +135,7 @@ class TelaImportarNFe(ctk.CTkFrame):
                    anchor="w").pack(fill="x", padx=12, pady=(10,4))
       self._opt_centro= ctk.CTkOptionMenu(
          self._frame_auto,
-         values=["almoxarifado","farmacia"],
+         values=["almoxarifado","farmacia", "deposito"],
          width=200, height=32, corner_radius=6,
          fg_color= COR_BRANCO, button_color= COR_AZUL_M, text_color="#3d3d3a")
       self._opt_centro.pack(anchor="w", padx=12)

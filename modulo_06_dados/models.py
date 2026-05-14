@@ -26,7 +26,7 @@ class PerfilEnum(str, enum.Enum):
 class CentroAlocacaoEnum(str, enum.Enum):
     almoxarifado = "almoxarifado"
     farmacia     = "farmacia"
-    deposito     = "desposito"
+    deposito     = "deposito"
 
 class UnidadeEstoqueEnum(str, enum.Enum):
     caixa   =   "caixa"

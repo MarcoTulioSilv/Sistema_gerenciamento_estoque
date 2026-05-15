@@ -60,27 +60,31 @@ def _wb_styles():
     }
  
  
-def _aplicar_header(ws, colunas: list[tuple[str, int]], st: dict):
-    """Escreve o cabeçalho e configura larguras de coluna."""
+def _aplicar_header(ws, colunas: list[tuple[str, int]], st: dict, row_idx: int = 1):
+    """Escreve o cabeçalho na linha especificada e configura larguras de coluna."""
     for col, (titulo, largura) in enumerate(colunas, 1):
-        cell = ws.cell(row=1, column=col, value=titulo)
+        cell = ws.cell(row=row_idx, column=col, value=titulo)
         cell.fill      = st["hf"]
         cell.font      = st["hft"]
         cell.alignment = st["ha"]
         cell.border    = st["border"]
         ws.column_dimensions[cell.column_letter].width = largura
-    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[row_idx].height = 28
  
  
 def _aplicar_linha(ws, row_idx: int, valores: list, st: dict,
-                   fill=None, font=None):
-    """Escreve uma linha de dados com estilo."""
+                   fill=None, font=None, alignments=None):
+    """Escreve uma linha de dados com estilo e alinhamento sob medida."""
     fundo = fill  or (st["alt"] if row_idx % 2 == 0 else None)
     fonte = font  or st["nf"]
     for col, val in enumerate(valores, 1):
         cell = ws.cell(row=row_idx, column=col, value=val)
         cell.font      = fonte
-        cell.alignment = st["center"] if isinstance(val, (int, float, Decimal)) else st["left"]
+        if alignments and col - 1 < len(alignments):
+            cell.alignment = alignments[col - 1]
+        else:
+            cell.alignment = st["center"] if isinstance(val, (int, float, Decimal)) else st["left"]
+            
         cell.border    = st["border"]
         if fundo:
             cell.fill = fundo
@@ -108,27 +112,23 @@ class XlsxBuilder:
     @staticmethod
     def movimentacao(data_ini: date, data_fim: date) -> Path:
         """
-        Relatório de movimentações (entradas e saídas) no período.
+        Relatório de movimentações (entradas e saídas) no período com células mescladas.
         RF-15: inclui produto, lote, NF, tipo, quantidade, usuário e data.
         """
-    
- 
         wb = Workbook()
         ws = wb.active
         ws.title = "Movimentação"
         st = _wb_styles()
  
         colunas = [
-            ("Data/Hora", 18), ("Produto", 35), ("Lote", 14),
+            ("Data/Hora", 18), ("Produto", 50), ("Lote", 14),
             ("Nota Fiscal", 14), ("Tipo", 16), ("Quantidade", 12),
             ("Usuário", 20), ("Observação", 35),
         ]
-        _aplicar_header(ws, colunas, st)
- 
         inicio = dt.combine(data_ini, dt.min.time())
         fim    = dt.combine(data_fim, dt.max.time())
- 
         hoje = date.today()
+
         with get_read_session() as s:
             movs = (
                 s.query(Movimentacao)
@@ -143,11 +143,45 @@ class XlsxBuilder:
                 .order_by(Movimentacao.data_hora.desc())
                 .all()
             )
+            
+            # --- 1. CONFIGURAÇÃO DA LINHA 1 (PERÍODO E TOTAL) ---
+            ws.row_dimensions[1].height = 25
+            
+            # Mesclagem A1:D1 para o Período
+            ws.merge_cells('A1:D1')
+            cell_p = ws['A1']
+            cell_p.value = f"Período: {data_ini.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
+            cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+            cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+            # Mesclagem G1:H1 para o Total de Movimentações
+            ws.merge_cells('G1:H1')
+            cell_t = ws['G1']
+            cell_t.value = f"Total: {len(movs)} registros"
+            cell_t.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+            cell_t.alignment = Alignment(horizontal="center", vertical="center")
+
+            # --- 2. LINHA 2: TÍTULOS DAS COLUNAS ---
+            _aplicar_header(ws, colunas, st, row_idx=2)
  
-            for i, mov in enumerate(movs, 2):
+            # Definição de alinhamentos para os dados
+            alinhamentos_da_linha = [
+                st["center"], # Data/Hora
+                st["left"],   # Produto
+                st["center"], # Lote
+                st["center"], # Nota Fiscal
+                st["center"], # Tipo
+                st["center"], # Quantidade
+                st["center"], # Usuário
+                st["left"]    # Observação
+            ]
+
+            # --- 3. LINHA 3 EM DIANTE: DADOS ---
+            for i, mov in enumerate(movs, 3):
                 vencido = mov.lote.data_vencimento < hoje
                 fill = st["vf"] if vencido else None
                 font = st["vft"] if vencido else None
+                
                 _aplicar_linha(ws, i, [
                     mov.data_hora.strftime("%d/%m/%Y %H:%M"),
                     mov.lote.produto.nome,
@@ -157,13 +191,10 @@ class XlsxBuilder:
                     mov.quantidade,
                     mov.usuario.nome,
                     mov.observacao or "",
-                ], st, fill=fill, font=font)
- 
-        # Rodapé
-        ws.append([])
-        ws.append([f"Período: {data_ini.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}",
-                   "", "", "", "", "", f"Total: {len(movs)} registros"])
-        ws.freeze_panes = "A2"
+                ], st, fill=fill, font=font, alignments=alinhamentos_da_linha)
+                
+        # Congela as duas linhas superiores
+        ws.freeze_panes = "A3"
  
         caminho = XlsxBuilder._nome_arquivo("movimentacao")
         wb.save(caminho)
@@ -191,7 +222,7 @@ class XlsxBuilder:
             ("Qtd. Inicial", 12), ("Qtd. Atual", 12),
             ("Vlr. Unit. (R$)", 14), ("Vlr. Total (R$)", 14), ("Situação", 16),
         ]
-        _aplicar_header(ws, colunas, st)
+
  
         hoje = date.today()
         with get_read_session() as s:
@@ -203,8 +234,19 @@ class XlsxBuilder:
                 .order_by(Produto.nome, Lote.data_vencimento)
                 .all()
             )
- 
-            for i, l in enumerate(lotes, 2):
+             # --- 1. CONFIGURAÇÃO DA LINHA 1 (PERÍODO E TOTAL) ---
+            ws.row_dimensions[1].height = 25
+            
+            # Mesclagem A1:D1 para o Período
+            ws.merge_cells('A1:K1')
+            cell_p = ws['A1']
+            cell_p.value = f"Estoque {date.today()}"
+            cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+            cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+            # --- 2. LINHA 2: TÍTULOS DAS COLUNAS ---
+            _aplicar_header(ws, colunas, st, row_idx=2)
+            for i, l in enumerate(lotes, 3):
                 diff  = (l.data_vencimento - hoje).days
                 vencido = l.data_vencimento < hoje
  
@@ -235,7 +277,7 @@ class XlsxBuilder:
                     situacao,
                 ], st, fill=fill, font=font)
  
-        ws.freeze_panes = "A2"
+        ws.freeze_panes = "A3"
         caminho = XlsxBuilder._nome_arquivo("estoque_atual")
         wb.save(caminho)
         logger.info("Relatório estoque atual gerado: %s", caminho)
@@ -259,7 +301,6 @@ class XlsxBuilder:
             ("Nota Fiscal", 14), ("Vencimento", 14),
             ("Dias restantes", 14), ("Qtd. Atual", 12), ("Situação", 16),
         ]
-        _aplicar_header(ws, colunas, st)
  
         hoje   = date.today()
         limite = hoje + timedelta(days=dias)
@@ -278,8 +319,17 @@ class XlsxBuilder:
                 .order_by(Lote.data_vencimento)
                 .all()
             )
- 
-            for i, l in enumerate(lotes, 2):
+            
+            # Mesclagem A1:D1 para o Período
+            ws.merge_cells('A1:H1')
+            cell_p = ws['A1']
+            cell_p.value = f"Lotes a vencer Proximos 30 Dias consulta {date.today()}"
+            cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+            cell_p.alignment = Alignment(horizontal="center", vertical="center")
+            
+            _aplicar_header(ws, colunas, st, row_idx=2)
+
+            for i, l in enumerate(lotes, 3):
                 diff = (l.data_vencimento - hoje).days
                 if diff <= 2:
                     fill, font, sit = st["vf"], st["vft"], "Crítico"
@@ -299,7 +349,7 @@ class XlsxBuilder:
                     sit,
                 ], st, fill=fill, font=font)
  
-        ws.freeze_panes = "A2"
+        ws.freeze_panes = "A3"
         caminho = XlsxBuilder._nome_arquivo("a_vencer")
         wb.save(caminho)
         logger.info("Relatório a vencer gerado: %s (%d lotes)", caminho, len(lotes))
@@ -318,16 +368,10 @@ class XlsxBuilder:
         ws.title = "Lotes Vencidos"
         st = _wb_styles()
  
-        colunas = [
-            ("Produto", 35), ("Centro", 14), ("Fornecedor", 25),
-            ("Lote", 14), ("Nota Fiscal", 14), ("Vencimento", 14),
-            ("Dias vencido", 14), ("Qtd. em estoque", 15),
-            ("Valor em estoque (R$)", 20),
-        ]
-        _aplicar_header(ws, colunas, st)
- 
         hoje = date.today()
+        
         with get_read_session() as s:
+            # 1. Busca os lotes primeiro para ter os dados de contagem e valor
             lotes = (
                 s.query(Lote)
                 .join(Produto)
@@ -340,14 +384,57 @@ class XlsxBuilder:
                 .order_by(Lote.data_vencimento)
                 .all()
             )
- 
-            valor_total_geral = Decimal("0")
-            for i, l in enumerate(lotes, 2):
+
+            # 2. Configura a Top Bar (Linha 1) - Título com a data do dia
+            ws.row_dimensions[1].height = 30
+            ws.merge_cells('A1:L1')
+            cell_titulo = ws['A1']
+            cell_titulo.value = f"Lotes vencidos em estoque no dia {hoje.strftime('%d/%m/%Y')}"
+            cell_titulo.font = Font(bold=True, color=COR_HEADER_FONT, size=12)
+            cell_titulo.fill = PatternFill("solid", fgColor=COR_HEADER_FILL)
+            cell_titulo.alignment = Alignment(horizontal="center", vertical="center")
+
+            # 3. Cabeçalhos das Colunas (Linha 2, Colunas A até I)
+            colunas = [
+                ("Produto", 35), ("Centro", 14), ("Fornecedor", 25),
+                ("Lote", 14), ("Nota Fiscal", 14), ("Vencimento", 14),
+                ("Dias vencido", 14), ("Qtd. em estoque", 15),
+                ("Valor em estoque (R$)", 22),
+            ]
+            _aplicar_header(ws, colunas, st, row_idx=2)
+
+            valor_total_geral = sum(l.valor_unitario * l.quantidade_atual for l in lotes)
+            
+            cell_resumo = ws['J2']
+            cell_resumo.value = (
+                f"Total de Lotes: {len(lotes)} vencidos")
+            
+            # Estilo do quadro de resumo
+            cell_resumo.font = Font(bold=True, color=COR_HEADER_FONT, size=11)
+            cell_resumo.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell_resumo.border = st["border"]
+            cell_resumo.fill = PatternFill("solid", fgColor=COR_HEADER_FILL)
+
+            ws.merge_cells('J3:J4')
+            cell_total= ws['J3']
+            cell_total.value=(f"Valor: {valor_total_geral}")
+
+            cell_total.font = Font(bold=True, color=COR_HEADER_FONT, size=11)
+            cell_total.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell_total.border = st["border"]
+            cell_total.fill = PatternFill("solid", fgColor=COR_VENCIDO_FONT)
+
+            ws.column_dimensions['J'].width = 30
+
+            # 5. Preenchimento dos Dados (A partir da Linha 3)
+            alinhamentos = [st["left"], st["center"], st["left"], st["center"], 
+                            st["center"], st["center"], st["center"], st["center"], st["center"]]
+
+            for i, l in enumerate(lotes, 3):
                 dias_vencido = (hoje - l.data_vencimento).days
                 valor_em_estoque = l.valor_unitario * l.quantidade_atual
-                valor_total_geral += valor_em_estoque
  
-                # Todos vencidos → vermelho (RF-22)
+                # Todos vencidos → destaque em vermelho (RF-22)
                 _aplicar_linha(ws, i, [
                     l.produto.nome,
                     l.produto.centro_alocacao.value.capitalize(),
@@ -358,14 +445,9 @@ class XlsxBuilder:
                     dias_vencido,
                     l.quantidade_atual,
                     float(valor_em_estoque),
-                ], st, fill=st["vf"], font=st["vft"])
+                ], st, fill=st["vf"], font=st["vft"], alignments=alinhamentos)
  
-        # Rodapé com totais
-        ws.append([])
-        ws.append(["", "", "", "", "", "", f"Total: {len(lotes)} lotes vencidos",
-                   "", f"Valor total: R$ {float(valor_total_geral):,.2f}"])
- 
-        ws.freeze_panes = "A2"
+        ws.freeze_panes = "A3" # Congela Título e Cabeçalho
         caminho = XlsxBuilder._nome_arquivo("lotes_vencidos")
         wb.save(caminho)
         logger.info("Relatório lotes vencidos gerado: %s (%d lotes)", caminho, len(lotes))

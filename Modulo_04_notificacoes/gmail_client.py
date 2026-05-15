@@ -55,7 +55,7 @@ class GmailClient:
         """Retorna (usuario, senha, email_destinatario)."""
         usuario   = cls._ler_config("smtp_usuario")
         senha_enc = cls._ler_config("smtp_senha_enc")
-        destino   = cls._ler_config("email_gestora")
+        destino   = cls._ler_config("email_destinatario_relatorio")
         senha     = cls._descriptografar(senha_enc)
         if not usuario or not senha:
             raise ValueError(
@@ -89,7 +89,7 @@ class GmailClient:
  
         if not destino:
             raise ValueError(
-                "E-mail da gestora não configurado. "
+                "E-mail de destino não configurado. "
                 "Acesse Administração → Config. Gmail."
             )
  

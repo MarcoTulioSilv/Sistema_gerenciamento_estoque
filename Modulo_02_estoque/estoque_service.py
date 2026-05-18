@@ -197,7 +197,7 @@ class EstoqueService:
         return FEFOSelector.calcular_plano(produto_id, quantidade)
     
     @staticmethod
-    def registrar_retirada(plano, usuario_id: int, observacao: str=None):
+    def registrar_retirada(plano, usuario_id: int, observacao: str=None, destino_centro: str=None, tipo_mov=None):
         """
         RF-07, RN-08- executa o plano FEFO confirmado.
         grava N movimantações (uma por lote) na mesma transação InnoDB.
@@ -225,16 +225,31 @@ class EstoqueService:
                 lote.quantidade_atual = item.saldo_restante
 
                 #Registra movimentação de saida
+                if tipo_mov is not None:
+                    tipo_registro = tipo_mov
+                elif destino_centro:
+                    tipo_registro = TipoMovimentacaoEnum.transferencia
+                else:
+                    tipo_registro = TipoMovimentacaoEnum.saida
                 mov= Movimentacao(
                     lote_id = item.lote_id,
                     usuario_id = usuario_id,
-                    tipo= TipoMovimentacaoEnum.saida,
+                    tipo= tipo_registro,
                     quantidade = item.qtd_a_retirar,
                     numero_nf= None,
                     observacao= observacao or None,
                     data_hora= datetime.utcnow(),
                 )
                 session.add(mov)
+            if destino_centro:
+                from Modulo_06_dados import CentroAlocacaoEnum
+                produto_obj = session.get(Produto, plano.produto_id)
+                if produto_obj:
+                    produto_obj.centro_alocacao = CentroAlocacaoEnum(destino_centro)
+                    logger.info(
+                        "Transferência: produto_id=%s novo centro=%s",
+                        plano.produto_id, destino_centro,
+                    )
             
             logger.info(
                 "Retirada registrada: produto_id=%s qtd=%s lotes=%s usuario=%s",

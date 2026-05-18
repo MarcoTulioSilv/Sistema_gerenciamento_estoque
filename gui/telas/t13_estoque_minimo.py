@@ -55,7 +55,7 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
         topbar.pack_propagate(False)
         ctk.CTkLabel(topbar, text="Configuração de estoque mínimo",
                      font=ctk.CTkFont(size=13, weight="bold"),
-                     text_color=COR_AZUL).pack(side="left", padx=16, pady=10)
+                     text_color=COR_AZUL).pack(side="left", padx=16, pady=0)
         ctk.CTkButton(topbar, text="Atualizar", width=90, height=28,
                       fg_color=COR_BRANCO, text_color="#161614",
                       border_width=1, border_color=COR_CINZA_B,
@@ -63,11 +63,11 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
                       command=self._carregar).pack(side="right", padx=16, pady=8)
 
         self._banner = FeedbackBanner(self)
-        self._banner.pack(fill="x", padx=16, pady=(8, 0))
+        self._banner.pack(fill="x", padx=16, pady=(0))
 
         # Filtros
         filt = ctk.CTkFrame(self, fg_color="transparent")
-        filt.pack(fill="x", padx=16, pady=(10, 0))
+        filt.pack(fill="x", padx=16, pady=(0))
 
         self._entry_busca = ctk.CTkEntry(
             filt, placeholder_text="Buscar produto...",

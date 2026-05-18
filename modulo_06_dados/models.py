@@ -46,6 +46,8 @@ class TipoMovimentacaoEnum(str, enum.Enum):
     entrada_nfe    = "entrada_nfe"
     saida          = "saida"
     entrada_danfe  = "entrada_danfe"
+    transferencia  = "transferencia"
+    baixa_vencido  = "baixa_vencido"
 
 class TipoAlertaEnum(str, enum.Enum):
     vencimento_30  = "vencimento_30"

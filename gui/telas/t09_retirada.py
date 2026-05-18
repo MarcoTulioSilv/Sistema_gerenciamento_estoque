@@ -9,7 +9,7 @@ from decimal import InvalidOperation
 
 import customtkinter as ctk
 from tkinter import messagebox
-from gui.componentes.form_widgets import(   Campo, CampoBarras, BotoesFormulario, SecaoFormulario, FeedbackBanner)
+from gui.componentes.form_widgets import(   Campo, CampoBarras, CampoNome, SecaoFormulario, FeedbackBanner)
 from Modulo_02_estoque import EstoqueService, LoteRepo, ProdutoRepo
 from datetime import date
 
@@ -64,9 +64,14 @@ class TelaRetirada(ctk.CTkFrame):
             row_id, label="Codigo de barras(EAN)",
             on_leitura= self._ao_ler_ean)
         self._campo_ean.grid(row=0,column=0, padx=(0,12), sticky="ew")
-        self._campo_qtd= Campo(row_id, "Quantidade a retirar",
+
+        self._campo_nome= CampoNome(row_id, label="Nome do Produto",
+            on_leitura= self._ao_ler_nome)
+        self._campo_nome.grid(row=0,column=1, padx=(0,4), sticky="ew")
+
+        self._campo_qtd= Campo(sec1, "Quantidade a retirar",
                                obrigatorio=True, tipo="number", placeholder="0")
-        self._campo_qtd.grid(row=0, column=1, sticky="ew")
+        self._campo_qtd.pack(fill="x", padx=14, pady=(0,8))
         self._campo_qtd._widget.bind("<Return>", lambda e: self._calcular_plano())
 
 
@@ -96,7 +101,7 @@ class TelaRetirada(ctk.CTkFrame):
 
         #Aviso de estoque insuficiente
         self._frame_insuf=ctk.CTkFrame(
-            self._sec2, fg_color="#FCEBEB", corner_radius=6,
+            sec1, fg_color="#FCEBEB", corner_radius=6,
             border_width=1, border_color="#F09595")
         self._lbl_insuf=ctk.CTkLabel(
             self._frame_insuf, text="", text_color=COR_VERM,
@@ -157,8 +162,39 @@ class TelaRetirada(ctk.CTkFrame):
         self._produto_sel= produto
         self._lbl_produto.configure(
             text=(f"{produto.nome}\n"
-                  f"Centro: {produto.centro_alocacao.value.capitalize()}."
-                  f"Saldo total disponivel:{saldo} unid. em "
+                  f"Centro de alocação: {produto.centro_alocacao.value.capitalize()}.\n"
+                  f"Saldo total disponivel: {saldo} unid. em "
+                  f"{len([l for l in lotes if l.quantidade_atual>0])} lote(s)")
+        )
+        self._frame_produto.pack(fill="x", padx=14, pady=(0,8))
+        self._plano= None
+        self._sec2.pack_forget()
+        self._btn_confirmar.configure(state="disabled")
+        self._row_btns.pack_forget()
+    
+    def _ao_ler_nome(self, nome:str):
+        try:
+            produto= EstoqueService.buscar_produto_por_nome(nome)
+        except Exception as exc:
+            self._banner.erro(f"Erro ao buscar produto:{exc}")
+            return
+        
+        if produto is None:
+            self._campo_nome.erro(f"Nome '{nome}' não cadastrado.")
+            self._frame_produto.pack_forget()
+            self._produto_sel=None
+            return
+        
+        lotes= LoteRepo.listar_por_produto(produto.id)
+        saldo= sum(l.quantidade_atual for l in lotes
+                   if l.data_vencimento>= date.today())
+        
+        self._campo_ean.erro("")
+        self._produto_sel= produto
+        self._lbl_produto.configure(
+            text=(f"{produto.nome}\n"
+                  f"Centro de alocação: {produto.centro_alocacao.value.capitalize()}.\n"
+                  f"Saldo total disponivel: {saldo} unid. em "
                   f"{len([l for l in lotes if l.quantidade_atual>0])} lote(s)")
         )
         self._frame_produto.pack(fill="x", padx=14, pady=(0,8))
@@ -184,7 +220,7 @@ class TelaRetirada(ctk.CTkFrame):
             return
         try:
             qtd= int(self._campo_qtd.get())
-            if qtd<=0 :
+            if qtd<=0  :
                 raise ValueError()
         except ValueError:
             self._campo_qtd.erro("Informe um número inteiro maior que zero.")
@@ -193,12 +229,23 @@ class TelaRetirada(ctk.CTkFrame):
 
         try:
             plano= EstoqueService.calcular_plano_fefo(self._produto_sel.id, qtd)
-        
+            if not plano.atendido_completo:
+                #RF-09- estoque insuficiente 
+                self._lbl_insuf.configure(
+                    text=(f"Estoque insufiente para {plano.quantidade_pedida} unidade(s).\n"
+                        f"Quantidade máxima disponível: {plano.quantidade_maxima_disponivel} unid.")
+                )
+                self._frame_insuf.pack(fill="x", padx=14, pady=(0,8))
+                self._btn_confirmar.configure(state="disabled")
+                return
+            
+            self._frame_insuf.pack_forget()
         except Exception as exc:
             self._banner.erro(f"Erro ao calcular plano: {exc}")
             logger.error("erro ao calcular plano:%s",exc)
             return
-        
+            
+
         self._plano= plano
         self._exibir_plano(plano)
 
@@ -206,22 +253,8 @@ class TelaRetirada(ctk.CTkFrame):
         #Limpar frame do plano
         for w in self._frame_plano.winfo_children():
             w.destroy()
-        
-        if not plano.atendido_completo:
-            #RF-09- estoque insuficiente 
-            self._lbl_insuf.configure(
-                text=(f"Estoque insufiente para {plano.quantidade_pedida} unidade(s).\n"
-                      f"Quantidade máxima disponível: {plano.quantidade_maxima_disponiel} unid.")
-            )
-            self._frame_insuf.pack(fill="x", padx=14, pady=(0,8))
-            self._btn_confirmar.configure(state="disabled")
-            self._sec2.pack(fill="x", padx=16, pady=(10,0))
-            self._row_btns.pack(anchor="e", padx=16, pady=(0,16))
-            return
-        
-        self._frame_insuf.pack_forget()
 
-        # Cabeçalho do plano7
+        # Cabeçalho do plano
         ctk.CTkLabel(
             self._frame_plano,
             text=(f"Serão retiradas{plano.quantidade_pedida} unidade(s)"
@@ -306,8 +339,8 @@ class TelaRetirada(ctk.CTkFrame):
                  f" de '{self._produto_sel.nome}'.")
             if estoque_baixo:
                 msg += "\n Estoque abaixo do mínimo- alerta enviado."
-                self._banner.sucesso(msg)
-                self._limpar()
+            self._banner.sucesso(msg)
+            self._limpar()
         except ValueError as exc:
             self._banner.erro(str(exc))
         except Exception as exc:

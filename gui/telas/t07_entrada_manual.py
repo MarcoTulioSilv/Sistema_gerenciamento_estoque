@@ -15,7 +15,7 @@ from decimal import Decimal, InvalidOperation
  
 import customtkinter as ctk
 from gui.componentes.form_widgets import (
-    Campo, CampoBarras, BotoesFormulario, SecaoFormulario, FeedbackBanner
+    CampoNome, CampoBarras, BotoesFormulario, SecaoFormulario, FeedbackBanner, Campo
 )
 from Modulo_02_estoque import EstoqueService, ProdutoRepo, LoteRepo
  
@@ -33,7 +33,7 @@ COR_AMBER_T = "#854F0B"
 COR_VERM    = "#A32D2D"
  
 UNIDADES = ["caixa","pacote","unidade","ampola","galao","fardo","litro","rolo","kit","dose"]
-CENTROS  = ["almoxarifado", "farmacia"]
+CENTROS  = ["deposito","almoxarifado", "farmacia"]
  
  
 class TelaEntradaManual(ctk.CTkFrame):
@@ -64,16 +64,23 @@ class TelaEntradaManual(ctk.CTkFrame):
  
         self._banner = FeedbackBanner(self)
         self._banner.pack(fill="x", padx=16, pady=(8, 0))
- 
-        self._scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=0)
-        self._scroll.pack(fill="both", expand=True, padx=16, pady=8)
+        self._scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=8, border_width=1, border_color=COR_CINZA_B)
+        self._scroll.pack(fill="both", expand=True, padx=16, pady=1)
  
         # ── Seção 1: Identificar produto ──────────────────────────────────────
         self._sec1 = SecaoFormulario(self._scroll, "1. Identificar produto")
         self._sec1.pack(fill="x", pady=(0, 8))
  
-        self._ean = CampoBarras(self._sec1, on_leitura=self._on_leitura_ean)
-        self._ean.pack(fill="x", padx=14, pady=(0, 6))
+        frame_identificacao = ctk.CTkFrame(self._sec1, fg_color="transparent")
+        frame_identificacao.pack(fill="x", padx=14, pady=(0, 6))
+
+        frame_identificacao.grid_columnconfigure((0, 1), weight=1)
+
+        self._ean = CampoBarras(frame_identificacao, on_leitura=self._on_leitura_ean)
+        self._ean.grid(row=0,column=0,padx=(0,8), sticky="ew")
+
+        self._nome = CampoNome(frame_identificacao, on_leitura=self._on_leitura_nome)
+        self._nome.grid(row=0,column=1, sticky="ew")
  
         # Card: produto encontrado (verde)
         self._card_produto = ctk.CTkFrame(
@@ -166,7 +173,7 @@ class TelaEntradaManual(ctk.CTkFrame):
                                   placeholder="Número da NF física")
         self._nota_fiscal.grid(row=0, column=1, sticky="ew")
         ctk.CTkLabel(self._sec2,
-                     text="Nota fiscal obrigatória — RN-07: rastreabilidade fiscal.",
+                     text="Nota fiscal opcional na entrada manual.",
                      text_color="#888780",
                      font=ctk.CTkFont(size=10), anchor="w").pack(
             fill="x", padx=14, pady=(0, 6))
@@ -255,11 +262,40 @@ class TelaEntradaManual(ctk.CTkFrame):
             self._frame_cadastro_rapido.pack(fill="x", padx=14, pady=(0, 8))
             self._rap_nome.focus()
  
+    def _on_leitura_nome(self, nome: str):
+        """Chamado ao pressionar Enter no campo NOME."""
+        self._card_produto.pack_forget()
+        self._frame_cadastro_rapido.pack_forget()
+        self._produto_sel  = None
+        self._nome_pendente = None
+ 
+        if not nome.strip():
+            return
+ 
+        try:
+            produto = EstoqueService.buscar_produto_por_nome(nome)
+        except Exception as exc:
+            self._banner.erro(f"Erro ao buscar produto: {exc}")
+            return
+ 
+        if produto:
+            # Produto encontrado — exibe card verde
+            self._produto_sel = produto
+            self._lbl_produto.configure(
+                text=(f"  {produto.nome}\n"
+                      f"  Centro: {produto.centro_alocacao.value if hasattr(produto.centro_alocacao,'value') else produto.centro_alocacao}"
+                      f"  ·  Fornecedor: {produto.fornecedor or '—'}"
+                      f"  ·  Estoque mín.: {produto.estoque_minimo}")
+            )
+            self._card_produto.pack(fill="x", padx=14, pady=(0, 8))
+            self._banner._limpar()
     def _buscar_produto_por_id(self, id_: int):
         p = ProdutoRepo.buscar_por_id(id_)
         if p:
             self._ean.set(p.ean)
             self._on_leitura_ean(p.ean)
+    
+
  
     # ── Cadastro rápido ───────────────────────────────────────────────────────
  
@@ -335,7 +371,6 @@ class TelaEntradaManual(ctk.CTkFrame):
  
         valido = all([
             self._num_lote.validar(),
-            self._nota_fiscal.validar(),
             self._data_venc.validar(),
             self._quantidade.validar(),
             self._valor_unit.validar(),
@@ -375,7 +410,7 @@ class TelaEntradaManual(ctk.CTkFrame):
             EstoqueService.registrar_entrada_manual(
                 produto_id      = self._produto_sel.id,
                 num_lote        = self._num_lote.get(),
-                nota_fiscal     = self._nota_fiscal.get(),
+                nota_fiscal     = self._nota_fiscal.get() or None,
                 data_vencimento = data_venc,
                 data_fabricacao = data_fab,
                 quantidade      = qtd,
@@ -402,9 +437,10 @@ class TelaEntradaManual(ctk.CTkFrame):
  
         nome_prod = self._produto_sel.nome
         nf        = self._nota_fiscal.get()
+        nf_text   = f".NF{nf}" if nf else""
         self._banner.sucesso(
             f"Entrada registrada: {qtd} unid. de '{nome_prod}' · "
-            f"Lote: {self._num_lote.get()} · NF: {nf}.{aviso}"
+            f"Lote: {self._num_lote.get()} · NF: {nf_text}.{aviso}"
         )
  
         # ── Modo lote em lote: oferecer próxima ação ──────────────────────────

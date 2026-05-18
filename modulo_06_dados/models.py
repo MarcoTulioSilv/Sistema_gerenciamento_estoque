@@ -26,7 +26,7 @@ class PerfilEnum(str, enum.Enum):
 class CentroAlocacaoEnum(str, enum.Enum):
     almoxarifado = "almoxarifado"
     farmacia     = "farmacia"
-
+    deposito     = "deposito"
 
 class UnidadeEstoqueEnum(str, enum.Enum):
     caixa   =   "caixa"
@@ -45,12 +45,12 @@ class TipoMovimentacaoEnum(str, enum.Enum):
     entrada_manual = "entrada_manual"
     entrada_nfe    = "entrada_nfe"
     saida          = "saida"
-
+    entrada_danfe  = "entrada_danfe"
 
 class TipoAlertaEnum(str, enum.Enum):
-    vencimento_15  = "vencimento_15"
+    vencimento_30  = "vencimento_30"
+    vencimento_15   = "vencimento_15"
     vencimento_7   = "vencimento_7"
-    vencimento_2   = "vencimento_2"
     vencido        = "vencido"
     estoque_baixo  = "estoque_baixo"
 
@@ -102,7 +102,7 @@ class Produto(Base):
     ean:              Mapped[str]                   = mapped_column(String(20),  nullable=False, unique=True)
     unidade_estoque:  Mapped[UnidadeEstoqueEnum]    = mapped_column(Enum(UnidadeEstoqueEnum), nullable=False)
     marca:            Mapped[str | None]            = mapped_column(String(100), nullable=True)
-    centro_alocacao:  Mapped[CentroAlocacaoEnum]   = mapped_column(Enum(CentroAlocacaoEnum), nullable=False)
+    centro_alocacao:  Mapped[CentroAlocacaoEnum]   = mapped_column(Enum(CentroAlocacaoEnum), nullable=False, default=CentroAlocacaoEnum.deposito)
     estoque_minimo:   Mapped[int]                   = mapped_column(Integer, nullable=False, default=0)
     ativo:            Mapped[bool]                  = mapped_column(Boolean, nullable=False, default=True)
     criado_em:        Mapped[datetime]              = mapped_column(DateTime, nullable=False, default=func.now())
@@ -120,7 +120,8 @@ class Lote(Base):
     id:                  Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
     produto_id:          Mapped[int]      = mapped_column(Integer, ForeignKey("produto.id"), nullable=False)
     num_lote:            Mapped[str]      = mapped_column(String(60), nullable=False)
-    nota_fiscal:         Mapped[str]      = mapped_column(String(60), nullable=False)
+    nota_fiscal:         Mapped[str | None]      = mapped_column(String(60), nullable=False)
+    chave_acesso:        Mapped[str | None] = mapped_column(String(44), nullable=True)
     data_fabricacao:     Mapped[date | None] = mapped_column(Date, nullable=True)
     data_vencimento:     Mapped[date]     = mapped_column(Date, nullable=False)
     quantidade_inicial:  Mapped[int]      = mapped_column(Integer, nullable=False)

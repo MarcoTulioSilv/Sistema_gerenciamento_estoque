@@ -34,7 +34,7 @@ _COLUNAS = [
     ("Centro",    110),
     ("Marca",     220),
     ("Est.mín.",   70),
-    ("Status",    150),
+    ("Status",    200),
     ("Ações",     160),
 ]
 
@@ -102,10 +102,13 @@ class TelaProdutos(ctk.CTkFrame):
         hdr= ctk.CTkFrame(self, fg_color="#FAFAF8", corner_radius=0,
                           border_width=1, border_color=COR_CINZA_B)
         hdr.pack(fill="x", padx=16, pady=(10,0))
+        hdr.grid_columnconfigure(6,weight=1)
         for col,(txt,largura) in enumerate(_COLUNAS):
+            ancora = "center" if col == 6 or 5 else "w"
+            stick = "ew" if col == 6 or 5 else "w"
             ctk.CTkLabel(hdr, text= txt.upper(), text_color="#888780",
                          font=ctk.CTkFont(size=10, weight="bold"),
-                         width=largura, anchor="w").grid(row=0, column=col, padx=8, pady=6, stick="w")
+                         width=largura, anchor=ancora).grid(row=0, column=col, padx=8, pady=6, stick=stick)
         
         # Área scrollável de linhas
         self._scroll = ctk.CTkScrollableFrame(
@@ -160,9 +163,11 @@ class TelaProdutos(ctk.CTkFrame):
         hoje= date.today()
 
         for i, p in enumerate(produtos):
-            bg= COR_BRANCO if i % 2 == 0 else "#FAFAF8"
+            bg= COR_BRANCO if i % 2 == 0 else COR_CINZA_E
             row= ctk.CTkFrame(self._scroll, fg_color= bg, corner_radius=0)
             row.pack(fill="x")
+
+            row.grid_columnconfigure(6, weight=1)
 
             # Calcular status
             if not p.ativo:
@@ -191,28 +196,38 @@ class TelaProdutos(ctk.CTkFrame):
 
             
             fg,tc=_STATUS_COR.get(status, ("#F1EFE8", "#5F5E5A"))
+
+            largura_status = _COLUNAS[5][1] 
+            frame_status = ctk.CTkFrame(row, fg_color="transparent", width=largura_status, height=26)
+            frame_status.pack_propagate(False) 
+            frame_status.grid(row=0, column=5, padx=8, pady=2, sticky="w")
             
+    
             #Badge status
             ctk.CTkLabel(row, text=status, fg_color=fg, text_color=tc,
                          font=ctk.CTkFont(size=10,weight="bold"),
                          corner_radius=8, padx=8, pady=2,
-                         width=1).grid(row=0, column=5, padx=8, pady=2, stick="w")
-            
+                         width=1).grid(row=0, column=5, padx=8, pady=2)
             # Ações
-            acoes= ctk.CTkFrame(row, fg_color="transparent")
-            acoes.grid(row=0, column=6, padx=8, pady=4, sticky="w")
-            pid=p.id
+            largura_acoes = _COLUNAS[6][1] 
+            acoes = ctk.CTkFrame(row, fg_color="transparent", width=largura_acoes, height=30)
+            acoes.grid(row=0, column=6, padx=8, pady=4)
+            
+            pid = p.id
             ctk.CTkButton(acoes, text="Editar", width=64, height=26,
                           fg_color=COR_BRANCO, text_color="#3d3d3a",
                           border_width=1, border_color=COR_CINZA_B,
                           hover_color=COR_CINZA_E,
                           font=ctk.CTkFont(size=11),
-                          command=lambda p= pid: self._on_navigate("editar_produto", extra=p)
+                          command=lambda p=pid: self._on_navigate("editar_produto", extra=p)
                           ).pack(side="left", padx=(0,4))
+                          
             ctk.CTkButton(acoes, text="Ver lotes", width=72, height=26,
-                          fg_color= COR_BRANCO, text_color="#3d3d3a",
-                          border_width=1, border_color= COR_CINZA_B,
-                          hover_color= COR_CINZA_E,
+                          fg_color=COR_BRANCO, text_color="#3d3d3a",
+                          border_width=1, border_color=COR_CINZA_B,
+                          hover_color=COR_CINZA_E,
                           font=ctk.CTkFont(size=11),
-                          command= lambda p=pid: self._on_navigate("posicao", extra=p)
+                          command=lambda p=pid: self._on_navigate("posicao", extra=p)
                           ).pack(side="left")
+            
+            

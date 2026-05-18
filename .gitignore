@@ -30,3 +30,10 @@ backups/
 
 # ─── macOS ───────────────────────────────────────────────
 .DS_Store
+
+.relatorios_temp/
+*.xlsx
+
+
+.Modulo_04_notificacoes/
+crip.py

@@ -11,9 +11,14 @@ from gui.telas.t21_troca_senha import TelaTrocaSenha
 from gui.telas.t05_novo_produto import TelaNovoProduto
 from gui.telas.t07_entrada_manual import TelaEntradaManual
 from gui.telas.t08_importar_nfe import TelaImportarNFe
+from gui.telas.t07c_entrada_danfe import TelaEntradaDANFE
 from gui.telas.t09_retirada import TelaRetirada
 from gui.telas.t10_posicao_estoque import TelaPosicaoEstoque
 from gui.telas.t22_dashboard import TelaDashboard
+from gui.telas.t11_relatorios import TelaCentralRelatorios
+from gui.telas.t12_agendamento import TelaAgendamento
+from gui.telas.t13_estoque_minimo import TelaEstoqueMinimo
+
 # tema global
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
@@ -92,7 +97,7 @@ class SCEApp(ctk.CTk):
         for w in self.winfo_children():
             w.destroy() 
         #titlebar
-        self._titlebar = TitleBar(self, usuario=self.usuario_logado, on_logout=self.logout)
+        self._titlebar = TitleBar(self, usuario=self.usuario_logado, )
         self._titlebar.pack(fill="x")
 
         #corpo: sidebar + main
@@ -101,7 +106,7 @@ class SCEApp(ctk.CTk):
         corpo.grid_columnconfigure(1, weight=1)
         corpo.grid_rowconfigure(0, weight=1)
 
-        self._sidebar = Sidebar(corpo, usuario=self.usuario_logado, on_navigate=self._navegar)
+        self._sidebar = Sidebar(corpo, usuario=self.usuario_logado, on_navigate=self._navegar,on_logout=self.logout)
         self._sidebar.grid(row=0, column=0, sticky="nsw")
 
         self._area_conteudo = ctk.CTkFrame(corpo, fg_color=COR_CINZA_E)
@@ -138,16 +143,21 @@ class SCEApp(ctk.CTk):
             return TelaEntradaManual(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, produto_id=extra)
         if destino=="importar_nfe":
             return TelaImportarNFe(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        if destino=="entrada_danfe":
+            return TelaEntradaDANFE(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav, produto_id=extra)
         if destino=="retirada":
             return TelaRetirada(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
         if destino=="posicao":
             return TelaPosicaoEstoque(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
         if destino=="dashboard":
             return TelaDashboard(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        if destino=="relatorios":
+            return TelaCentralRelatorios(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        if destino=="agendamento":
+            return TelaAgendamento(self._area_conteudo,usuario= self.usuario_logado, on_navigate= nav)
+        if destino=="estoque_minimo":
+            return TelaEstoqueMinimo(self._area_conteudo, usuario=self.usuario_logado, on_navigate= nav)
         nomes = {
-            "relatorios":     "Relatórios — T-11",
-            "agendamento":    "Agendamento — T-12",
-            "estoque_minimo": "Estoque Mínimo — T-13",
             "usuarios":       "Usuários — T-15",
             "gmail":          "Config. Gmail — T-17",
             "backup":         "Backup — T-18",
@@ -170,7 +180,7 @@ class SCEApp(ctk.CTk):
 class TitleBar(ctk.CTkFrame):
     """Barra de titulo superior- CP-01"""
 
-    def __init__(self, master, usuario, on_logout):
+    def __init__(self, master, usuario):
         super().__init__(master, fg_color=COR_AZUL, height=36, corner_radius=0)
         self.pack_propagate(False)
         
@@ -184,18 +194,12 @@ class TitleBar(ctk.CTkFrame):
         frame_direita.pack(side="right", padx=12)
 
 
-        hora= datetime.now().strftime("%d/%m/%Y %H:%M")
-        nome_perfil= f"{usuario.nome} | ({usuario.perfil.value.capitalize()})"
-        ctk.CTkLabel(
+        hora= datetime.now().strftime("| %d/%m/%Y %H:%M")
+        nome_perfil= f"({usuario.perfil.value.capitalize()}): {usuario.nome} "
+        ctk.CTkLabel(                   
             frame_direita,
             text= f"{nome_perfil} . {hora}",
             text_color="white", font=ctk.CTkFont(size=11)
-        ).pack(side="left")
-
-        ctk.CTkButton(
-            frame_direita, text="Sair",width=50, height=24,
-            fg_color=COR_AZUL_M, hover_color="#1a5276", text_color="white",
-            font=ctk.CTkFont(size=11),command=on_logout
         ).pack(side="left")
     
 class Sidebar(ctk.CTkFrame):
@@ -207,6 +211,7 @@ class Sidebar(ctk.CTkFrame):
         ("__label__"        ,"Movimentações",                 None),
         ("entrada_manual"   ,"Entrada Manual",                ["admin", "tecnico", "ti"]),
         ("importar_nfe"     ,"Importar NF-e",                 ["admin", "tecnico", "ti"]),
+        ("entrada_danfe"    ,"Entrada DANFE",                 ["admin", "tecnico", "ti"]),
         ("retirada"         ,"Retirada",                      ["admin", "tecnico", "ti"]),
         ("__label__"        ,"Consulta",                      None),
         ("posicao"          ,"Posição de Estoque",            ["admin", "tecnico", "ti"]),
@@ -222,45 +227,106 @@ class Sidebar(ctk.CTkFrame):
         ("log"              ,"Log de Operações" ,             ["ti"]),
     ]
 
-    def __init__(self, master, usuario, on_navigate):
+    def __init__(self, master, usuario, on_navigate, on_logout):
         super().__init__(master, fg_color=COR_SIDEBAR, width=200,corner_radius=0)
         self.pack_propagate(False)
         self._on_navigate = on_navigate
+        self._usuario=usuario
         self._perfil = usuario.perfil.value
         self._botoes = {}
         self._ativo= None
+        self._on_logout= on_logout
         self._construir()
 
     def _construir(self):
+        nome_perfil= f" {self._usuario.nome} "
+        usuario_perfil=f"{self._usuario.perfil.value.capitalize()}"
+        frame_perfil=ctk.CTkFrame(self, fg_color="transparent")
+        frame_perfil.pack(fill="x", padx=14,pady=(10,5), side="top")
+        ctk.CTkLabel(                   
+            frame_perfil,
+            text= f"{nome_perfil}",
+            text_color="white", font=ctk.CTkFont(size=16, weight="bold"),
+            anchor="w"
+        ).pack(anchor="w", pady=(0,2))
+
+        badge_perfil=ctk.CTkFrame(frame_perfil, fg_color="#3A5B7C", 
+                                  corner_radius=10)
+        badge_perfil.pack(anchor="w")
+
+        ctk.CTkLabel(badge_perfil, text=usuario_perfil,
+                     text_color="#B3D4F0", font=ctk.CTkFont(size=11, weight="bold"),
+                     anchor="w").pack(padx=10, pady=2)
+
+        #linha separadora 
+        ctk.CTkFrame(self, fg_color="#111111", height=1).pack(fill="x", padx=14, pady=(12, 10), side="top")
+
+        #Menu de navegação
+        self._menu_scroll = ctk.CTkScrollableFrame(
+        self, 
+        fg_color="transparent", 
+        corner_radius=0,
+        label_text="" 
+        )
+        self._menu_scroll.pack(fill="both", expand=True, side="top")
+
+        label_pendente= None
         for item in self.MENU:
             destino, label, perfis = item
 
             if destino == "__label__":
-                ctk.CTkLabel(
-                    self, text=label.upper(),
-                    text_color="#7fa8cc",
-                    font=ctk.CTkFont(size=9, weight="bold"),
-                    anchor="w",
-                ).pack(fill="x", padx=14, pady=(10,2))
+                label_pendente=label    
                 continue
 
             permitido= perfis and self._perfil in perfis
-            btn = ctk.CTkButton(
-                self,
-                text=f"  {label}",
-                anchor="w",
-                fg_color="transparent",
-                text_color="white" if permitido else "#5a7a99",
-                hover_color=COR_SIDEBAR_H if permitido else COR_SIDEBAR,
-                height=32,
-                corner_radius=6,
-                font=ctk.CTkFont(size=12),
-                state="normal" if permitido else "disabled",
-                command=(lambda d=destino: self._clicar(d)) if permitido else None,
-            )
-            btn.pack(fill="x", padx=6, pady=1)
-            self._botoes[destino]= btn
+            if permitido:
+                if label_pendente:
+                    ctk.CTkLabel(
+                        self._menu_scroll, 
+                        text=label_pendente.upper(),
+                        text_color="#7fa8cc",
+                        font=ctk.CTkFont(size=9, weight="bold"),
+                        anchor="w",
+                    ).pack(fill="x", padx=14, pady=(10, 2))
 
+                    label_pendente = None
+                btn = ctk.CTkButton(
+                    self._menu_scroll,
+                    text=f"  {label}",
+                    anchor="w",
+                    fg_color="transparent",
+                    text_color="white",
+                    hover_color=COR_SIDEBAR_H,
+                    height=32,
+                    corner_radius=6,
+                    font=ctk.CTkFont(size=12),
+                    state="normal",
+                    command=lambda d=destino: self._clicar(d)
+                )
+                btn.pack(fill="x", padx=6, pady=1)
+                self._botoes[destino] = btn
+        
+        frame_rodape= ctk.CTkFrame(self, fg_color="transparent")
+        frame_rodape.pack(fill="x", padx=14, pady=16, side="bottom")
+        frame_rodape.grid_columnconfigure((0,1), weight=1)
+
+        #botão troca senha
+        btn_senha= ctk.CTkButton(frame_rodape, text="Trocar senha",
+                                 fg_color="transparent", text_color="#888780", height=30, 
+                                 font=ctk.CTkFont(size=11),
+                                 command=lambda:self._on_navigate("troca_senha"))
+        btn_senha.grid(row=0,column=0, padx=(0,4), sticky="ew")
+
+        #botão sair 
+        btn_sair= ctk.CTkButton(
+            frame_rodape, text="Sair",width=50, height=24,
+            fg_color="transparent",text_color="#888780",
+            font=ctk.CTkFont(size=11, weight="bold"),command=self._on_logout
+        )
+        btn_sair.grid(row=0,column=1,padx=(4,0), sticky="ew")
+
+
+ 
     def _clicar(self, destino: str):
         # Remove destaque anterior 
         if self._ativo and self._ativo in self._botoes:

@@ -45,7 +45,18 @@ class ProdutoRepo:
             if obj:
                 s.expunge(obj)
             return obj
-    
+    @staticmethod 
+    def buscar_por_nome(nome:str)-> Produto | None:
+        with get_read_session() as s:
+            obj=(
+                s.query(Produto)
+                .filter(Produto.nome==nome.strip())
+                .first()
+            )
+            if obj:
+                s.expunge(obj)
+            return obj
+
     @staticmethod
     def ean_existe(ean: str, excluir_id: int | None = None) -> bool:
         with get_read_session() as s:
@@ -91,6 +102,24 @@ class ProdutoRepo:
                         Produto.fornecedor!="")
                         .distinct()
                         .order_by(Produto.fornecedor)
+                        .all()
+            )
+            return [r[0] for r in rows]
+        
+    @staticmethod
+    def listar_nomes_unicos()->list[str]:
+        """
+        Retorna lista de valores únicos  já cadastrados.
+        Usado pleo CTKComboBox  em T-05 para sugestões de autocomplete.
+        """
+
+        with get_read_session() as s:
+            rows=(
+                s.query(Produto.nome)
+                .filter(Produto.nome.isnot(None),
+                        Produto.nome!="")
+                        .distinct()
+                        .order_by(Produto.nome)
                         .all()
             )
             return [r[0] for r in rows]

@@ -4,9 +4,10 @@ EstoqueService- casos de uso UC-02, UC-03, UC-04 (Sprint 2).
 Orquestra ProdutoRepo, FornecedoresRepo  e LoteRepo.
 """
 import logging
+import threading
 from datetime import date, datetime
 from decimal import Decimal
-
+from Modulo_04_notificacoes.notificacao_service import NotificacaoService
 from Modulo_06_dados import TipoMovimentacaoEnum, CentroAlocacaoEnum,UnidadeEstoqueEnum, get_session, Lote, Movimentacao, get_read_session, Produto
 from .produto_repo import ProdutoRepo
 from .lote_repo import LoteRepo
@@ -249,7 +250,13 @@ class EstoqueService:
                         logger.warning(
                             "ESTOQUE BAIXO: produto_id = %s saldo= %s minimo= %s",
                             plano.produto_id, saldo_pos, prod.estoque_minimo,
-                        )
+                        ) 
+                        # Dispara alerta por e-mail de forma assíncrona (não bloqueia a GUI)
+                        threading.Thread(
+                            target=_disparar_alerta_estoque_baixo,
+                            args=(plano.produto_id,),
+                            daemon=True,
+                        ).start()
                         return True # sinaliza estoque baixo para a GUI disparar alerta
             except Exception as exc:
                 logger.error("Erro ao verificar estoque minimo pós-retirada: %s", exc)
@@ -317,3 +324,14 @@ class EstoqueService:
 
         return lotes_criados
     
+    # ── Helper fora da classe para uso em thread separada ────────────────────────
+ 
+def _disparar_alerta_estoque_baixo(produto_id: int) -> None:
+    """
+    Chamado em thread daemon após retirada que aciona estoque mínimo.
+    Importação local evita circular import com MOD-04.
+    """
+    try:
+        NotificacaoService.alertar_estoque_baixo(produto_id)
+    except Exception as exc:
+        logger.error("Erro ao disparar alerta de estoque baixo (produto %s): %s", produto_id, exc)

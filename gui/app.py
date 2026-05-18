@@ -1,6 +1,7 @@
 import os
 import customtkinter as ctk
 from datetime import datetime
+from Modulo_04_notificacoes.scheduler import NotificacaoScheduler
 from gui.telas.t01_login import TelaLogin
 from gui.telas.placeholder import TelaPlaceholder
 from tkinter import messagebox
@@ -44,6 +45,10 @@ class SCEApp(ctk.CTk):
 
         # Estado dee sessão
         self.usuario_logado = None #objeto do usuário logado
+
+        #Inicializa o scheduler de notificações
+        self._scheduler= NotificacaoScheduler()
+        self._scheduler.iniciar()
         self.session_timer = None
 
         #exibe tela de login na inicialização
@@ -174,7 +179,12 @@ class SCEApp(ctk.CTk):
         tela= self._resolver_tela(destino, extra= extra)
         if tela:
             tela.pack(fill="both", expand= True)
+    
+    def destroy(self):
+       self._scheduler.parar()
+       super().destroy()
 
+       
 #---- Componentes da janela principal (titlebar, sidebar) --------------------------------------------------------------
 
 class TitleBar(ctk.CTkFrame):

@@ -51,6 +51,7 @@ def main():
     #iniciar GUI
     app= SCEApp()
     app.mainloop()
+    SCEApp._scheduler.parar() #garante parada do scheduler mesmo se a janela for fechada diretamente
     logger.info("SCE encerrado")
 
 

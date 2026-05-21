@@ -158,6 +158,8 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                 
                 self._linhas=[]
                 for l in lotes:
+                    if l.quantidade_atual==0 and l.data_vencimento< hoje:
+                        continue #pular lotes esgotados e vencidos
                     sit= _calcular_situacao(l, l.produto.estoque_minimo, hoje)
                     # Sobrepor com estoque baixo se aplicavel
                     if sit=="Normal":

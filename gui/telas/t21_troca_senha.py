@@ -21,9 +21,10 @@ COR_BRANCO = "#FFFFFF"
 class TelaTrocaSenha(ctk.CTkFrame):
     """ Tela de troca de senha- UC-09 parcial(qualquer perfil popde trocar a própria senha)."""
 
-    def __init__(self, master, usuario):
+    def __init__(self, master, usuario, on_navigate=None):
         super().__init__(master,fg_color=COR_CINZA_E,corner_radius=0)
         self._usuario= usuario
+        self._on_navigate = on_navigate
         self._construir()
     
     def _construir(self):

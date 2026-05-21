@@ -6,7 +6,9 @@ Orquestra ProdutoRepo, FornecedoresRepo  e LoteRepo.
 import logging
 import threading
 from datetime import date, datetime
+import datetime as _dt
 from decimal import Decimal
+
 from Modulo_04_notificacoes.notificacao_service import NotificacaoService
 from Modulo_06_dados import TipoMovimentacaoEnum, CentroAlocacaoEnum,UnidadeEstoqueEnum, get_session, Lote, Movimentacao, get_read_session, Produto
 from .produto_repo import ProdutoRepo
@@ -189,12 +191,12 @@ class EstoqueService:
         return lote
 
     @staticmethod
-    def calcular_plano_fefo(produto_id: int, quantidade:int):
+    def calcular_plano_fefo(produto_id: int, quantidade:int, apenas_vencidos: bool=False):
         """
         RF-08- calcula e retorna plano de consumo FEFO sem gravar no banco.
         O plano é exibido em T-09 antes da confirmação.
         """
-        return FEFOSelector.calcular_plano(produto_id, quantidade)
+        return FEFOSelector.calcular_plano(produto_id, quantidade, apenas_vencidos)
     
     @staticmethod
     def registrar_retirada(plano, usuario_id: int, observacao: str=None, destino_centro: str=None, tipo_mov=None):
@@ -223,6 +225,8 @@ class EstoqueService:
                     raise ValueError(f"Lote {item.lote_id} não encontrado.")
                 
                 lote.quantidade_atual = item.saldo_restante
+                if lote.quantidade_atual == 0:
+                    logger.info("Lote esgotado: id=%s produto_id=%s num_lote=%s, ", lote.id, lote.produto_id, lote.num_lote)
 
                 #Registra movimentação de saida
                 if tipo_mov is not None:
@@ -242,7 +246,6 @@ class EstoqueService:
                 )
                 session.add(mov)
             if destino_centro:
-                from Modulo_06_dados import CentroAlocacaoEnum
                 produto_obj = session.get(Produto, plano.produto_id)
                 if produto_obj:
                     produto_obj.centro_alocacao = CentroAlocacaoEnum(destino_centro)
@@ -277,6 +280,109 @@ class EstoqueService:
                 logger.error("Erro ao verificar estoque minimo pós-retirada: %s", exc)
 
             return False # estoque ok, sem alerta
+
+    @staticmethod
+    def registrar_transferencia(
+        plano,
+        usuario_id: int,
+        destino_centro: str,
+        fator_fracionamento: int = 1,
+        unidade_destino: str | None = None,
+        observacao: str | None = None,
+    ) -> None:
+        """
+        Transfere as unidades do PlanoConsumo para outro centro de alocação,
+        com fracionamento opcional de embalagem.
+
+        Regras:
+          - O FEFO escolhe o lote (o primeiro lote com saldo suficiente).
+          - O técnico define a quantidade — pode ser parcial; o restante
+            do lote permanece no centro original, na unidade original.
+          - Se fator_fracionamento == 1: apenas debita o lote origem e
+            cria movimentação tipo 'transferencia'. O produto muda de centro.
+          - Se fator_fracionamento > 1: além do débito no lote origem,
+            cria um novo Lote espelho no banco representando as unidades
+            fracionadas. O valor_unitario é recalculado (original / fator).
+            A unidade_estoque do produto NÃO é alterada globalmente —
+            o novo lote representa as unidades menores; o produto continua
+            com a unidade original para os lotes que ficaram no depósito.
+
+        Raises:
+            ValueError: fator < 1, ou fator > 1 sem unidade_destino.
+        """
+        if fator_fracionamento < 1:
+            raise ValueError("O fator de fracionamento deve ser >= 1.")
+        if fator_fracionamento > 1 and not unidade_destino:
+            raise ValueError(
+                "Informe a unidade de destino ao fracionar (ex: 'unidade').")
+        now = _dt.utcnow()
+
+        with get_session() as session:
+            for item in plano.itens:
+                lote_origem = session.get(Lote, item.lote_id)
+                if lote_origem is None:
+                    raise ValueError(f"Lote {item.lote_id} não encontrado.")
+
+                # Debita do lote origem
+                lote_origem.quantidade_atual = item.saldo_restante
+
+                obs_mov = observacao or f"Transferência → {destino_centro}"
+
+                # Movimentação de saída no lote origem
+                session.add(Movimentacao(
+                    lote_id    = item.lote_id,
+                    usuario_id = usuario_id,
+                    tipo       = TipoMovimentacaoEnum.transferencia,
+                    quantidade = item.qtd_a_retirar,
+                    numero_nf  = None,
+                    observacao = obs_mov,
+                    data_hora  = now,
+                ))
+
+                if fator_fracionamento > 1:
+                    # Cria lote espelho no destino com unidade fracionada
+                    qtd_frac   = item.qtd_a_retirar * fator_fracionamento
+                    val_frac   = lote_origem.valor_unitario / fator_fracionamento
+
+                    lote_dest = Lote(
+                        produto_id         = lote_origem.produto_id,
+                        num_lote           = lote_origem.num_lote,
+                        nota_fiscal        = lote_origem.nota_fiscal,
+                        data_fabricacao    = lote_origem.data_fabricacao,
+                        data_vencimento    = lote_origem.data_vencimento,
+                        quantidade_inicial = qtd_frac,
+                        quantidade_atual   = qtd_frac,
+                        valor_unitario     = round(val_frac, 4),
+                        valor_total        = round(val_frac * qtd_frac, 2),
+                        criado_em          = now,
+                    )
+                    session.add(lote_dest)
+                    session.flush()   # precisa do lote_dest.id para o mov de entrada
+
+                    session.add(Movimentacao(
+                        lote_id    = lote_dest.id,
+                        usuario_id = usuario_id,
+                        tipo       = TipoMovimentacaoEnum.entrada_manual,
+                        quantidade = qtd_frac,
+                        numero_nf  = lote_origem.nota_fiscal,
+                        observacao = (
+                            f"{obs_mov} | "
+                            f"{item.qtd_a_retirar} {lote_origem.produto.unidade_estoque.value}"
+                            f" x{fator_fracionamento} = {qtd_frac} {unidade_destino}"
+                        ),
+                        data_hora  = now,
+                    ))
+
+            # Atualiza centro do produto
+            produto = session.get(Produto, plano.produto_id)
+            if produto:
+                produto.centro_alocacao = CentroAlocacaoEnum(destino_centro)
+
+            logger.info(
+                "Transferência: produto_id=%s destino=%s fator=%s usuario=%s",
+                plano.produto_id, destino_centro, fator_fracionamento, usuario_id,
+            )
+
 
     @staticmethod 
     def importar_nfe(dados_nfe, usuario_id: int):

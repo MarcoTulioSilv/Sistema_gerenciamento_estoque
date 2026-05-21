@@ -34,6 +34,7 @@ _COLUNAS = [
     ("Centro",    110),
     ("Marca",     220),
     ("Est.mín.",   70),
+    ("Saldo",      70),
     ("Status",    200),
     ("Ações",     160),
 ]
@@ -169,6 +170,13 @@ class TelaProdutos(ctk.CTkFrame):
 
             row.grid_columnconfigure(6, weight=1)
 
+            # Calcular saldo atual
+            try:
+                lotes = LoteRepo.listar_por_produto(p.id)
+                saldo = sum(l.quantidade_atual for l in lotes if l.data_vencimento >= hoje)
+            except Exception:
+                saldo = 0
+                
             # Calcular status
             if not p.ativo:
                 status="Inativo"

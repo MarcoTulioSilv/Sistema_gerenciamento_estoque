@@ -136,9 +136,9 @@ class SCEApp(ctk.CTk):
         # sprint 1: telas reia de autenticação plugadas.
         # telas reais colocadas aqui nas proximas sprints
         if destino=="inicio":
-            return TelaInicio(self._area_conteudo, usuario=self.usuario_logado)
+            return TelaInicio(self._area_conteudo, usuario=self.usuario_logado, on_navigate= nav)
         if destino=="troca_senha":
-            return TelaTrocaSenha(self._area_conteudo, usuario=self.usuario_logado)
+            return TelaTrocaSenha(self._area_conteudo, usuario=self.usuario_logado, on_navigate= nav)
         #______ Sprint 2A_ MOD-02 cadastros
         if destino=="produtos":
             return TelaProdutos(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
@@ -152,6 +152,8 @@ class SCEApp(ctk.CTk):
             return TelaEntradaDANFE(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav, produto_id=extra)
         if destino=="retirada":
             return TelaRetirada(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        if destino=="baixa_vencido":
+            return TelaRetirada(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, baixa_vencido=True, lotes_vencidos=extra)
         if destino=="posicao":
             return TelaPosicaoEstoque(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
         if destino=="dashboard":

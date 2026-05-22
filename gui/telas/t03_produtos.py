@@ -31,26 +31,12 @@ _STATUS_COR={
 _COLUNAS = [
     ("Nome",      220),
     ("EAN",       140),
-    ("Centro",    110),
     ("Marca",     220),
     ("Est.mín.",   70),
     ("Saldo",      70),
     ("Status",    200),
     ("Ações",     160),
 ]
-
-def _centro_str(centro_alocacao) -> str:
-    """
-    Extrai o valor string do campo centro_alocacao independente de como
-    o SQLAlchemy o retorna (pode ser Enum, string 'almoxarifado', ou
-    string 'CentroAlocacaoEnum.almoxarifado' dependendo da versão).
-    """
-    val = str(centro_alocacao)
-    # Se veio como 'CentroAlocacaoEnum.almoxarifado', pega só a parte após '.'
-    if "." in val and not val.startswith("0"):
-        val = val.split(".")[-1]
-    return val.lower()
-
 
 class TelaProdutos(ctk.CTkFrame):
     """Listagem de produtos com filtros e ações de navegação"""
@@ -84,14 +70,6 @@ class TelaProdutos(ctk.CTkFrame):
                                     height=32, width= 300, corner_radius=6)
         self._entry_busca.pack(side="left")
         self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
-
-        self._opt_centro = ctk.CTkOptionMenu(
-            filt, values=["Todos os centros","Almoxarifado", "Farmácia", "Depósito"],
-            width=160, height=32, corner_radius=6,
-            fg_color= COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
-            command= lambda _: self._filtrar(),
-        )
-        self._opt_centro.pack(side="left", padx=8)
 
         ctk.CTkButton(filt, text="Limpar", width=70, height=32,
                       fg_color=COR_BRANCO, text_color="#3d3d3a",
@@ -129,15 +107,10 @@ class TelaProdutos(ctk.CTkFrame):
     
     def _filtrar(self):
         busca= self._entry_busca.get().lower()
-        centro= self._opt_centro.get()
         filtrados=[]
         for p in self._produtos:
            nome_ok= busca in p.nome.lower() or busca in p.ean.lower()
-           centro_ok=(
-               centro =="Todos os centros"
-               or _centro_str(p.centro_alocacao)==centro.lower()
-           )
-           if nome_ok and centro_ok:
+           if nome_ok :
             filtrados.append(p)
 
         
@@ -145,7 +118,6 @@ class TelaProdutos(ctk.CTkFrame):
     
     def _limpar_filtros(self):
         self._entry_busca.delete(0,"end")
-        self._opt_centro.set("Todos os centros")
         self._renderizar(self._produtos)
     
     def _renderizar(self, produtos):
@@ -187,12 +159,11 @@ class TelaProdutos(ctk.CTkFrame):
                     status=("Estoque baixo" if p.estoque_minimo>0 and saldo <= p.estoque_minimo else "Ativo")
                 except Exception:
                     status="Ativo"
-            centro_label= _centro_str(p.centro_alocacao).capitalize()
+            
 
             valores = [
                 p.nome[:28],
                 p.ean,
-                centro_label,
                 p.marca or "—",
                 str(p.estoque_minimo),
             ]

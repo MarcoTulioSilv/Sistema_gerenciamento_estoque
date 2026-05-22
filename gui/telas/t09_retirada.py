@@ -41,10 +41,11 @@ COR_VERM   = "#A32D2D"
 COR_AMBER  = "#BA7517"
 
 
-_CENTROS_LABEL: dict[str, str] = {
+
+_CENTROS: dict[str, str] = {
     c.value: c.value.capitalize() for c in CentroAlocacaoEnum
 }
-_LABEL_CENTRO: dict[str, str] = {v: k for k, v in _CENTROS_LABEL.items()}
+_LABEL_CENTRO: dict[str, str] = {v: k for k, v in _CENTROS.items()}
 
 _UNIDADES_LABEL: dict[str, str] = {
     u.value: u.value.capitalize() for u in UnidadeEstoqueEnum
@@ -130,6 +131,7 @@ class TelaRetirada(ctk.CTkFrame):
         self._frame_produto= ctk.CTkFrame(sec1, fg_color=COR_VERDE_BG,
                                           corner_radius=6, border_width=1, 
                                           border_color="#97C459")
+
         self._lbl_produto= ctk.CTkLabel(
             self._frame_produto,text="", text_color=COR_VERDE_T,
             font=ctk.CTkFont(size=12), justify="left", anchor="w")
@@ -137,6 +139,7 @@ class TelaRetirada(ctk.CTkFrame):
 
         # ── Centro de destino (só no modo normal) ────────────────────────────
         if not self._baixa_vencido:
+                # Modo de retirada normal: mostra opções de transferência entre centros e fracionamento
                 self._sec_transf= SecaoFormulario(
                 sec1, titulo="Transferência de centro (opcional)")
                 self._sec_transf.pack(fill="x", padx=16, pady=(12,0))
@@ -145,7 +148,6 @@ class TelaRetirada(ctk.CTkFrame):
                     self._sec_transf,
                     text=(
                         "Preencha apenas se quiser mover estas unidades para outro centro.\n"
-                        "O FEFO definiu o lote; o restante permanece no centro e unidade originais."
                     ),
                     text_color="#5F5E5A", font=ctk.CTkFont(size=11),
                     justify="left", anchor="w", wraplength=640,
@@ -162,7 +164,7 @@ class TelaRetirada(ctk.CTkFrame):
                 ).grid(row=0, column=0, sticky="w")
                 self._opt_centro_dest = ctk.CTkOptionMenu(
                     row_t,
-                    values=["— sem transferência —"] + list(_CENTROS_LABEL.values()),
+                    values=["— sem transferência —"] + list(_CENTROS.values()),
                     width=180, height=32, corner_radius=6,
                     fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
                     command=self._ao_mudar_centro_dest,
@@ -210,7 +212,7 @@ class TelaRetirada(ctk.CTkFrame):
             self._campo_ean._entry.configure(state="disabled")
             self._campo_nome._entry.configure(state="disabled")
             self._frame_destino = None
-            self._opt_destino   = None
+            self._opt_unidade_dest   = None
 
         ctk.CTkButton(sec1, text="Calcular plano de retirada →",
                       width=200, height=32,
@@ -221,8 +223,8 @@ class TelaRetirada(ctk.CTkFrame):
         
         #____ Seção 2: Plano de consumo
         self._sec2= SecaoFormulario(scroll, titulo= "Plano de Consumo")
-        #Oculto até plano calculado
 
+        #Oculto até plano calculado
         self._frame_plano=ctk.CTkFrame(self._sec2, fg_color=COR_CINZA_E,
                                        corner_radius=6)
         self._frame_plano.pack(fill="x", padx=14, pady=(0,8))
@@ -255,6 +257,7 @@ class TelaRetirada(ctk.CTkFrame):
         label_cancelar = "Voltar" if self._baixa_vencido else "Cancelar"
         destino_cancelar = "inicio" if self._baixa_vencido else "produtos"
 
+        #_____ botçao cancelar/voltar
         ctk.CTkButton(
             self._row_btns, text=label_cancelar,
             width=100, height=36,
@@ -264,12 +267,13 @@ class TelaRetirada(ctk.CTkFrame):
             command=lambda: self._on_navigate(destino_cancelar),
         ).pack(side="left", padx=(0, 8))
 
+        #______ Botão confirmar (texto e cor dependem do modo)
         texto_confirmar = "Confirmar baixa" if self._baixa_vencido else "Confirmar retirada"
         cor_confirmar   = COR_VERM if self._baixa_vencido else "#1D9E75"
         hover_confirmar = "#7a1f1f" if self._baixa_vencido else "#0F6E56"
 
         self._btn_confirmar= ctk.CTkButton(
-            self._row_btns, text="debug",
+            self._row_btns, text=texto_confirmar,
             width=180, height=36, 
             fg_color=cor_confirmar, hover_color=hover_confirmar,    
             state="disabled",
@@ -317,12 +321,13 @@ class TelaRetirada(ctk.CTkFrame):
         self._lbl_produto.configure(
             text=(f"{produto.nome}\n"
                   f"Centro de alocação: {produto.centro_alocacao.value.capitalize()}.\n"
-                    f"{descricao_saldo}")
+                    f"{descricao_saldo}"
+                    f"Unidade de medida: {produto.unidade_estoque.value.capitalize()}.")
                     )
         self._frame_produto.pack(fill="x", padx=14, pady=(0,8))
 
         # Atualiza opções de destino (só no modo normal)
-        if not self._baixa_vencido and self._frame_destino is not None:
+        if not self._baixa_vencido and self._opt_unidade_dest is not None:
             self._atualizar_opcoes_destino(produto)
         
         self._plano= None
@@ -353,12 +358,13 @@ class TelaRetirada(ctk.CTkFrame):
             text=(f"{produto.nome}\n"
                   f"Centro de alocação: {produto.centro_alocacao.value.capitalize()}.\n"
                   f"Saldo total disponivel: {saldo} unid. em "
-                  f"{len([l for l in lotes if l.quantidade_atual>0])} lote(s)")
+                  f"{len([l for l in lotes if l.quantidade_atual>0])} lote(s)\n"
+                  f"Unidade de medida: {produto.unidade_estoque.value.capitalize()}.")
         )
         self._frame_produto.pack(fill="x", padx=14, pady=(0,8))
 
         # Atualiza opções de destino (só no modo normal)
-        if not self._baixa_vencido and self._frame_destino is not None:
+        if not self._baixa_vencido and self._opt_unidade_dest is not None:
             self._atualizar_opcoes_destino(produto)
         
         self._plano= None
@@ -404,6 +410,13 @@ class TelaRetirada(ctk.CTkFrame):
 
         self._banner.aviso(f"Fila de Vencidos: Exibindo lote {item['lote']} ({self._vencido_index + 1} de {len(self._lotes_vencidos)}).")
 
+    def _atualizar_opcoes_destino(self, produto):
+        """Popula o dropdown com os centros diferentes do centro atual do produto."""
+        outros = [c for c in _CENTROS if c != produto.centro_alocacao.value]
+        opcoes = ["— sem transferência —"] + [_CENTROS[c] for c in outros]
+        self._opt_centro_dest.configure(values=opcoes)
+        self._opt_centro_dest.set("— sem transferência —")
+        #self._frame_destino.pack(fill="x", padx=14, pady=(0, 8))
 
     #______Plano FEFO_______________________________________________________________________
 
@@ -537,11 +550,10 @@ class TelaRetirada(ctk.CTkFrame):
             self._ao_mudar_fator()
 
     def _ao_mudar_fator(self):
-        if not self._plano:
-            return
         try:
             fator = int(self._entry_fator.get())
         except ValueError:
+            logger.warning("Fator de fracionamento inválido: '%s'", self._entry_fator.get())
             fator = 1
 
         if fator > 1:
@@ -576,9 +588,7 @@ class TelaRetirada(ctk.CTkFrame):
             
         eh_transf = (centro_dest_lb != "— sem transferência —") and (not self._baixa_vencido)
 
-        # =====================================================================
         # CENÁRIO A: Baixa de Vencidos (Dashboard)
-        # =====================================================================
         if self._baixa_vencido:
             try:
                 estoque_baixo = EstoqueService.registrar_retirada(
@@ -611,9 +621,8 @@ class TelaRetirada(ctk.CTkFrame):
                 logger.error("Erro ao registrar baixa: %s", exc)
                 self._banner.erro(f"Erro ao registrar: {exc}")
 
-        # =====================================================================
+       
         # CENÁRIO B: Transferência entre Centros com Fracionamento
-        # =====================================================================
         elif eh_transf:
             destino_centro = _LABEL_CENTRO.get(centro_dest_lb, centro_dest_lb.lower())
             try:
@@ -662,9 +671,8 @@ class TelaRetirada(ctk.CTkFrame):
                 logger.error("Erro ao registrar transferência: %s", exc)
                 self._banner.erro(f"Erro ao registrar: {exc}")
 
-        # =====================================================================
+        
         # CENÁRIO C: Retirada Simples (Consumo Normal)
-        # =====================================================================
         else:
             try:
                 estoque_baixo = EstoqueService.registrar_retirada(
@@ -696,8 +704,5 @@ class TelaRetirada(ctk.CTkFrame):
         self._sec3.pack_forget()
         self._row_btns.pack_forget()
         self._btn_confirmar.configure(state="disabled")
-        if self._frame_destino is not None:
-            self._frame_destino.pack_forget()
-        if self._opt_destino is not None:
-            self._opt_destino.set("— sem transferência —")
+        self._opt_centro_dest.set("— sem transferência —") if hasattr(self, '_opt_centro_dest') and self._opt_centro_dest is not None else None
         self._campo_ean.focus()

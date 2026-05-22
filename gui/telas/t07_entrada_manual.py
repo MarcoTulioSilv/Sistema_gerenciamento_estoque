@@ -4,7 +4,7 @@ Tela T-07 — Registro de entrada manual (UC-03, UC-04, RF-02, RF-03, RN-07).
  
 Questão 2 aplicada:
 - EAN não encontrado: expande mini-formulário inline para cadastro rápido do produto
-  (nome, centro, unidade — fornecedor e marca opcionais) sem sair da tela.
+  (nome, — fornecedor e marca opcionais) sem sair da tela.
 - Após cadastro rápido, prossegue diretamente para o formulário do lote.
 - Modo "lote em lote": após registrar uma entrada, oferece "Próximo lote deste produto"
   e "Próximo produto" para agilizar NFs físicas com vários itens.
@@ -124,18 +124,12 @@ class TelaEntradaManual(ctk.CTkFrame):
  
         self._rap_nome = Campo(grid_rap, "Nome do produto *", obrigatorio=True)
         self._rap_nome.grid(row=0, column=0, padx=(0, 8), sticky="ew", columnspan=2)
- 
-        self._rap_centro = Campo(grid_rap, "Centro *", tipo="select",
-                                 opcoes=CENTROS, largura=160)
-        self._rap_centro.grid(row=0, column=2, sticky="ew")
+
  
         grid_rap2 = ctk.CTkFrame(self._frame_cadastro_rapido, fg_color="transparent")
         grid_rap2.pack(fill="x", padx=14, pady=(0, 4))
         grid_rap2.grid_columnconfigure((0, 1, 2), weight=1)
  
-        self._rap_unidade = Campo(grid_rap2, "Unidade *", tipo="select",
-                                  opcoes=UNIDADES, largura=160)
-        self._rap_unidade.grid(row=0, column=0, padx=(0, 8), sticky="ew")
  
         self._rap_fornecedor = Campo(grid_rap2, "Fornecedor", placeholder="Opcional")
         self._rap_fornecedor.grid(row=0, column=1, padx=(0, 8), sticky="ew")
@@ -177,24 +171,37 @@ class TelaEntradaManual(ctk.CTkFrame):
                      text_color="#888780",
                      font=ctk.CTkFont(size=10), anchor="w").pack(
             fill="x", padx=14, pady=(0, 6))
- 
+        
         row2 = ctk.CTkFrame(self._sec2, fg_color="transparent")
         row2.pack(fill="x", padx=14, pady=(0, 6))
-        row2.grid_columnconfigure((0, 1), weight=1)
-        self._data_fab = Campo(row2, "Data de fabricação", placeholder="DD/MM/AAAA")
-        self._data_fab.grid(row=0, column=0, padx=(0, 8), sticky="ew")
-        self._data_venc = Campo(row2, "Data de vencimento *", obrigatorio=True,
-                                placeholder="DD/MM/AAAA")
-        self._data_venc.grid(row=0, column=1, sticky="ew")
+        row2.grid_columnconfigure((0, 1, 2), weight=1)
+        #campo centro de alocação
+        self._centro = Campo(row2, "Centro de alocação *", tipo="select",
+                                 opcoes=CENTROS, largura=160)
+        self._centro.grid(row=0, column=0, padx=(0, 8), sticky="ew")
+
+        #campo unidade
+        self._unidade = Campo(grid_rap2, "Unidade *", tipo="select",
+                                  opcoes=UNIDADES, largura=160)
+        self._unidade.grid(row=0, column=1, sticky="ew")
  
         row3 = ctk.CTkFrame(self._sec2, fg_color="transparent")
         row3.pack(fill="x", padx=14, pady=(0, 6))
         row3.grid_columnconfigure((0, 1), weight=1)
-        self._quantidade = Campo(row3, "Quantidade *", obrigatorio=True,
+        self._data_fab = Campo(row3, "Data de fabricação", placeholder="DD/MM/AAAA")
+        self._data_fab.grid(row=0, column=0, padx=(0, 8), sticky="ew")
+        self._data_venc = Campo(row3, "Data de vencimento *", obrigatorio=True,
+                                placeholder="DD/MM/AAAA")
+        self._data_venc.grid(row=0, column=1, sticky="ew")
+ 
+        row4 = ctk.CTkFrame(self._sec2, fg_color="transparent")
+        row4.pack(fill="x", padx=14, pady=(0, 6))
+        row4.grid_columnconfigure((0, 1), weight=1)
+        self._quantidade = Campo(row4, "Quantidade *", obrigatorio=True,
                                  tipo="number", placeholder="0")
         self._quantidade.grid(row=0, column=0, padx=(0, 8), sticky="ew")
         self._quantidade._widget.bind("<KeyRelease>", lambda e: self._atualizar_total())
-        self._valor_unit = Campo(row3, "Valor unitário (R$) *", obrigatorio=True,
+        self._valor_unit = Campo(row4, "Valor unitário (R$) *", obrigatorio=True,
                                  tipo="number", placeholder="0,00")
         self._valor_unit.grid(row=0, column=1, sticky="ew")
         self._valor_unit._widget.bind("<KeyRelease>", lambda e: self._atualizar_total())
@@ -246,7 +253,6 @@ class TelaEntradaManual(ctk.CTkFrame):
             self._produto_sel = produto
             self._lbl_produto.configure(
                 text=(f"  {produto.nome}\n"
-                      f"  Centro: {produto.centro_alocacao.value if hasattr(produto.centro_alocacao,'value') else produto.centro_alocacao}"
                       f"  ·  Fornecedor: {produto.fornecedor or '—'}"
                       f"  ·  Estoque mín.: {produto.estoque_minimo}")
             )
@@ -283,7 +289,6 @@ class TelaEntradaManual(ctk.CTkFrame):
             self._produto_sel = produto
             self._lbl_produto.configure(
                 text=(f"  {produto.nome}\n"
-                      f"  Centro: {produto.centro_alocacao.value if hasattr(produto.centro_alocacao,'value') else produto.centro_alocacao}"
                       f"  ·  Fornecedor: {produto.fornecedor or '—'}"
                       f"  ·  Estoque mín.: {produto.estoque_minimo}")
             )
@@ -306,8 +311,6 @@ class TelaEntradaManual(ctk.CTkFrame):
  
         ean       = self._ean_pendente
         nome      = self._rap_nome.get().strip()
-        centro    = self._rap_centro.get()
-        unidade   = self._rap_unidade.get()
         fornecedor= self._rap_fornecedor.get().strip() or None
         marca     = self._rap_marca.get().strip() or None
  
@@ -315,8 +318,6 @@ class TelaEntradaManual(ctk.CTkFrame):
             produto = EstoqueService.criar_produto(
                 nome            = nome,
                 ean             = ean,
-                centro_alocacao = centro,
-                unidade_estoque = unidade,
                 estoque_minimo  = 0,
                 fornecedor      = fornecedor,
                 marca           = marca,
@@ -337,7 +338,6 @@ class TelaEntradaManual(ctk.CTkFrame):
         self._frame_cadastro_rapido.pack_forget()
         self._lbl_produto.configure(
             text=(f"  {produto.nome}  ·  "
-                  f"Centro: {produto.centro_alocacao.value if hasattr(produto.centro_alocacao,'value') else produto.centro_alocacao}  ·  "
                   f"Cadastrado agora — preencha os dados do lote abaixo.")
         )
         self._card_produto.pack(fill="x", padx=14, pady=(0, 8))
@@ -374,6 +374,8 @@ class TelaEntradaManual(ctk.CTkFrame):
             self._data_venc.validar(),
             self._quantidade.validar(),
             self._valor_unit.validar(),
+            self._centro.validar(),
+            self._unidade.validar(),
         ])
         if not valido:
             return
@@ -416,6 +418,8 @@ class TelaEntradaManual(ctk.CTkFrame):
                 quantidade      = qtd,
                 valor_unitario  = vunt,
                 usuario_id      = self._usuario.id,
+                centro_alocacao          = self._centro.get(),
+                unidade_estoque         = self._unidade.get()
             )
         except ValueError as exc:
             self._banner.erro(str(exc))

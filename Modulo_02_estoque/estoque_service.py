@@ -5,8 +5,7 @@ Orquestra ProdutoRepo, FornecedoresRepo  e LoteRepo.
 """
 import logging
 import threading
-from datetime import date, datetime
-import datetime as _dt
+from datetime import date, datetime as _dt, datetime
 from decimal import Decimal
 
 from Modulo_04_notificacoes.notificacao_service import NotificacaoService
@@ -43,8 +42,6 @@ class EstoqueService:
     def criar_produto(
         nome: str,
         ean: str,
-        unidade_estoque: str,
-        centro_alocacao: str = "deposito",
         estoque_minimo: int   = 0,
         descricao: str        = None,
         marca: str            = None,
@@ -63,8 +60,6 @@ class EstoqueService:
         dados = dict(
             nome            = nome.strip(),
             ean             = ean.strip(),
-            centro_alocacao = centro_alocacao,
-            unidade_estoque = unidade_estoque,
             estoque_minimo  = estoque_minimo,
             descricao       = descricao.strip() if descricao else None,
             marca           = marca.strip() if marca else None,
@@ -100,6 +95,9 @@ class EstoqueService:
         usuario_id:      int,
         data_fabricacao: date = None,
         nota_fiscal:     str= None,
+        unidade_estoque: str="",
+        centro_alocacao: str = "deposito",
+        
     ):
         """
         UC-04 — Registrar entrada manual.
@@ -125,6 +123,8 @@ class EstoqueService:
             chave_acesso       = None,
             data_vencimento    = data_vencimento,
             data_fabricacao    = data_fabricacao,
+            unidade_estoque    = unidade_estoque,
+            centro_alocacao    = centro_alocacao,
             quantidade_inicial = quantidade,
             quantidade_atual   = quantidade,
             valor_unitario     = Decimal(str(valor_unitario)),
@@ -150,6 +150,8 @@ class EstoqueService:
         valor_unitario:  Decimal,
         usuario_id:      int,
         data_fabricacao: date = None,
+        unidade_estoque: str="",
+        centro_alocacao: str = "deposito",
     ):
         """
         RF-04b — Entrada assistida por chave de acesso DANFE.
@@ -176,6 +178,8 @@ class EstoqueService:
             chave_acesso       = chave_acesso.strip(),
             data_vencimento    = data_vencimento,
             data_fabricacao    = data_fabricacao,
+            unidade_estoque    =unidade_estoque,
+            centro_alocacao    = centro_alocacao,
             quantidade_inicial = quantidade,
             quantidade_atual   = quantidade,
             valor_unitario     = Decimal(str(valor_unitario)),
@@ -245,14 +249,6 @@ class EstoqueService:
                     data_hora= datetime.utcnow(),
                 )
                 session.add(mov)
-            if destino_centro:
-                produto_obj = session.get(Produto, plano.produto_id)
-                if produto_obj:
-                    produto_obj.centro_alocacao = CentroAlocacaoEnum(destino_centro)
-                    logger.info(
-                        "Transferência: produto_id=%s novo centro=%s",
-                        plano.produto_id, destino_centro,
-                    )
             
             logger.info(
                 "Retirada registrada: produto_id=%s qtd=%s lotes=%s usuario=%s",
@@ -261,7 +257,7 @@ class EstoqueService:
 
             #verifica estoque minimo apos commit e sinaliza para alerta(RF-13)
             try:
-                saldo_pos= LoteRepo.saldo_total_produto(plano.produto_id)
+                saldo_pos= LoteRepo.saldo_total_produto(plano.produto_id)-plano.quantidade_atendida
                 with get_read_session() as s:
                     prod= s.get(Produto, plano.produto_id)
                     if prod and prod.estoque_minimo> 0 and saldo_pos <= prod.estoque_minimo:
@@ -282,14 +278,7 @@ class EstoqueService:
             return False # estoque ok, sem alerta
 
     @staticmethod
-    def registrar_transferencia(
-        plano,
-        usuario_id: int,
-        destino_centro: str,
-        fator_fracionamento: int = 1,
-        unidade_destino: str | None = None,
-        observacao: str | None = None,
-    ) -> None:
+    def registrar_transferencia( plano, usuario_id: int, destino_centro: str, fator_fracionamento: int = 1, unidade_destino: str | None = None, observacao: str | None = None) -> None:
         """
         Transfere as unidades do PlanoConsumo para outro centro de alocação,
         com fracionamento opcional de embalagem.
@@ -312,7 +301,7 @@ class EstoqueService:
         """
         if fator_fracionamento < 1:
             raise ValueError("O fator de fracionamento deve ser >= 1.")
-        if fator_fracionamento > 1 and not unidade_destino:
+        if fator_fracionamento >= 1 and not unidade_destino:
             raise ValueError(
                 "Informe a unidade de destino ao fracionar (ex: 'unidade').")
         now = _dt.utcnow()
@@ -339,7 +328,7 @@ class EstoqueService:
                     data_hora  = now,
                 ))
 
-                if fator_fracionamento > 1:
+                if fator_fracionamento >= 1:
                     # Cria lote espelho no destino com unidade fracionada
                     qtd_frac   = item.qtd_a_retirar * fator_fracionamento
                     val_frac   = lote_origem.valor_unitario / fator_fracionamento
@@ -350,11 +339,13 @@ class EstoqueService:
                         nota_fiscal        = lote_origem.nota_fiscal,
                         data_fabricacao    = lote_origem.data_fabricacao,
                         data_vencimento    = lote_origem.data_vencimento,
+                        unidade_estoque    = unidade_destino,
+                        centro_alocacao    = destino_centro,
                         quantidade_inicial = qtd_frac,
                         quantidade_atual   = qtd_frac,
                         valor_unitario     = round(val_frac, 4),
                         valor_total        = round(val_frac * qtd_frac, 2),
-                        criado_em          = now,
+                        criado_em          = now
                     )
                     session.add(lote_dest)
                     session.flush()   # precisa do lote_dest.id para o mov de entrada
@@ -373,10 +364,7 @@ class EstoqueService:
                         data_hora  = now,
                     ))
 
-            # Atualiza centro do produto
-            produto = session.get(Produto, plano.produto_id)
-            if produto:
-                produto.centro_alocacao = CentroAlocacaoEnum(destino_centro)
+            # Atualiza centro do produt
 
             logger.info(
                 "Transferência: produto_id=%s destino=%s fator=%s usuario=%s",
@@ -418,6 +406,8 @@ class EstoqueService:
                     nota_fiscal = dados_nfe.numero_nf,
                     data_fabricacao= item.data_fabricacao,
                     data_vencimento= item.data_vencimento or _date(9999,12,31),
+                    unidade_estoque    = item.produto.unidade_estoque.value,
+                    centro_alocacao    = CentroAlocacaoEnum.deposito.value,
                     quantidade_inicial= int(item.quantidade),
                     quantidade_atual= int(item.quantidade),
                     valor_unitario = item.valor_unitario,

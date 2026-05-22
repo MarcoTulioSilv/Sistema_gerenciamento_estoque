@@ -34,7 +34,7 @@ class LoteRepo:
     
     @staticmethod
     def criar(dados: dict)->Lote:
-        #Cria lote e registra movimentação de entreda na mesma transação.
+        #Cria lote e registra movimentação de entrada na mesma transação.
         usuario_id= dados.pop ("usuario_id")
         tipo      = dados.pop("tipo", TipoMovimentacaoEnum.entrada_manual)
         numero_nf = dados.get("nota_fiscal","")

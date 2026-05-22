@@ -221,7 +221,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                 (produto.nome[:22], 180),
                 (lote.num_lote,      90),
                 (lote.nota_fiscal,   90),
-                (produto.centro_alocacao.value.capitalize(), 90),
+                (lote.centro_alocacao.value.capitalize(), 90),
                 (str(lote.quantidade_atual), 80),
                 (lote.data_vencimento.strftime("%d/%m/%Y"), 100),
             ]

@@ -26,7 +26,6 @@ _SITUACAO_COR = {
 
 _COLUNAS = [
     ("Produto",         220),
-    ("Centro",           90),
     ("Saldo atual",      90),
     ("Estoque mínimo",  120),
     ("Situação",        120),
@@ -75,12 +74,6 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
         self._entry_busca.pack(side="left")
         self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
 
-        self._opt_centro = ctk.CTkOptionMenu(
-            filt, values=["Todos os centros", "Almoxarifado", "Farmacia", "Deposito"],
-            width=150, height=32, corner_radius=6,
-            fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#161614",
-            command=lambda _: self._filtrar())
-        self._opt_centro.pack(side="left", padx=8)
 
         ctk.CTkButton(filt, text="Limpar", width=70, height=32,
                       fg_color=COR_BRANCO, text_color="#161614",
@@ -134,7 +127,6 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
                     dados.append({
                         "id":             p.id,
                         "nome":           p.nome,
-                        "centro":         p.centro_alocacao.value.capitalize(),
                         "estoque_minimo": p.estoque_minimo,
                         "saldo":          saldo,
                     })
@@ -146,18 +138,15 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
 
     def _filtrar(self):
         busca  = self._entry_busca.get().lower()
-        centro = self._opt_centro.get()
+       
         filtrados = [
             d for d in self._dados
             if (busca in d["nome"].lower())
-            and (centro == "Todos os centros"
-                 or d["centro"].lower() in centro.lower())
         ]
         self._renderizar(filtrados)
 
     def _limpar_filtros(self):
         self._entry_busca.delete(0, "end")
-        self._opt_centro.set("Todos os centros")
         self._renderizar(self._dados)
 
     # ── Renderização ──────────────────────────────────────────────────────────
@@ -183,11 +172,6 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
             ctk.CTkLabel(row, text=d["nome"][:28], text_color="#3d3d3a",
                          font=ctk.CTkFont(size=11), width=220,
                          anchor="w").grid(row=0, column=0, padx=6, pady=7, sticky="w")
-
-            # Centro
-            ctk.CTkLabel(row, text=d["centro"], text_color="#3d3d3a",
-                         font=ctk.CTkFont(size=11), width=90,
-                         anchor="w").grid(row=0, column=1, padx=6, pady=7, sticky="w")
 
             # Saldo atual
             ctk.CTkLabel(row, text=str(d["saldo"]), text_color="#3d3d3a",

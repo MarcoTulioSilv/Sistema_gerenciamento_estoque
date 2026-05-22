@@ -22,8 +22,6 @@ COR_CINZA_E= "#F2F1ED"
 COR_CINZA_B= "#E8E6DE"
 COR_BRANCO = "#FFFFFF"
  
-UNIDADES = ["caixa","pacote","unidade","ampola","galao","fardo","litro","rolo","kit","dose"]
-CENTROS  = ["deposito","almoxarifado", "farmacia"]
  
  
 class TelaNovoProduto(ctk.CTkFrame):
@@ -80,14 +78,6 @@ class TelaNovoProduto(ctk.CTkFrame):
         grid1 = ctk.CTkFrame(sec2, fg_color="transparent")
         grid1.pack(fill="x", padx=14, pady=(0, 8))
         grid1.grid_columnconfigure((0, 1, 2), weight=1)
- 
-        self._centro = Campo(grid1, "Centro de alocação *", tipo="select",
-                             opcoes=CENTROS, largura=180)
-        self._centro.grid(row=0, column=0, padx=(0, 12), sticky="ew")
- 
-        self._unidade = Campo(grid1, "Unidade de medida *", tipo="select",
-                              opcoes=UNIDADES, largura=160)
-        self._unidade.grid(row=0, column=1, padx=(0, 12), sticky="ew")
  
         self._estoque_min = Campo(grid1, "Estoque mínimo", tipo="number",
                                   placeholder="0", largura=120, obrigatorio=True)
@@ -150,10 +140,6 @@ class TelaNovoProduto(ctk.CTkFrame):
         self._nome.set(p.nome)
         self._ean.set(p.ean or "")
         self._descricao.set(p.descricao or "")
-        val_centro  = p.centro_alocacao.value if hasattr(p.centro_alocacao,  "value") else str(p.centro_alocacao)
-        val_unidade = p.unidade_estoque.value  if hasattr(p.unidade_estoque,  "value") else str(p.unidade_estoque)
-        self._centro.set(val_centro)
-        self._unidade.set(val_unidade)
         self._estoque_min.set(str(p.estoque_minimo))
         self._marca.set(p.marca or "")
         self._ativo_var.set(p.ativo)
@@ -190,8 +176,6 @@ class TelaNovoProduto(ctk.CTkFrame):
                     nome            = self._nome.get(),
                     ean             = self._ean.get(),
                     descricao       = self._descricao.get() or None,
-                    centro_alocacao = self._centro.get(),
-                    unidade_estoque = self._unidade.get(),
                     estoque_minimo  = estoque_min,
                     marca           = self._marca.get() or None,
                     fornecedor      = fornecedor,
@@ -204,8 +188,6 @@ class TelaNovoProduto(ctk.CTkFrame):
                     nome            = self._nome.get(),
                     ean             = self._ean.get(),
                     descricao       = self._descricao.get() or None,
-                    centro_alocacao = self._centro.get(),
-                    unidade_estoque = self._unidade.get(),
                     estoque_minimo  = estoque_min,
                     marca           = self._marca.get() or None,
                     fornecedor      = fornecedor,

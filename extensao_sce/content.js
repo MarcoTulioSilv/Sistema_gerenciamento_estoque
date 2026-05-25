@@ -41,6 +41,7 @@ function extrairDadosSefaz() {
             let qtd = qtdNode ? parseFloat(qtdNode.innerText.replace(/\./g, '').replace(',', '.')) : 0;
             
             let eanNode = document.evaluate(".//label[contains(text(), 'Código EAN Comercial')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+            let unidadeNode = document.evaluate(".//label[contains(text(), 'Unidade Comercial')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let vUnNode = document.evaluate(".//label[contains(text(), 'Valor unitário de comercialização')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let vUn = vUnNode ? parseFloat(vUnNode.innerText.replace(/\./g, '').replace(',', '.')) : 0;
             
@@ -68,7 +69,8 @@ function extrairDadosSefaz() {
                     valor_unitario: vUn,
                     lote: loteNode ? loteNode.innerText.trim() : "",
                     validade: validade,
-                    fabricacao: fabricacao // <-- Adicionado no JSON
+                    fabricacao: fabricacao, // <-- Adicionado no JSON
+                    unidade_estoque: unidadeNode ? unidadeNode.innerText.trim() : ""
                 });
             }
         }

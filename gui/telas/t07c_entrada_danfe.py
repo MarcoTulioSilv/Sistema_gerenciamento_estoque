@@ -233,14 +233,10 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         g1.grid_columnconfigure((0, 1, 2), weight=1)
         self._rap_nome    = Campo(g1, "Nome *", obrigatorio=True)
         self._rap_nome.grid(row=0, column=0, padx=(0,8), sticky="ew", columnspan=2)
-        self._rap_centro  = Campo(g1, "Centro *", tipo="select", opcoes=CENTROS, largura=160)
-        self._rap_centro.grid(row=0, column=2, sticky="ew")
 
         g2 = ctk.CTkFrame(self._frame_rap, fg_color="transparent")
         g2.pack(fill="x", padx=14, pady=(0, 4))
         g2.grid_columnconfigure((0,1,2), weight=1)
-        self._rap_unidade   = Campo(g2, "Unidade *", tipo="select", opcoes=UNIDADES, largura=160)
-        self._rap_unidade.grid(row=0, column=0, padx=(0,8), sticky="ew")
         self._rap_fornecedor= Campo(g2, "Fornecedor", placeholder="Opcional")
         self._rap_fornecedor.grid(row=0, column=1, padx=(0,8), sticky="ew")
         self._rap_marca     = Campo(g2, "Marca", placeholder="Opcional")
@@ -493,6 +489,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
                         chave_acesso    = self._dados_chave["chave"],
                         data_vencimento = _parse_date(item["validade"]),
                         data_fabricacao = dt_fab,
+                        centro_alocacao ="deposito",
                         quantidade      = int(item["quantidade"]),
                         valor_unitario  = Decimal(str(item["valor_unitario"])),
                         usuario_id      = self._usuario.id,
@@ -603,12 +600,9 @@ class TelaEntradaDANFE(ctk.CTkFrame):
 
     def _mostrar_produto(self, produto):
         self._produto_sel = produto
-        centro = (produto.centro_alocacao.value
-                  if hasattr(produto.centro_alocacao, "value")
-                  else str(produto.centro_alocacao))
         self._lbl_produto.configure(
             text=(f"  {produto.nome}\n"
-                  f"  Centro: {centro}  ·  Fornecedor: {produto.fornecedor or '—'}  ·  "
+                 "·  Fornecedor: {produto.fornecedor or '—'}  ·  "
                   f"Estoque mín.: {produto.estoque_minimo}")
         )
         self._card_produto.pack(fill="x", padx=14, pady=(0, 8))
@@ -629,8 +623,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
             produto = EstoqueService.criar_produto(
                 nome            = self._rap_nome.get().strip(),
                 ean             = self._ean_pendente,
-                centro_alocacao = self._rap_centro.get(),
-                unidade_estoque = self._rap_unidade.get(),
+
                 fornecedor      = self._rap_fornecedor.get().strip() or None,
                 marca           = self._rap_marca.get().strip() or None,
             )

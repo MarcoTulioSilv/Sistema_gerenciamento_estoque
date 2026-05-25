@@ -23,6 +23,7 @@ class ItemPlano:
     saldo_atual: int 
     qtd_a_retirar: int
     saldo_restante: int 
+    unidade_estoque: str = "unidade" #pode ser expandido para outras unidades no futuro
 
     @property
     def lote_esgotado(self)-> bool:
@@ -59,13 +60,14 @@ class FEFOSelector:
          o plano gravando as movimentações atomicamente.
     """
     @staticmethod
-    def calcular_plano(produto_id:int, quantidade: int)->PlanoConsumo:
+    def calcular_plano(produto_id:int, quantidade: int, apenas_vencidos: bool=False)->PlanoConsumo:
         """
         Calcula o plano de consumo FEFO sem tocar no banco.
  
         Args:
             produto_id: id do produto.
             quantidade: quantidade solicitada na retirada.
+            apenas_vencidos: se True, considera apenas lotes vencidos.
  
         Returns:
             PlanoConsumo com os itens a consumir em ordem FEFO.
@@ -81,10 +83,16 @@ class FEFOSelector:
         hoje= date.today()
         #busca lotes ativos( saldo>0, não vencidos), ordenados por vencimento
         lotes= LoteRepo.listar_por_produto(produto_id, apenas_com_saldo=True) 
-        lotes_ativos=[
-            l for l in lotes
-            if l.quantidade_atual> 0 and l.data_vencimento>=hoje
-        ]
+        if apenas_vencidos:
+            lotes_ativos=[
+                l for l in lotes
+                if l.quantidade_atual> 0 and l.data_vencimento<hoje
+            ]
+        else:
+            lotes_ativos=[
+                l for l in lotes
+                if l.quantidade_atual> 0 and l.data_vencimento>=hoje
+            ]
         lotes_ativos.sort(key=lambda l: l.data_vencimento)
         saldo_total= sum(l.quantidade_atual for l in lotes_ativos)
         itens_plano=[]
@@ -102,7 +110,8 @@ class FEFOSelector:
                 nota_fiscal= lote.nota_fiscal,
                 saldo_atual= lote.quantidade_atual,
                 qtd_a_retirar= retirar,
-                saldo_restante= saldo_resultante 
+                saldo_restante= saldo_resultante,
+                unidade_estoque= lote.unidade_estoque.value
             ))
             restante-= retirar
         

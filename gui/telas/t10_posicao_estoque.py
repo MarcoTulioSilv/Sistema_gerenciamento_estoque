@@ -158,6 +158,8 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                 
                 self._linhas=[]
                 for l in lotes:
+                    if l.quantidade_atual==0 and l.data_vencimento< hoje:
+                        continue #pular lotes esgotados e vencidos
                     sit= _calcular_situacao(l, l.produto.estoque_minimo, hoje)
                     # Sobrepor com estoque baixo se aplicavel
                     if sit=="Normal":
@@ -184,7 +186,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         filtrados=[
             (l,p,s) for l, p, s in self._linhas
             if (busca in p.nome.lower() or busca in l.num_lote.lower() or busca in l.nota_fiscal.lower())
-            and(centro=="Todos os centros" or p.centro_alocacao.value.lower() in centro.lower())
+            and(centro=="Todos os centros" or l.centro_alocacao.value.lower() in centro.lower())
             and (situacao== "Todas as situações" or s == situacao)
         ]
         self._renderizar(filtrados)
@@ -219,7 +221,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                 (produto.nome[:22], 180),
                 (lote.num_lote,      90),
                 (lote.nota_fiscal,   90),
-                (produto.centro_alocacao.value.capitalize(), 90),
+                (lote.centro_alocacao.value.capitalize(), 90),
                 (str(lote.quantidade_atual), 80),
                 (lote.data_vencimento.strftime("%d/%m/%Y"), 100),
             ]

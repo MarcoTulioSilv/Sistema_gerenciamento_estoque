@@ -46,6 +46,8 @@ class TipoMovimentacaoEnum(str, enum.Enum):
     entrada_nfe    = "entrada_nfe"
     saida          = "saida"
     entrada_danfe  = "entrada_danfe"
+    transferencia  = "transferencia"
+    baixa_vencido  = "baixa_vencido"
 
 class TipoAlertaEnum(str, enum.Enum):
     vencimento_30  = "vencimento_30"
@@ -100,9 +102,7 @@ class Produto(Base):
     nome:             Mapped[str]                   = mapped_column(String(120), nullable=False)
     descricao:        Mapped[str | None]            = mapped_column(String(255), nullable=True)
     ean:              Mapped[str]                   = mapped_column(String(20),  nullable=False, unique=True)
-    unidade_estoque:  Mapped[UnidadeEstoqueEnum]    = mapped_column(Enum(UnidadeEstoqueEnum), nullable=False)
     marca:            Mapped[str | None]            = mapped_column(String(100), nullable=True)
-    centro_alocacao:  Mapped[CentroAlocacaoEnum]   = mapped_column(Enum(CentroAlocacaoEnum), nullable=False, default=CentroAlocacaoEnum.deposito)
     estoque_minimo:   Mapped[int]                   = mapped_column(Integer, nullable=False, default=0)
     ativo:            Mapped[bool]                  = mapped_column(Boolean, nullable=False, default=True)
     criado_em:        Mapped[datetime]              = mapped_column(DateTime, nullable=False, default=func.now())
@@ -129,11 +129,11 @@ class Lote(Base):
     valor_unitario:      Mapped[Decimal]  = mapped_column(Numeric(10, 2), nullable=False)
     valor_total:         Mapped[Decimal]  = mapped_column(Numeric(10, 2), nullable=False)
     criado_em:           Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
-
+    centro_alocacao:  Mapped[CentroAlocacaoEnum]   = mapped_column(Enum(CentroAlocacaoEnum), nullable=False, default=CentroAlocacaoEnum.deposito)
     produto:       Mapped["Produto"]           = relationship(back_populates="lotes")
     movimentacoes: Mapped[list["Movimentacao"]] = relationship(back_populates="lote")
     notificacoes:  Mapped[list["NotificacaoLog"]] = relationship(back_populates="lote")
-
+    unidade_estoque:  Mapped[UnidadeEstoqueEnum]    = mapped_column(Enum(UnidadeEstoqueEnum), nullable=False)
     @property
     def ativo(self) -> bool:
         return self.quantidade_atual > 0

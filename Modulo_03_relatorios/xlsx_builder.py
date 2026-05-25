@@ -265,7 +265,7 @@ class XlsxBuilder:
  
                 _aplicar_linha(ws, i, [
                     l.produto.nome,
-                    l.produto.centro_alocacao.value.capitalize(),
+                    l.centro_alocacao.value.capitalize(),
                     l.num_lote,
                     l.nota_fiscal,
                     l.data_fabricacao.strftime("%d/%m/%Y") if l.data_fabricacao else "—",
@@ -340,7 +340,7 @@ class XlsxBuilder:
  
                 _aplicar_linha(ws, i, [
                     l.produto.nome,
-                    l.produto.centro_alocacao.value.capitalize(),
+                    l.centro_alocacao.value.capitalize(),
                     l.num_lote,
                     l.nota_fiscal,
                     l.data_vencimento.strftime("%d/%m/%Y"),
@@ -437,7 +437,7 @@ class XlsxBuilder:
                 # Todos vencidos → destaque em vermelho (RF-22)
                 _aplicar_linha(ws, i, [
                     l.produto.nome,
-                    l.produto.centro_alocacao.value.capitalize(),
+                    l.centro_alocacao.value.capitalize(),
                     l.produto.fornecedor or "—",
                     l.num_lote,
                     l.nota_fiscal,

@@ -5,8 +5,8 @@ Sprint 1: KPIs reais com consultados do banco via MOD-06
 """
 
 import logging
-from datetime import date, datetime
-from datetime import timedelta
+from datetime import date, datetime, timedelta
+
 from sqlalchemy.orm import joinedload
 import customtkinter as ctk
 from tkinter import messagebox
@@ -96,10 +96,11 @@ class TelaInicio(ctk.CTkFrame):
 
     REFRESH_MS=120_000 # atualiza KPIs a cada 2 minutos
 
-    def __init__(self,master,usuario):
+    def __init__(self,master,usuario, on_navigate=None):
         super().__init__(master,fg_color=COR_CINZA_E,corner_radius=0)
         self._usuario = usuario
         self._timer   = None
+        self._on_navigate = on_navigate
         self._construir()
         self._atualizar()
     
@@ -172,6 +173,26 @@ class TelaInicio(ctk.CTkFrame):
         )
         self._lbl_tabela_15.pack(anchor="w",padx=14,pady=(0,12))
 
+    def _abrir_baixa_vencidos(self):
+        """Busca os lotes vencidos de forma estruturada e os envia para a tela de retirada"""
+        hoje = date.today()
+        lotes_vencidos_raw = []
+        
+        try:
+            with get_read_session() as s:
+                lotes = s.query(Lote).join(Produto).filter(Lote.data_vencimento < hoje, Lote.quantidade_atual > 0).all()
+                for l in lotes:
+                    lotes_vencidos_raw.append({
+                        "ean": l.produto.ean,
+                        "lote": l.num_lote,
+                        "quantidade": l.quantidade_atual,
+                        "nome": l.produto.nome
+                    })
+        except Exception as exc:
+            logger.error("Erro ao buscar lotes vencidos para a fila de baixa: %s", exc)
+            
+        # Encaminha o destino junto com a lista estruturada de lotes no argumento extra
+        self._on_navigate("baixa_vencido", lotes_vencidos_raw)
     
     def _atualizar(self):
         """Consulta KPIs e atualiza a interface"""
@@ -211,14 +232,63 @@ class TelaInicio(ctk.CTkFrame):
         self._timer=self.after(self.REFRESH_MS,self._atualizar)
     
     def _mostrar_detalhes_vencidos(self):
-        """Abre uma janela (messagebox) com os detalhes dos lotes vencidos"""
-        if hasattr(self, '_lista_vencidos') and self._lista_vencidos:
-            detalhes = "\n".join(self._lista_vencidos)
-            messagebox.showwarning(
-                "Atenção - Lotes Vencidos", 
-                f"Os seguintes lotes já passaram da data de validade:\n\n{detalhes}\n\nFavor realizar a retirada de estoque."
-            )
+        """Abre uma janela customizada com os detalhes dos lotes vencidos e opção de baixa"""
+        if not hasattr(self, '_lista_vencidos') or not self._lista_vencidos:
+            return
 
+        detalhes = "\n".join(self._lista_vencidos)
+        
+        # 1. Cria a janela customizada (Toplevel)
+        popup = ctk.CTkToplevel(self)
+        popup.title("Atenção - Lotes Vencidos")
+        popup.geometry("550x400")
+        popup.transient(self) # Mantém a janela sempre à frente da principal
+        popup.grab_set()      # Torna a janela modal (bloqueia cliques fora dela)
+        
+        # 2. Título interno
+        ctk.CTkLabel(
+            popup, 
+            text="Os seguintes lotes já passaram da data de validade:", 
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#A32D2D" # COR_VERM
+        ).pack(pady=(20, 10), padx=20, anchor="w")
+        
+        # 3. Caixa de texto com scroll (melhor para listas extensas)
+        txt_box = ctk.CTkTextbox(popup, width=510, height=200, fg_color="#F2F1ED")
+        txt_box.pack(pady=10, padx=20, fill="both", expand=True)
+        txt_box.insert("1.0", f"{detalhes}\n\nFavor realizar a retirada de estoque.")
+        txt_box.configure(state="disabled") # Bloqueia edição pelo usuário
+        
+        # 4. Frame para organizar os botões no rodapé
+        frame_botoes = ctk.CTkFrame(popup, fg_color="transparent")
+        frame_botoes.pack(pady=20, fill="x", side="bottom")
+        
+        # Botão Fechar (Cancela a ação)
+        ctk.CTkButton(
+            frame_botoes, 
+            text="Fechar", 
+            width=100, height=32,
+            fg_color="transparent", 
+            border_width=1,
+            text_color="#3d3d3a",
+            command=popup.destroy
+        ).pack(side="right", padx=20)
+        
+        # Função auxiliar: fecha o popup e chama a sua função original
+        def _acao_dar_baixa():
+            popup.destroy()
+            self._abrir_baixa_vencidos()
+            
+        # Botão Dar baixa
+        ctk.CTkButton(
+            frame_botoes, 
+            text="Dar baixa", 
+            width=120, height=32,
+            fg_color="#A32D2D", # COR_VERM
+            hover_color="#7a1f1f",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=_acao_dar_baixa
+        ).pack(side="right", padx=(0, 10))
     def destroy(self):
         """Cancela o timer ao destruir tela"""
         if self._timer:

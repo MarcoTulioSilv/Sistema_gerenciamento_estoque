@@ -4,7 +4,7 @@ Tela T-03 - Listagem de produtos - Técnico e ti
 """
 import logging
 import customtkinter as ctk
-
+import tkinter as tk
 from Modulo_02_estoque import EstoqueService
 from Modulo_02_estoque import LoteRepo
 from datetime import date
@@ -29,13 +29,13 @@ _STATUS_COR={
 
 # Colunas: (header, largura)
 _COLUNAS = [
-    ("Nome",      220),
-    ("EAN",       140),
+    ("Nome",      300),
+    ("EAN",       150),
     ("Marca",     220),
-    ("Est.mín.",   70),
-    ("Saldo",      70),
-    ("Status",    200),
-    ("Ações",     160),
+    ("Est.mín.",   80),
+    ("Saldo",      80),
+    ("Status",    300),
+    ("Ações",     200),
 ]
 
 class TelaProdutos(ctk.CTkFrame):
@@ -68,7 +68,7 @@ class TelaProdutos(ctk.CTkFrame):
 
         self._entry_busca= ctk.CTkEntry(filt, placeholder_text="Buscar por nome ou EAN...",
                                     height=32, width= 300, corner_radius=6)
-        self._entry_busca.pack(side="left")
+        self._entry_busca.pack(side="left", padx=(0,8))
         self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
 
         ctk.CTkButton(filt, text="Limpar", width=70, height=32,
@@ -81,14 +81,25 @@ class TelaProdutos(ctk.CTkFrame):
         hdr= ctk.CTkFrame(self, fg_color="#FAFAF8", corner_radius=0,
                           border_width=1, border_color=COR_CINZA_B)
         hdr.pack(fill="x", padx=16, pady=(10,0))
-        hdr.grid_columnconfigure(6,weight=1)
-        for col,(txt,largura) in enumerate(_COLUNAS):
-            ancora = "center" if col == 6 or 5 else "w"
-            stick = "ew" if col == 6 or 5 else "w"
-            ctk.CTkLabel(hdr, text= txt.upper(), text_color="#888780",
-                         font=ctk.CTkFont(size=10, weight="bold"),
-                         width=largura, anchor=ancora).grid(row=0, column=col, padx=8, pady=6, stick=stick)
+        hdr.grid_columnconfigure(5, weight=1) # Status expande para ocupar espaço extra, alinhado à esquerda)
         
+        for col, (txt, largura) in enumerate(_COLUNAS):
+            # Títulos alinhados ao centro, com exceção de "Ações" que cola na direita
+            if col == 6: # Ações -> extrema direita
+                ancora = "e"
+                stick  = "e"
+            elif col in (3, 4, 5): # Est.min, Saldo E STATUS -> centralizados
+                ancora = "center"
+                stick  = "ew"
+            else: # Restante -> esquerda
+                ancora = "w"
+                stick  = "w"
+
+            ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
+                         font=ctk.CTkFont(size=10, weight="bold"),
+                         width=largura, anchor=ancora
+                         ).grid(row=0, column=col, padx=8, pady=6, sticky=stick)
+            
         # Área scrollável de linhas
         self._scroll = ctk.CTkScrollableFrame(
             self, fg_color=COR_BRANCO,
@@ -99,7 +110,7 @@ class TelaProdutos(ctk.CTkFrame):
     
     def _carregar(self):
         try:
-            self._produtos= EstoqueService.listar_produtos(apenas_ativos=False)
+            self._produtos= EstoqueService.listar_produtos(apenas_ativos=True)
         except Exception as exc:
             logger.error("Erro ao carregar produtos: %s", exc)
             self._produtos=[]
@@ -140,7 +151,7 @@ class TelaProdutos(ctk.CTkFrame):
             row= ctk.CTkFrame(self._scroll, fg_color= bg, corner_radius=0)
             row.pack(fill="x")
 
-            row.grid_columnconfigure(6, weight=1)
+            row.grid_columnconfigure(5, weight=1)
 
             # Calcular saldo atual
             try:
@@ -166,31 +177,60 @@ class TelaProdutos(ctk.CTkFrame):
                 p.ean,
                 p.marca or "—",
                 str(p.estoque_minimo),
+                str(saldo),
             ]
             for col, (val, (_, largura)) in enumerate(zip(valores, _COLUNAS)):
-                ctk.CTkLabel(
-                    row, text=val, text_color="#3d3d3a",
-                    font=ctk.CTkFont(size=12), width=largura, anchor="w",
-                ).grid(row=0, column=col, padx=8, pady=7, sticky="w")
+                if col == 5:
+                    ctk.CTkFrame(row, width=20, height=0, fg_color="transparent").grid(row=0, column=7) # Ações -> extrema direita
+                if col in (3, 4, 5): 
+                    stick = "ew"
+                    justifica = "center"
+                else:            
+                    stick = "w"
+                    justifica = "left"
+
+                ctk.CTkEntry(row,
+                                textvariable=tk.StringVar(value=val),
+                                state="readonly",
+                                justify=justifica, # Define alinhamento do texto
+                                text_color="#3d3d3a",
+                                fg_color="transparent",
+                                border_width=0,
+                                font=ctk.CTkFont(size=12),
+                                width=largura
+                                ).grid(row=0, column=col, padx=8, pady=7, sticky=stick)
+                    
 
             
             fg,tc=_STATUS_COR.get(status, ("#F1EFE8", "#5F5E5A"))
 
+            
+            
             largura_status = _COLUNAS[5][1] 
             frame_status = ctk.CTkFrame(row, fg_color="transparent", width=largura_status, height=26)
             frame_status.pack_propagate(False) 
             frame_status.grid(row=0, column=5, padx=8, pady=2, sticky="w")
             
-    
+            # Badge de Status (Fica centralizado no meio do "espaço vazio")
+            ctk.CTkLabel(row, text=status, fg_color=fg, text_color=tc,
+                         font=ctk.CTkFont(size=10, weight="bold"),
+                         corner_radius=8, padx=8, pady=2, width=80
+                         ).grid(row=0, column=5, padx=8, pady=2)
+
+            '''
             #Badge status
             ctk.CTkLabel(row, text=status, fg_color=fg, text_color=tc,
                          font=ctk.CTkFont(size=10,weight="bold"),
                          corner_radius=8, padx=8, pady=2,
                          width=1).grid(row=0, column=5, padx=8, pady=2)
-            # Ações
+                         '''
+            
+           # --- COLUNA 6: AÇÕES ---
             largura_acoes = _COLUNAS[6][1] 
             acoes = ctk.CTkFrame(row, fg_color="transparent", width=largura_acoes, height=30)
-            acoes.grid(row=0, column=6, padx=8, pady=4)
+            
+            # sticky="e" (East) cola todo o bloco de botões na extrema direita
+            acoes.grid(row=0, column=6, padx=8, pady=4, sticky="e")
             
             pid = p.id
             ctk.CTkButton(acoes, text="Editar", width=64, height=26,
@@ -208,5 +248,4 @@ class TelaProdutos(ctk.CTkFrame):
                           font=ctk.CTkFont(size=11),
                           command=lambda p=pid: self._on_navigate("posicao", extra=p)
                           ).pack(side="left")
-            
-            
+            saldo = 0

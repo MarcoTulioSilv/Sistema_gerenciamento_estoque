@@ -559,7 +559,7 @@ class TelaRetirada(ctk.CTkFrame):
         if fator > 1:
             self._opt_unidade_dest.configure(state="normal")
             qtd_orig  = self._plano.quantidade_pedida
-            unid_orig = self._produto_sel.unidade_estoque.value
+            unid_orig = self._plano.itens[0].unidade_estoque.value.capitalize() if self._plano.itens else "unidade"
             unid_dest = _LABEL_UNIDADE.get(
                 self._opt_unidade_dest.get(),
                 self._opt_unidade_dest.get().lower(),

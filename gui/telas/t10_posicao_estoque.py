@@ -186,7 +186,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         filtrados=[
             (l,p,s) for l, p, s in self._linhas
             if (busca in p.nome.lower() or busca in l.num_lote.lower() or busca in l.nota_fiscal.lower())
-            and(centro=="Todos os centros" or p.centro_alocacao.value.lower() in centro.lower())
+            and(centro=="Todos os centros" or l.centro_alocacao.value.lower() in centro.lower())
             and (situacao== "Todas as situações" or s == situacao)
         ]
         self._renderizar(filtrados)

@@ -23,6 +23,7 @@ class ItemPlano:
     saldo_atual: int 
     qtd_a_retirar: int
     saldo_restante: int 
+    unidade_estoque: str = "unidade" #pode ser expandido para outras unidades no futuro
 
     @property
     def lote_esgotado(self)-> bool:
@@ -109,7 +110,8 @@ class FEFOSelector:
                 nota_fiscal= lote.nota_fiscal,
                 saldo_atual= lote.quantidade_atual,
                 qtd_a_retirar= retirar,
-                saldo_restante= saldo_resultante 
+                saldo_restante= saldo_resultante,
+                unidade_estoque= lote.unidade_estoque.value
             ))
             restante-= retirar
         

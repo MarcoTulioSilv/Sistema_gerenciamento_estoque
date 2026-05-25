@@ -38,6 +38,7 @@ class EstoqueService:
     @staticmethod
     def buscar_produto_por_nome(nome:str):
         return ProdutoRepo.buscar_por_nome(nome)
+    
     @staticmethod
     def criar_produto(
         nome: str,
@@ -104,10 +105,6 @@ class EstoqueService:
         Cria lote + movimentação de entrada na mesma transação (RN-07).
         """
         # Validações — RN-07: NF obrigatória
-        if not nota_fiscal or not nota_fiscal.strip():
-            raise ValueError("Número da nota fiscal é obrigatório (RN-07).")
-        if not num_lote or not num_lote.strip():
-            raise ValueError("Número do lote é obrigatório.")
         if quantidade <= 0:
             raise ValueError("Quantidade deve ser maior que zero.")
         if valor_unitario <= 0:
@@ -162,8 +159,6 @@ class EstoqueService:
             raise ValueError("Número da NF é obrigatório no fluxo DANFE (extraído da chave).")
         if not chave_acesso or len(chave_acesso.strip()) != 44:
             raise ValueError("Chave de acesso inválida (deve ter 44 dígitos).")
-        if not num_lote or not num_lote.strip():
-            raise ValueError("Número do lote é obrigatório.")
         if quantidade <= 0:
             raise ValueError("Quantidade deve ser maior que zero.")
         if valor_unitario <= 0:
@@ -288,7 +283,8 @@ class EstoqueService:
           - O técnico define a quantidade — pode ser parcial; o restante
             do lote permanece no centro original, na unidade original.
           - Se fator_fracionamento == 1: apenas debita o lote origem e
-            cria movimentação tipo 'transferencia'. O produto muda de centro.
+            cria movimentação de transferência. O cria novo lote no destino,
+            caso o lote seja esgotado, a muda o centro de alocação do lote original para o destino.
           - Se fator_fracionamento > 1: além do débito no lote origem,
             cria um novo Lote espelho no banco representando as unidades
             fracionadas. O valor_unitario é recalculado (original / fator).
@@ -301,7 +297,7 @@ class EstoqueService:
         """
         if fator_fracionamento < 1:
             raise ValueError("O fator de fracionamento deve ser >= 1.")
-        if fator_fracionamento >= 1 and not unidade_destino:
+        if fator_fracionamento > 1 and not unidade_destino:
             raise ValueError(
                 "Informe a unidade de destino ao fracionar (ex: 'unidade').")
         now = _dt.utcnow()
@@ -339,8 +335,8 @@ class EstoqueService:
                         nota_fiscal        = lote_origem.nota_fiscal,
                         data_fabricacao    = lote_origem.data_fabricacao,
                         data_vencimento    = lote_origem.data_vencimento,
-                        unidade_estoque    = unidade_destino,
-                        centro_alocacao    = destino_centro,
+                        unidade_estoque    = UnidadeEstoqueEnum(unidade_destino),
+                        centro_alocacao    = CentroAlocacaoEnum(destino_centro),
                         quantidade_inicial = qtd_frac,
                         quantidade_atual   = qtd_frac,
                         valor_unitario     = round(val_frac, 4),
@@ -348,7 +344,7 @@ class EstoqueService:
                         criado_em          = now
                     )
                     session.add(lote_dest)
-                    session.flush()   # precisa do lote_dest.id para o mov de entrada
+                    session.flush()   
 
                     session.add(Movimentacao(
                         lote_id    = lote_dest.id,
@@ -358,11 +354,15 @@ class EstoqueService:
                         numero_nf  = lote_origem.nota_fiscal,
                         observacao = (
                             f"{obs_mov} | "
-                            f"{item.qtd_a_retirar} {lote_origem.produto.unidade_estoque.value}"
+                            f"{item.qtd_a_retirar} {lote_origem.unidade_estoque.value}"
                             f" x{fator_fracionamento} = {qtd_frac} {unidade_destino}"
                         ),
                         data_hora  = now,
                     ))
+                
+                elif fator_fracionamento == lote_origem.quantidade_atual:
+                        # Se o fator é 1 e a quantidade retirada esgota o lote, podemos apenas atualizar o centro do lote
+                        lote_origem.centro_alocacao = CentroAlocacaoEnum(destino_centro)
 
             # Atualiza centro do produt
 
@@ -406,7 +406,7 @@ class EstoqueService:
                     nota_fiscal = dados_nfe.numero_nf,
                     data_fabricacao= item.data_fabricacao,
                     data_vencimento= item.data_vencimento or _date(9999,12,31),
-                    unidade_estoque    = item.produto.unidade_estoque.value,
+                    unidade_estoque    = UnidadeEstoqueEnum.unidade.value,
                     centro_alocacao    = CentroAlocacaoEnum.deposito.value,
                     quantidade_inicial= int(item.quantidade),
                     quantidade_atual= int(item.quantidade),

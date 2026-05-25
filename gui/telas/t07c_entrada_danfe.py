@@ -600,12 +600,9 @@ class TelaEntradaDANFE(ctk.CTkFrame):
 
     def _mostrar_produto(self, produto):
         self._produto_sel = produto
-        centro = (produto.centro_alocacao.value
-                  if hasattr(produto.centro_alocacao, "value")
-                  else str(produto.centro_alocacao))
         self._lbl_produto.configure(
             text=(f"  {produto.nome}\n"
-                  f"  Centro: {centro}  ·  Fornecedor: {produto.fornecedor or '—'}  ·  "
+                 "·  Fornecedor: {produto.fornecedor or '—'}  ·  "
                   f"Estoque mín.: {produto.estoque_minimo}")
         )
         self._card_produto.pack(fill="x", padx=14, pady=(0, 8))

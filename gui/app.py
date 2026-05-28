@@ -19,6 +19,10 @@ from gui.telas.t22_dashboard import TelaDashboard
 from gui.telas.t11_relatorios import TelaCentralRelatorios
 from gui.telas.t12_agendamento import TelaAgendamento
 from gui.telas.t13_estoque_minimo import TelaEstoqueMinimo
+from gui.telas.t15_usuarios import TelaUsuarios
+from gui.telas.t17_gmail    import TelaGmail
+from gui.telas.t18_backup   import TelaBackup
+from gui.telas.t19_log      import TelaLog
 
 # tema global
 ctk.set_appearance_mode("light")
@@ -164,14 +168,15 @@ class SCEApp(ctk.CTk):
             return TelaAgendamento(self._area_conteudo,usuario= self.usuario_logado, on_navigate= nav)
         if destino=="estoque_minimo":
             return TelaEstoqueMinimo(self._area_conteudo, usuario=self.usuario_logado, on_navigate= nav)
-        nomes = {
-            "usuarios":       "Usuários — T-15",
-            "gmail":          "Config. Gmail — T-17",
-            "backup":         "Backup — T-18",
-            "log":            "Log de Operações — T-19",
-        }
-        titulo = nomes.get(destino, destino)
-        return TelaPlaceholder(self._area_conteudo, titulo=titulo)
+        if destino == "usuarios":
+            return TelaUsuarios(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+        if destino == "gmail":
+            return TelaGmail(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+        if destino == "backup":
+            return TelaBackup(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+        if destino == "log":
+            return TelaLog(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+        return TelaPlaceholder(self._area_conteudo, titulo=destino)
     
     def _on_navigate_com_extra(self, destino: str, extra=None):
         """Versão do _navegar que aceita parâmetro extra(ex: produto_id)"""

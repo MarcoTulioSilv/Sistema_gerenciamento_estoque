@@ -61,20 +61,20 @@ class TelaEntradaDANFE(ctk.CTkFrame):
     # ── Construção ────────────────────────────────────────────────────────────
 
     def _construir(self):
-        topbar = ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44, corner_radius=0)
-        topbar.pack(fill="x")
-        topbar.pack_propagate(False)
-        ctk.CTkLabel(topbar,
+        self._topbar = ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44, corner_radius=0)
+        self._topbar.pack(fill="x")
+        self._topbar.pack_propagate(False)
+        ctk.CTkLabel(self._topbar,
                      text="Entrada via DANFE — Chave de Acesso",
                      font=ctk.CTkFont(size=13, weight="bold"),
                      text_color=COR_AZUL).pack(side="left", padx=16)
-        ctk.CTkLabel(topbar,
+        ctk.CTkLabel(self._topbar,
                      text="Início › Estoque › Entrada DANFE",
                      font=ctk.CTkFont(size=11),
                      text_color="#888780").pack(side="left", padx=4)
 
         self._banner = FeedbackBanner(self)
-        self._banner.pack(fill="x", padx=16, pady=(8, 0))
+       
 
         self._scroll = ctk.CTkScrollableFrame(
             self, fg_color=COR_CINZA_E, corner_radius=8,

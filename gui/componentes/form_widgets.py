@@ -341,17 +341,17 @@ class FeedbackBanner(ctk.CTkFrame):
                                 corner_radius=6, padx=12, pady=6 )
         self._timer=None
     
-    def sucesso(self, msg: str, duração_ms: int=3000):
+    def sucesso(self, msg: str, duração_ms: int=5000):
         self._lbl.configure(text=msg, fg_color="#EAF3DE", text_color="#27500A")
         self._lbl.pack(fill="x")
         self._agendar_ocultar(duração_ms)
 
-    def erro(self, msg: str, duração_ms: int=4000):
+    def erro(self, msg: str, duração_ms: int=5000):
         self._lbl.configure(text=msg, fg_color="#FCEBEB", text_color="#A32D2D")
         self._lbl.pack(fill="x")
         self._agendar_ocultar(duração_ms)
     
-    def aviso(self, msg: str, duração_ms: int=4000):
+    def aviso(self, msg: str, duração_ms: int=5000):
         self._lbl.configure(text=msg, fg_color="#FAEEDA", text_color="#854F0B")
         self._lbl.pack(fill="x")
         self._agendar_ocultar(duração_ms)

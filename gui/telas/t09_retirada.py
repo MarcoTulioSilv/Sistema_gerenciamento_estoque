@@ -26,7 +26,7 @@ import customtkinter as ctk
 
 from gui.componentes.form_widgets import(   Campo, CampoBarras, CampoNome, SecaoFormulario, FeedbackBanner)
 from Modulo_02_estoque import EstoqueService, LoteRepo, ProdutoRepo
-from Modulo_06_dados import CentroAlocacaoEnum, TipoMovimentacaoEnum, UnidadeEstoqueEnum
+from Modulo_06_dados import CentroAlocacaoEnum, TipoMovimentacaoEnum, UnidadeEstoqueEnum, Lote
 
 logger= logging.getLogger(__name__)
 
@@ -78,16 +78,16 @@ class TelaRetirada(ctk.CTkFrame):
     def _construir(self):
         titulo = "Baixa de produtos vencidos" if self._baixa_vencido else "Registro de retirada"
         
-        topbar= ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44,corner_radius=0)
-        topbar.pack(fill="x")
-        topbar.pack_propagate(False)
-        ctk.CTkLabel(topbar, text=titulo,
+        self._topbar= ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44,corner_radius=0)
+        self._topbar.pack(fill="x")
+        self._topbar.pack_propagate(False)
+        ctk.CTkLabel(self._topbar, text=titulo,
                      font=ctk.CTkFont(size=13, weight="bold"),
                      text_color=COR_AZUL).pack(side="left", padx=16, pady=10)
         # Badge de modo baixa
         if self._baixa_vencido:
             ctk.CTkLabel(
-                topbar,
+                self._topbar,
                 text="  VENCIDOS — somente baixa  ",
                 fg_color="#FCEBEB", text_color=COR_VERM,
                 font=ctk.CTkFont(size=10, weight="bold"),
@@ -95,7 +95,7 @@ class TelaRetirada(ctk.CTkFrame):
             ).pack(side="left", padx=(0, 12), pady=10)
 
         self._banner= FeedbackBanner(self)
-        self._banner.pack(fill="x",padx=16, pady=(8,0))
+        
         
         #label scrollavel 
         scroll= ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=0)
@@ -320,10 +320,7 @@ class TelaRetirada(ctk.CTkFrame):
         self._produto_sel= produto
         self._lbl_produto.configure(
             text=(f"{produto.nome}\n"
-                  f"Centro de alocação: {produto.centro_alocacao.value.capitalize()}.\n"
-                    f"{descricao_saldo}"
-                    f"Unidade de medida: {produto.unidade_estoque.value.capitalize()}.")
-                    )
+                    ))
         self._frame_produto.pack(fill="x", padx=14, pady=(0,8))
 
         # Atualiza opções de destino (só no modo normal)
@@ -592,8 +589,7 @@ class TelaRetirada(ctk.CTkFrame):
         if self._baixa_vencido:
             try:
                 estoque_baixo = EstoqueService.registrar_retirada(
-                    self._plano, self._usuario.id, obs
-                )
+                    self._plano, self._usuario.id, obs, baixa_vencido=True               )
                 msg = (
                     f"Baixa registrada: {self._plano.quantidade_pedida} unid. "
                     f"de '{self._produto_sel.nome}' removidas do estoque."

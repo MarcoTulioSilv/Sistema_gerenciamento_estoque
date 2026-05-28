@@ -49,20 +49,20 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
 
     def _construir(self):
         # Topbar
-        topbar = ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44, corner_radius=0)
-        topbar.pack(fill="x")
-        topbar.pack_propagate(False)
-        ctk.CTkLabel(topbar, text="Configuração de estoque mínimo",
+        self._topbar = ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44, corner_radius=0)
+        self._topbar.pack(fill="x")
+        self._topbar.pack_propagate(False)
+        ctk.CTkLabel(self._topbar, text="Configuração de estoque mínimo",
                      font=ctk.CTkFont(size=13, weight="bold"),
                      text_color=COR_AZUL).pack(side="left", padx=16, pady=0)
-        ctk.CTkButton(topbar, text="Atualizar", width=90, height=28,
+        ctk.CTkButton(self._topbar, text="Atualizar", width=90, height=28,
                       fg_color=COR_BRANCO, text_color="#161614",
                       border_width=1, border_color=COR_CINZA_B,
                       hover_color=COR_CINZA_E, font=ctk.CTkFont(size=11),
                       command=self._carregar).pack(side="right", padx=16, pady=8)
 
         self._banner = FeedbackBanner(self)
-        self._banner.pack(fill="x", padx=16, pady=(0))
+       
 
         # Filtros
         filt = ctk.CTkFrame(self, fg_color="transparent")

@@ -10,6 +10,8 @@ from Modulo_06_dados import get_read_session, Produto, Lote
 from sqlalchemy.orm import joinedload
 import customtkinter as ctk
 
+from gui.componentes.form_widgets import FeedbackBanner
+
 logger= logging.getLogger(__name__)
 
 COR_AZUL   = "#1F4E79"
@@ -68,13 +70,13 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
 
     #___ Construçãp_________________________________________________________________________________________
     def _construir(self):
-        topbar=ctk.CTkFrame(self,fg_color=COR_BRANCO, height=44, corner_radius=0)
-        topbar.pack(fill="x")
-        topbar.pack_propagate(False)
-        ctk.CTkLabel(topbar, text="Estado atual do estoque",
+        self._topbar=ctk.CTkFrame(self,fg_color=COR_BRANCO, height=44, corner_radius=0)
+        self._topbar.pack(fill="x")
+        self._topbar.pack_propagate(False)
+        ctk.CTkLabel(self._topbar, text="Estado atual do estoque",
                      font=ctk.CTkFont(size=13, weight="bold"),
                      text_color=COR_AZUL).pack(side="left", padx=16, pady=10)
-        ctk.CTkButton(topbar, text="atualizar", width=90, height=28,
+        ctk.CTkButton(self._topbar, text="atualizar", width=90, height=28,
                       fg_color=COR_BRANCO, text_color="#161614",
                       border_width=1, border_color=COR_CINZA_B,
                       hover_color=COR_CINZA_E, font=ctk.CTkFont(size=11),
@@ -111,6 +113,8 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                       border_width=1, border_color=COR_CINZA_B,
                       hover_color=COR_CINZA_E,
                       command= self._limpar_filtros).pack(side="left")
+        
+        self._banner= FeedbackBanner(self)
         
         #Cabeçalho
         hdr=ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=0,
@@ -173,7 +177,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         
         except Exception as exc:
             logger.error("Erro ao carregar posição estoque: %s", exc)
-            self._erro_na_tela(str(exc))
+            self._erro(str(exc))
             return
 
         self._renderizar(self._linhas)

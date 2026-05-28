@@ -198,7 +198,7 @@ class EstoqueService:
         return FEFOSelector.calcular_plano(produto_id, quantidade, apenas_vencidos)
     
     @staticmethod
-    def registrar_retirada(plano, usuario_id: int, observacao: str=None, destino_centro: str=None, tipo_mov=None):
+    def registrar_retirada(plano, usuario_id: int, observacao: str=None, baixa_vencido: bool=False):
         """
         RF-07, RN-08- executa o plano FEFO confirmado.
         grava N movimantações (uma por lote) na mesma transação InnoDB.
@@ -228,12 +228,11 @@ class EstoqueService:
                     logger.info("Lote esgotado: id=%s produto_id=%s num_lote=%s, ", lote.id, lote.produto_id, lote.num_lote)
 
                 #Registra movimentação de saida
-                if tipo_mov is not None:
-                    tipo_registro = tipo_mov
-                elif destino_centro:
-                    tipo_registro = TipoMovimentacaoEnum.transferencia
+                if baixa_vencido== True:
+                    tipo_registro = TipoMovimentacaoEnum.baixa_vencido 
                 else:
                     tipo_registro = TipoMovimentacaoEnum.saida
+
                 mov= Movimentacao(
                     lote_id = item.lote_id,
                     usuario_id = usuario_id,
@@ -244,11 +243,16 @@ class EstoqueService:
                     data_hora= datetime.utcnow(),
                 )
                 session.add(mov)
-            
-            logger.info(
-                "Retirada registrada: produto_id=%s qtd=%s lotes=%s usuario=%s",
-                plano.produto_id, plano.quantidade_pedida, len(plano.itens), usuario_id,
-            )
+            if baixa_vencido == True:
+                logger.info(
+                    "Baixa por vencimento: produto_id=%s qtd=%s lotes=%s usuario=%s",
+                    plano.produto_id, plano.quantidade_pedida, len(plano.itens), usuario_id,
+                )
+            else:
+                logger.info(
+                    "Retirada registrada: produto_id=%s qtd=%s lotes=%s usuario=%s",
+                    plano.produto_id, plano.quantidade_pedida, len(plano.itens), usuario_id,
+                )
 
             #verifica estoque minimo apos commit e sinaliza para alerta(RF-13)
             try:

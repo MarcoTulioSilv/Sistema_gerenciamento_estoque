@@ -45,10 +45,10 @@ class TelaAgendamento(ctk.CTkFrame):
     # ── Construção ────────────────────────────────────────────────────────────
 
     def _construir(self):
-        topbar = ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44, corner_radius=0)
-        topbar.pack(fill="x")
-        topbar.pack_propagate(False)
-        ctk.CTkLabel(topbar, text="Agendamento de relatórios",
+        self._topbar = ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44, corner_radius=0)
+        self._topbar.pack(fill="x")
+        self._topbar.pack_propagate(False)
+        ctk.CTkLabel(self._topbar, text="Agendamento de relatórios",
                      font=ctk.CTkFont(size=13, weight="bold"),
                      text_color=COR_AZUL).pack(side="left", padx=16)
 

@@ -150,7 +150,7 @@ class Movimentacao(Base):
     lote_id:     Mapped[int]                    = mapped_column(Integer, ForeignKey("lote.id"), nullable=False)
     usuario_id:  Mapped[int]                    = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
     tipo:        Mapped[TipoMovimentacaoEnum]   = mapped_column(Enum(TipoMovimentacaoEnum), nullable=False)
-    quantidade:  Mapped[int]                    = mapped_column(Integer, nullable=False)
+    quantidade:  Mapped[int]                    = mapped_column(Integer, nullable=True)
     numero_nf:   Mapped[str | None]             = mapped_column(String(60), nullable=True)
     observacao:  Mapped[str | None]             = mapped_column(String(255), nullable=True)
     data_hora:   Mapped[datetime]               = mapped_column(DateTime, nullable=False, default=func.now())

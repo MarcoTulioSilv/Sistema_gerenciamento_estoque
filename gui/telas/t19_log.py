@@ -315,4 +315,3 @@ class TelaLog(ctk.CTkFrame):
         self._lbl_rodape.configure(
             text=f"{len(linhas)} registro(s) exibidos — somente leitura.")
     
-

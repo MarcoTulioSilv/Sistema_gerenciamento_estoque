@@ -1,8 +1,10 @@
 import os
+import sys
 import tkinter as tk
 import customtkinter as ctk
 from customtkinter.windows.widgets.core_widget_classes.dropdown_menu import DropdownMenu
 from datetime import datetime
+
 
 from Modulo_04_notificacoes.scheduler import NotificacaoScheduler
 from gui.telas.t01_login import TelaLogin
@@ -53,11 +55,30 @@ DropdownMenu._set_scaling = _safe_set_scaling
 class SCEApp(ctk.CTk):
     # Janela raiz do sistema, gerencia login e navegação entre telas
     def __init__(self):
+        
         super().__init__()
+        if sys.platform.startswith("win"):
+            try:
+                import ctypes
+                myappid = 'uronefrologia.sce.v1.0' # Uma string única (ID) para o seu app
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            except Exception as e:
+                print(f"Erro ao definir App ID no Windows: {e}")
 
         self.escala_atual = 1.0
 
         self.title("Sistema de Controle de Estoque - Centro de Uronefrologia")
+        # --- NOVO: ÍCONE DA BARRA DE TAREFAS ---
+        # Resolve o caminho absoluto da pasta assets para não dar erro se rodar o main de outra pasta
+        caminho_atual = os.path.dirname(os.path.abspath(__file__))
+        caminho_assets = os.path.join(os.path.dirname(caminho_atual), "assets")
+        caminho_icone = os.path.join(caminho_assets, "logo_Centro_Uro.ico")
+        
+        if os.path.exists(caminho_icone):
+            self.iconbitmap(caminho_icone)
+        else:
+            print(f"Aviso: Ícone não encontrado em {caminho_icone}")
+
         self.geometry("1100x600")
         self.minsize(900, 600)
         self.configure(fg_color=COR_CINZA_E)

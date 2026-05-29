@@ -8,6 +8,7 @@ import logging
 from Modulo_06_dados import get_session, get_read_session, Produto
 import customtkinter as ctk
 from gui.componentes.form_widgets import FeedbackBanner
+from Modulo_02_estoque import estoque_service
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ _COLUNAS = [
     ("Saldo atual",      90),
     ("Estoque mínimo",  120),
     ("Situação",        120),
-    ("",                 80),
+    ("",                 65),
 ]
 
 
@@ -85,13 +86,13 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
         hdr = ctk.CTkFrame(self, fg_color=COR_BRANCO, corner_radius=0,
                            border_width=1, border_color=COR_CINZA_B)
         hdr.pack(fill="x", padx=16, pady=(10, 0))
-        hdr.grid_columnconfigure(3, weight=1)
+        hdr.grid_columnconfigure(2, weight=1)
         for col, (txt, largura) in enumerate(_COLUNAS):           
             ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
                          font=ctk.CTkFont(size=10, weight="bold"),
                          width=largura, anchor="w").grid(
-                row=0, column=col, padx=6, pady=6, sticky="w" if col<4 else"e" if col==5 else"w")
-
+                row=0, column=col, padx=6, pady=6, sticky="w")
+            
         # Área de scroll
         self._scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E,
                                                corner_radius=0)
@@ -227,10 +228,9 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
                 if linha["id"] == produto_id:
                     linha["dados"]["estoque_minimo"] = novo_min
                     break
-
             self._banner.sucesso("Estoque mínimo atualizado com sucesso.")
             logger.info("Estoque mínimo do produto %s → %s (usuário: %s).",
-                        produto_id, novo_min, self._usuario.login)
+                        produto.name, novo_min, self._usuario.login)
         except Exception as exc:
             logger.error("Erro ao salvar estoque mínimo (produto %s): %s", produto_id, exc)
             self._banner.erro(f"Erro ao salvar: {exc}")

@@ -1,6 +1,9 @@
 import os
+import tkinter as tk
 import customtkinter as ctk
+from customtkinter.windows.widgets.core_widget_classes.dropdown_menu import DropdownMenu
 from datetime import datetime
+
 from Modulo_04_notificacoes.scheduler import NotificacaoScheduler
 from gui.telas.t01_login import TelaLogin
 from gui.telas.placeholder import TelaPlaceholder
@@ -37,10 +40,22 @@ COR_CINZA_E   = "#F2F1ED"
 COR_TEXTO     = "#3d3d3a"
 COR_VERMELHO  = "#A32D2D"
 
+_original_set_scaling = DropdownMenu._set_scaling
+
+def _safe_set_scaling(self, *args, **kwargs):
+    try:
+        _original_set_scaling(self, *args, **kwargs)
+    except tk.TclError:
+        pass # Se o widget for um "fantasma", simplesmente ignora e segue o jogo
+
+DropdownMenu._set_scaling = _safe_set_scaling
+
 class SCEApp(ctk.CTk):
     # Janela raiz do sistema, gerencia login e navegação entre telas
     def __init__(self):
         super().__init__()
+
+        self.escala_atual = 1.0
 
         self.title("Sistema de Controle de Estoque - Centro de Uronefrologia")
         self.geometry("1100x600")
@@ -186,7 +201,21 @@ class SCEApp(ctk.CTk):
         tela= self._resolver_tela(destino, extra= extra)
         if tela:
             tela.pack(fill="both", expand= True)
-    
+
+    def ajustar_zoom(self, incremento):
+        """Aumenta ou diminui o tamanho de todas as fontes e componentes do sistema"""
+        nova_escala = self.escala_atual + incremento
+        
+        # Limites de segurança para a interface não explodir na tela nem ficar minúscula
+        if 0.8 <= nova_escala <= 1.4: 
+            self.escala_atual = nova_escala
+            
+            # Aplica o zoom nos textos e widgets
+            ctk.set_widget_scaling(self.escala_atual)
+            
+            # (Opcional) Se quiser que a janela inteira cresça junto
+            # ctk.set_window_scaling(self.escala_atual)
+
     def destroy(self):
        self._scheduler.parar()
        super().destroy()
@@ -209,6 +238,19 @@ class TitleBar(ctk.CTkFrame):
         #Informações do usuário e botão de logout
         frame_direita = ctk.CTkFrame(self, fg_color="transparent")
         frame_direita.pack(side="right", padx=12)
+
+        # Exemplo de botões (podem ser colocados na sua barra de menu)
+        frame_zoom = ctk.CTkFrame(self, fg_color="transparent")
+        frame_zoom.pack(side="right", padx=16)
+
+
+        # Botão Aumentar (A+)
+        ctk.CTkButton(frame_zoom, text="A+", width=30, height=28,
+                      command=lambda: self.winfo_toplevel().ajustar_zoom(0.1)).pack(side="left", padx=2)
+                      
+        # Botão Diminuir (A-)
+        ctk.CTkButton(frame_zoom, text="A-", width=27, height=25,
+                      command=lambda: self.winfo_toplevel().ajustar_zoom(-0.1)).pack(side="left", padx=2)
 
 
         hora= datetime.now().strftime("| %d/%m/%Y %H:%M")

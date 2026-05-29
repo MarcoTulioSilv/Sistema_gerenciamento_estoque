@@ -31,10 +31,10 @@ _SITUACAO_COR = {
 }
 
 _COLUNAS = [
-    ("Produto",     180),
-    ("Lote",         90),
-    ("Nota Fiscal",  90),
-    ("Centro",       90),
+    ("Produto",     200),
+    ("Lote",         100),
+    ("Nota Fiscal",  100),
+    ("Centro",       100),
     ("Qtd atual",    80),
     ("Vencimento",  100),
     ("Situação",    120),
@@ -85,6 +85,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         #Filtros
         filt= ctk.CTkFrame(self, fg_color="transparent")
         filt.pack(fill="x", padx=16, pady=(10,0))
+        
 
         self._entry_busca= ctk.CTkEntry(
             filt, placeholder_text="Buscar produto ou lote",
@@ -120,12 +121,15 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         hdr=ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=0,
                          border_width=1, border_color=COR_CINZA_B)
         hdr.pack(fill="x", padx=16, pady=(10,0))
+        hdr.grid_columnconfigure(6, weight=1)
+
         for col,(txt, largura) in enumerate(_COLUNAS):
             ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
                          font=ctk.CTkFont(size=9, weight="bold"),
                          width=largura, anchor="w"
                          ).grid(row=0, column=col, padx=6, pady=5, sticky="w")
         
+        ctk.CTkFrame(hdr, width=20, height=0, fg_color="transparent").grid(row=0, column=8)
 
         self._scroll=ctk.CTkScrollableFrame(
             self, fg_color=COR_BRANCO,
@@ -220,16 +224,17 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
             bg=COR_BRANCO if i%2 ==0 else "#A1C3E4"
             row= ctk.CTkFrame(self._scroll,fg_color=bg, corner_radius=0)
             row.pack(fill="x")
-
+            row.grid_columnconfigure(6, weight=1)
             valores=[
-                (produto.nome[:22], 180),
-                (lote.num_lote,      90),
-                (lote.nota_fiscal,   90),
-                (lote.centro_alocacao.value.capitalize(), 90),
-                (str(lote.quantidade_atual), 80),
-                (lote.data_vencimento.strftime("%d/%m/%Y"), 100),
+                (produto.nome[:22],),
+                (lote.num_lote,     ),
+                (lote.nota_fiscal,   ),
+                (lote.centro_alocacao.value.capitalize(), ),
+                (str(lote.quantidade_atual), ),
+                (lote.data_vencimento.strftime("%d/%m/%Y"), ),
             ]
-            for col,(val,largura) in enumerate(valores):
+            for col,val in enumerate(valores):
+                largura = _COLUNAS[col][1] # Puxa a largura exata definida no topo do arquivo
                 ctk.CTkLabel(row, text=val, text_color="#3d3d3a",
                              font=ctk.CTkFont(size=11), width=largura,
                              anchor="w").grid(

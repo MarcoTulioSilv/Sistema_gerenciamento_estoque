@@ -187,7 +187,7 @@ def _deve_executar(ag, hoje: date) -> bool:
     if ag.periodicidade == "semanal":
         return (hoje - ultimo).days >= 7
     if ag.periodicidade == "mensal":
-        return hoje.month != ultimo.month or hoje.year != ultimo.year
+        return (hoje-ultimo).days >= 30
     return False
  
  

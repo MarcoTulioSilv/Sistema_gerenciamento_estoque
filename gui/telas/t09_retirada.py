@@ -55,12 +55,12 @@ _LABEL_UNIDADE: dict[str, str] = {v: k for k, v in _UNIDADES_LABEL.items()}
 class TelaRetirada(ctk.CTkFrame):
     #Registro de retirada com plano FEFO multi-lote exibido antes da confirmação.
 
-    def __init__(self, master, usuario, on_navigate, baixa_vencido=False, lotes_vencidos=None):
+    def __init__(self, master, usuario, on_navigate, baixa_vencido=False, lotes_vencidos=None, produto_id:int=None, centro_origem:str=None):
         super().__init__(master, fg_color=COR_CINZA_E, corner_radius=0)
         self._usuario = usuario
         self._on_navigate = on_navigate
         self._baixa_vencido = baixa_vencido
-
+        self._produto_id = produto_id
         self._produto_sel = None
         self._plano = None
         
@@ -120,11 +120,31 @@ class TelaRetirada(ctk.CTkFrame):
         self._campo_nome= CampoNome(row_id, label="Nome do Produto",
             on_leitura= self._ao_ler_nome)
         self._campo_nome.grid(row=0,column=1, padx=(0,4), sticky="ew")
-        
 
-        self._campo_qtd= Campo(sec1, "Quantidade a retirar",
+        grid_un = ctk.CTkFrame(sec1, fg_color="transparent")
+        grid_un.pack(fill="x", padx=14, pady=(0, 6))
+        grid_un.grid_columnconfigure((0, 1, 2), weight=1)
+
+        self._campo_qtd= Campo(grid_un, "Quantidade a retirar",
                                obrigatorio=True, tipo="number", placeholder="0")
-        self._campo_qtd.pack(fill="x", padx=14, pady=(0,8))
+        self._campo_qtd.grid(row=0, column=0, sticky="w", pady=(2, 0))
+
+        self._campo_unidade= ctk.CTkOptionMenu(
+                    grid_un, 
+                    values=list(_UNIDADES_LABEL.values()),
+                    width=160, height=32, corner_radius=6,
+                    fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
+                )
+        self._campo_unidade.grid(row=0, column=1, sticky="w", pady=(2, 0))
+
+
+        self._campo_centro= ctk.CTkOptionMenu(
+                    grid_un,
+                    values=list(_CENTROS.values()),
+                    width=160, height=32, corner_radius=6,
+                    fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
+                )
+        self._campo_centro.grid(row=0, column=2, sticky="w", pady=(2, 0))
 
 
         #Card produto encontrado
@@ -282,6 +302,12 @@ class TelaRetirada(ctk.CTkFrame):
         self._btn_confirmar.pack(side="left")
 
         self._campo_ean.focus()
+        if self._produto_id:
+            produto = ProdutoRepo.buscar_por_id(self._produto_id)
+            if produto:
+                self._campo_ean.set(produto.ean)
+                self._campo_nome.set(produto.nome)
+                self._ao_ler_ean(str(produto.ean))
     
     # ___ Produto____________________________________________________________
     def _ao_ler_ean(self, ean:str):
@@ -327,6 +353,8 @@ class TelaRetirada(ctk.CTkFrame):
         if not self._baixa_vencido and self._opt_unidade_dest is not None:
             self._atualizar_opcoes_destino(produto)
         
+
+        
         self._plano= None
         self._sec2.pack_forget()
         self._btn_confirmar.configure(state="disabled")
@@ -353,10 +381,8 @@ class TelaRetirada(ctk.CTkFrame):
         self._produto_sel= produto
         self._lbl_produto.configure(
             text=(f"{produto.nome}\n"
-                  f"Centro de alocação: {produto.centro_alocacao.value.capitalize()}.\n"
                   f"Saldo total disponivel: {saldo} unid. em "
-                  f"{len([l for l in lotes if l.quantidade_atual>0])} lote(s)\n"
-                  f"Unidade de medida: {produto.unidade_estoque.value.capitalize()}.")
+                  f"{len([l for l in lotes if l.quantidade_atual>0])} lote(s)\n")
         )
         self._frame_produto.pack(fill="x", padx=14, pady=(0,8))
 

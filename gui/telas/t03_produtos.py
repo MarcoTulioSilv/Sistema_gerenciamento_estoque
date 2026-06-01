@@ -211,19 +211,11 @@ class TelaProdutos(ctk.CTkFrame):
             frame_status.pack_propagate(False) 
             frame_status.grid(row=0, column=5, padx=8, pady=2, sticky="w")
             
-            # Badge de Status (Fica centralizado no meio do "espaço vazio")
             ctk.CTkLabel(row, text=status, fg_color=fg, text_color=tc,
                          font=ctk.CTkFont(size=10, weight="bold"),
                          corner_radius=8, padx=8, pady=2, width=80
                          ).grid(row=0, column=5, padx=8, pady=2)
 
-            '''
-            #Badge status
-            ctk.CTkLabel(row, text=status, fg_color=fg, text_color=tc,
-                         font=ctk.CTkFont(size=10,weight="bold"),
-                         corner_radius=8, padx=8, pady=2,
-                         width=1).grid(row=0, column=5, padx=8, pady=2)
-                         '''
             
            # --- COLUNA 6: AÇÕES ---
             largura_acoes = _COLUNAS[6][1] 

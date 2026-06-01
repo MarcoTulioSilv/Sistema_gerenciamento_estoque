@@ -144,6 +144,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
     #___________Dados___________________________________________________________________
     def _carregar(self):
         try:
+            nome_produto_filtro= "" 
             hoje= date.today()
             with get_read_session() as s:
                 query=(
@@ -154,6 +155,9 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                 )
                 if self._produto_id:
                     query=query.filter(Lote.produto_id==self._produto_id)
+                    produto_ref = s.query(Produto).get(self._produto_id)
+                    if produto_ref:
+                        nome_produto_filtro = produto_ref.nome
 
                 lotes= query.order_by(Produto.nome, Lote.data_vencimento).all()
 
@@ -181,8 +185,12 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         
         except Exception as exc:
             logger.error("Erro ao carregar posição estoque: %s", exc)
-            self._erro(str(exc))
+            self._banner.erro(str(exc))
             return
+        
+        if nome_produto_filtro:
+            self._entry_busca.delete(0, "end")
+            self._entry_busca.insert(0, nome_produto_filtro)
 
         self._renderizar(self._linhas)
     

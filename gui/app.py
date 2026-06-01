@@ -8,7 +8,6 @@ from datetime import datetime
 
 from Modulo_04_notificacoes.scheduler import NotificacaoScheduler
 from gui.telas.t01_login import TelaLogin
-from gui.telas.placeholder import TelaPlaceholder
 from tkinter import messagebox
 from Modulo_01_autenticacao import SessionManager
 from gui.telas.t02_inicio import TelaInicio
@@ -68,8 +67,8 @@ class SCEApp(ctk.CTk):
         self.escala_atual = 1.0
 
         self.title("Sistema de Controle de Estoque - Centro de Uronefrologia")
-        # --- NOVO: ÍCONE DA BARRA DE TAREFAS ---
-        # Resolve o caminho absoluto da pasta assets para não dar erro se rodar o main de outra pasta
+        
+        #icone
         caminho_atual = os.path.dirname(os.path.abspath(__file__))
         caminho_assets = os.path.join(os.path.dirname(caminho_atual), "assets")
         caminho_icone = os.path.join(caminho_assets, "logo_Centro_Uro.ico")
@@ -86,9 +85,7 @@ class SCEApp(ctk.CTk):
         # Estado dee sessão
         self.usuario_logado = None #objeto do usuário logado
 
-        #Inicializa o scheduler de notificações
-        self._scheduler= NotificacaoScheduler()
-        self._scheduler.iniciar()
+        self.iniciarScheduler()
         self.session_timer = None
 
         #exibe tela de login na inicialização
@@ -177,42 +174,59 @@ class SCEApp(ctk.CTk):
         # telas reais colocadas aqui nas proximas sprints
         if destino=="inicio":
             return TelaInicio(self._area_conteudo, usuario=self.usuario_logado, on_navigate= nav)
+        
         if destino=="troca_senha":
             return TelaTrocaSenha(self._area_conteudo, usuario=self.usuario_logado, on_navigate= nav)
-        #______ Sprint 2A_ MOD-02 cadastros
+        
+    
         if destino=="produtos":
             return TelaProdutos(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
+        
         if destino in("novo_produto", "editar_produto"):
             return TelaNovoProduto(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, produto_id= extra)
+        
         if destino=="entrada_manual":
             return TelaEntradaManual(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, produto_id=extra)
+        
         if destino=="importar_nfe":
             return TelaImportarNFe(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        
         if destino=="entrada_danfe":
             return TelaEntradaDANFE(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav, produto_id=extra)
+        
         if destino=="retirada":
-            return TelaRetirada(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+            return TelaRetirada(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav, produto_id=extra)
+        
         if destino=="baixa_vencido":
             return TelaRetirada(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, baixa_vencido=True, lotes_vencidos=extra)
+        
         if destino=="posicao":
-            return TelaPosicaoEstoque(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+            return TelaPosicaoEstoque(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, produto_id=extra)
+        
         if destino=="dashboard":
             return TelaDashboard(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        
         if destino=="relatorios":
             return TelaCentralRelatorios(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        
         if destino=="agendamento":
             return TelaAgendamento(self._area_conteudo,usuario= self.usuario_logado, on_navigate= nav)
+        
         if destino=="estoque_minimo":
             return TelaEstoqueMinimo(self._area_conteudo, usuario=self.usuario_logado, on_navigate= nav)
+        
         if destino == "usuarios":
             return TelaUsuarios(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+        
         if destino == "gmail":
             return TelaGmail(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+        
         if destino == "backup":
             return TelaBackup(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+        
         if destino == "log":
             return TelaLog(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
-        return TelaPlaceholder(self._area_conteudo, titulo=destino)
+        
     
     def _on_navigate_com_extra(self, destino: str, extra=None):
         """Versão do _navegar que aceita parâmetro extra(ex: produto_id)"""
@@ -240,7 +254,14 @@ class SCEApp(ctk.CTk):
     def destroy(self):
        self._scheduler.parar()
        super().destroy()
+    
+    def iniciarScheduler(self):
+        #Inicializa o scheduler de notificações
+        self._scheduler= NotificacaoScheduler()
+        self._scheduler.iniciar()
 
+    def pararScheduler(self):
+        self._scheduler.parar()
        
 #---- Componentes da janela principal (titlebar, sidebar) --------------------------------------------------------------
 
@@ -415,3 +436,5 @@ class Sidebar(ctk.CTkFrame):
         self._ativo = destino
         self._botoes[destino].configure(fg_color=COR_SIDEBAR_A)
         self._on_navigate(destino)
+
+

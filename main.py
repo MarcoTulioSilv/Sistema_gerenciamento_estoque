@@ -13,7 +13,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from Modulo_06_dados import init_db
 from gui.app import SCEApp
-
 #---------------------------Logging---------------------------------------------------
 
 logging.basicConfig(
@@ -51,7 +50,7 @@ def main():
     #iniciar GUI
     app= SCEApp()
     app.mainloop()
-    SCEApp._scheduler.parar() #garante parada do scheduler mesmo se a janela for fechada diretamente
+    app.pararScheduler()
     logger.info("SCE encerrado")
 
 

@@ -296,7 +296,135 @@ class CampoNome(ctk.CTkFrame):
     def _esconder_lista_delay(self, event):
         self.after(150, self._esconder_lista)
 
+
+class CampoFornecedor(ctk.CTkFrame):
+    """
+    Campo com Autocompletar Real (Inline Expansion).
+    A lista aparece sozinha durante a digitação e empurra os componentes abaixo.
+    """
+
+    def __init__(self, master, label:str="Nome do Fornecedor", obrigatorio: bool=True,
+                 on_leitura=None, **kwargs):
+        super().__init__(master, fg_color="transparent", **kwargs)
+        self._obrigatorio = obrigatorio
+        self._on_leitura = on_leitura
+        self._todas_sugestoes = []
+
+        ctk.CTkLabel(self, text=f"{label}*", text_color="#5F5E5A",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     anchor="w").pack(fill="x", pady=(0,3))
         
+        self._row = ctk.CTkFrame(self, fg_color="transparent")
+        self._row.pack(fill="x")
+
+        self._entry = ctk.CTkEntry(
+            self._row, placeholder_text="Digite para buscar ou cadastrar um fornecedor",
+            height=34, corner_radius=6,
+            fg_color=COR_CINZA_E, text_color="#3d3d3a"
+        )
+        self._entry.pack(side="left", fill="x", expand=True)
+
+        self._listbox = tk.Listbox(
+            self, bg=COR_CINZA_E, fg="#3d3d3a",
+            selectbackground=COR_AZUL_M, selectforeground="white",
+            relief="flat", borderwidth=1, highlightthickness=1, highlightcolor=COR_CINZA_B,
+            font=ctk.CTkFont(size= 11, weight="bold")
+        )
+
+        self._lbl_erro = ctk.CTkLabel(
+            self, text="", text_color=COR_ERRO,
+            font=ctk.CTkFont(size=10), anchor="w",
+        )
+        self._lbl_erro.pack(fill="x")
+
+        # 3. Eventos que controlam o autocompletar
+        self._entry.bind("<KeyRelease>", self._filtrar_sugestoes)
+        self._entry.bind("<Return>", self._disparar)
+        self._entry.bind("<FocusOut>", self._esconder_lista_delay)
+        self._listbox.bind("<<ListboxSelect>>", self._selecionar_item)
+
+        self._carregar_sugestoes_nome()
+
+    def get(self) -> str:
+        return self._entry.get().strip()
+    
+    def set(self, valor:str):
+        self._entry.delete(0, "end")
+        self._entry.insert(0, valor)
+
+    def erro(self, mensagem: str=""):
+        self._lbl_erro.configure(text=mensagem)
+    
+    def limpar(self):
+        self._entry.delete(0, "end")
+        self._esconder_lista()
+        self.erro("")
+    
+    def validar(self) -> bool:
+        if self._obrigatorio and not self.get():
+            self.erro("Campo obrigatório")
+            return False
+        self.erro("")
+        return True
+
+    def focus(self):
+        self._entry.focus()
+    
+    def _disparar(self, _event=None):
+        if self._on_leitura and self.get():
+            self._esconder_lista()
+            self._on_leitura(self.get())
+
+    def _carregar_sugestoes_nome(self):
+        try:
+            self._todas_sugestoes = EstoqueService.listar_fornecedores_unicos()
+        except Exception as exc:
+            logger.warning("Erro ao carregar sugestões de nomes: %s", exc)
+
+    # ── Lógica do Autocompletar ──────────────────────────────────────────────
+
+    def _filtrar_sugestoes(self, event):
+        # Ignora teclas de navegação para não bugar a digitação
+        #if event.keysym in ("Return", "Down", "Up", "Tab", "Escape"):
+         #   return
+
+        texto_digitado = self.get().lower()
+        
+        # Se apagou tudo, esconde a lista
+        if not texto_digitado:
+            self._esconder_lista()
+            return
+
+        filtrados = [s for s in self._todas_sugestoes if texto_digitado in s.lower()]
+
+        if filtrados:
+            self._listbox.delete(0, tk.END)
+            for item in filtrados:
+                self._listbox.insert(tk.END, item)
+
+            # Limita o tamanho da lista para não tomar a tela toda (máx 5 itens)
+            altura = min(len(filtrados), 5)
+            self._listbox.config(height=altura)
+            
+            # Insere a lista VISUALMENTE logo abaixo do entry (antes da msg de erro)
+            self._listbox.pack(fill="x", after=self._row, pady=(2, 0))
+        else:
+            self._esconder_lista()
+
+    def _selecionar_item(self, event):
+        if not self._listbox.curselection():
+            return
+        item = self._listbox.get(self._listbox.curselection() or self._listbox.keyselection() )
+        self.set(item)
+        self._esconder_lista()
+        self._disparar()
+
+    def _esconder_lista(self):
+        self._listbox.pack_forget()
+
+    def _esconder_lista_delay(self, event):
+        self.after(150, self._esconder_lista)
+
 class BotoesFormulario(ctk.CTkFrame):
     """Linha de botões Cancelar/ Salvar- CP-05."""
     

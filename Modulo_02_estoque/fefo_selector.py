@@ -60,7 +60,7 @@ class FEFOSelector:
          o plano gravando as movimentações atomicamente.
     """
     @staticmethod
-    def calcular_plano(produto_id:int, quantidade: int, apenas_vencidos: bool=False)->PlanoConsumo:
+    def calcular_plano(produto_id:int, quantidade: int, apenas_vencidos: bool=False, centro_origem: str=None, unidade_estoque_or: str=None)->PlanoConsumo:
         """
         Calcula o plano de consumo FEFO sem tocar no banco.
  
@@ -68,6 +68,8 @@ class FEFOSelector:
             produto_id: id do produto.
             quantidade: quantidade solicitada na retirada.
             apenas_vencidos: se True, considera apenas lotes vencidos.
+            centro_origem: o centro de origem para a retirada. Se fornecido, filtra os lotes para considerar apenas os do centro especificado.
+            unidade_estoque: a unidade de estoque para a retirada. Se fornecida, filtra os lotes para considerar apenas os com a unidade especificada.
  
         Returns:
             PlanoConsumo com os itens a consumir em ordem FEFO.
@@ -101,6 +103,10 @@ class FEFOSelector:
         for lote in lotes_ativos:
             if restante<=0:
                 break
+            if centro_origem != lote.centro_estoque.value:
+                continue
+            if  unidade_estoque_or.value != lote.unidade_estoque.value:
+                continue
             retirar= min(restante,lote.quantidade_atual)
             saldo_resultante= lote.quantidade_atual-retirar
             itens_plano.append(ItemPlano(
@@ -110,8 +116,7 @@ class FEFOSelector:
                 nota_fiscal= lote.nota_fiscal,
                 saldo_atual= lote.quantidade_atual,
                 qtd_a_retirar= retirar,
-                saldo_restante= saldo_resultante,
-                unidade_estoque= lote.unidade_estoque.value
+                saldo_restante= saldo_resultante
             ))
             restante-= retirar
         
@@ -120,10 +125,13 @@ class FEFOSelector:
             quantidade_pedida= quantidade,
             itens= itens_plano,
             saldo_total_antes= saldo_total,
+            centro_origem= centro_origem,
+            unidade_estoque= unidade_estoque_or.value if unidade_estoque_or else lote.unidade_estoque.value
         )
 
         logger.info(
-            "Plano FEFO calculado: produto_id=%s qtd=%s lotes=%s atendido=%s",
-            produto_id,quantidade,len(itens_plano), plano.atendido_completo,
+            "Plano FEFO calculado: produto_id=%s qtd=%s lotes=%s atendido=%s\n  " 
+            "Centro: %s | Unidade estoque: %s",
+            produto_id,quantidade,len(itens_plano), plano.atendido_completo, plano.centro_origem, plano.unidade_estoque
         )
         return plano

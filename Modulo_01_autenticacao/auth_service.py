@@ -35,6 +35,7 @@ class AuthService:
  
                 if usuario is None:
                     logger.warning("Usuário não encontrado: '%s'", login)
+                    return None
  
                 # Verifica senha com bcrypt
                 senha_bytes = senha.encode("utf-8")

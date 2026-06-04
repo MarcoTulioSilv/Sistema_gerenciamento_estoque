@@ -5,9 +5,11 @@ Tela t-09- Registro de retirada multi-lote FEFO
 Dois modos de operação controlados por parâmetros do __init__:
 
   modo normal  (padrão)
-      - produto_id: pré-seleciona um produto (atalho de T-10)
-      - Dropdown "Centro de destino" aparece quando o produto possui apenas
-        um centro de alocação e o usuário quer transferir para o outro.
+        Passo 1 → Escolha do centro de retirada
+        Passo 2 → Identificação do produto (EAN ou nome)
+        Passo 3 → Quantidade + toggle de transferência (renderiza subseção)
+        Passo 4 → Plano FEFO calculado e exibido
+        Passo 5 → Confirmação
 
   modo baixa_vencido  (baixa_vencido=True)
       - Campo EAN bloqueado, produto já fixado em produto_id.
@@ -16,6 +18,8 @@ Dois modos de operação controlados por parâmetros do __init__:
       - Tipo de movimentação gravado: TipoMovimentacaoEnum.baixa_vencido.
       - Dropdown de destino de centro ocultado (baixa não transfere).
       - Após confirmar: retorna para "inicio" em vez de "produtos".
+  produto_id=N        — atalho de T-10; pula a etapa de busca.
+  centro_origem=str   — pré-seleciona o centro (atalho de T-10).
 """
 
 import logging 
@@ -25,8 +29,9 @@ from tkinter import messagebox
 import customtkinter as ctk
 
 from gui.componentes.form_widgets import(   Campo, CampoBarras, CampoNome, SecaoFormulario, FeedbackBanner)
+
 from Modulo_02_estoque import EstoqueService, LoteRepo, ProdutoRepo
-from Modulo_06_dados import CentroAlocacaoEnum, TipoMovimentacaoEnum, UnidadeEstoqueEnum, Lote
+from Modulo_06_dados import CentroAlocacaoEnum, TipoMovimentacaoEnum, UnidadeEstoqueEnum
 
 logger= logging.getLogger(__name__)
 
@@ -47,22 +52,32 @@ _CENTROS: dict[str, str] = {
 }
 _LABEL_CENTRO: dict[str, str] = {v: k for k, v in _CENTROS.items()}
 
-_UNIDADES_LABEL: dict[str, str] = {
+_UNIDADES: dict[str, str] = {
     u.value: u.value.capitalize() for u in UnidadeEstoqueEnum
 }
-_LABEL_UNIDADE: dict[str, str] = {v: k for k, v in _UNIDADES_LABEL.items()}
+_LABEL_UNIDADE: dict[str, str] = {v: k for k, v in _UNIDADES.items()}
 
 class TelaRetirada(ctk.CTkFrame):
     #Registro de retirada com plano FEFO multi-lote exibido antes da confirmação.
 
-    def __init__(self, master, usuario, on_navigate, baixa_vencido=False, lotes_vencidos=None, produto_id:int=None, centro_origem:str=None):
+    def __init__(
+            self,
+            master, 
+            usuario, 
+            on_navigate, 
+            baixa_vencido: bool=False, 
+            lotes_vencidos: list|None=None, 
+            produto_id:int| None=None, 
+            centro_origem:str| None=None
+        ):
+
         super().__init__(master, fg_color=COR_CINZA_E, corner_radius=0)
         self._usuario = usuario
         self._on_navigate = on_navigate
         self._baixa_vencido = baixa_vencido
-        self._produto_id = produto_id
         self._produto_sel = None
         self._plano = None
+        self._centro_origem = centro_origem # pré-selecionado (t-10)
         
         # Configuração do laço sequencial de itens vencidos
         self._lotes_vencidos = lotes_vencidos or []
@@ -70,378 +85,382 @@ class TelaRetirada(ctk.CTkFrame):
         
         self._construir()
         
-        # Se entrar carregado com uma lista de lotes vencidos, dispara o primeiro item
+        #Atalhos de entrada
+        if produto_id:
+            self._preencher_produto_por_id(produto_id)
         if self._baixa_vencido and self._lotes_vencidos:
             self._carregar_lote_vencido_atual()
 
-    #_________ Construção______________________________________________________________
+    #_________ Construção__________________________________________________________________________
+
     def _construir(self):
         titulo = "Baixa de produtos vencidos" if self._baixa_vencido else "Registro de retirada"
         
-        self._topbar= ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44,corner_radius=0)
-        self._topbar.pack(fill="x")
-        self._topbar.pack_propagate(False)
-        ctk.CTkLabel(self._topbar, text=titulo,
+        #--------------------Topbar----------------------------------------------------------------
+        topbar= ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44,corner_radius=0)
+        topbar.pack(fill="x")
+        topbar.pack_propagate(False)
+        ctk.CTkLabel(topbar, text=titulo,
                      font=ctk.CTkFont(size=13, weight="bold"),
                      text_color=COR_AZUL).pack(side="left", padx=16, pady=10)
-        # Badge de modo baixa
+        
         if self._baixa_vencido:
             ctk.CTkLabel(
-                self._topbar,
+                topbar,
                 text="  VENCIDOS — somente baixa  ",
                 fg_color="#FCEBEB", text_color=COR_VERM,
                 font=ctk.CTkFont(size=10, weight="bold"),
-                corner_radius=6,
-            ).pack(side="left", padx=(0, 12), pady=10)
+                corner_radius=6).pack(side="left", padx=(0, 12), pady=10)
 
         self._banner= FeedbackBanner(self)
-        
         
         #label scrollavel 
         scroll= ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=0)
         scroll.pack(fill="both",expand=True)
 
-        #___ Seção 1: Identificar produto________________________________________________
-        sec1= SecaoFormulario(scroll, titulo="Identificar produto")
-        sec1.pack(fill="x", padx=16, pady=(12,0))
+        #----Passo 1: escolha do centro de retirada (só no modo normal)--------------------------------------
+        self._sec_centro= SecaoFormulario(scroll, titulo="Centro de retirada")
+        self._sec_centro.pack(fill="x", padx=16, pady=(12,0))
 
-        row_id=ctk.CTkFrame(sec1, fg_color="transparent")
-        row_id.pack(fill="x", padx=14, pady=(0,8))
-        row_id.grid_columnconfigure(0,weight=2)
-        row_id.grid_columnconfigure(1,weight=2)
+        row_c= ctk.CTkFrame(self._sec_centro, fg_color="transparent")
+        row_c.pack(fill="x", padx=14, pady=(4,12))
 
-        self._campo_ean= CampoBarras(
-            row_id, label="Codigo de barras(EAN)",
-            on_leitura= self._ao_ler_ean)
-        self._campo_ean.grid(row=0,column=0, padx=(0,12), sticky="ew")
-
+        ctk.CTkLabel(row_c, text="Selecione o centro de retirada do produto:",
+                     font=ctk.CTkFont(size=12), text_color="#3d3d3a").pack(side="left", padx=(0,12))
         
+        self._opt_centro= ctk.CTkOptionMenu(
+            row_c,
+            values= list(_CENTROS.values()),
+            width=160, height=32, corner_radius=6,
+            fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
+            command=self._ao_escolher_centro,
+        )
+        self._opt_centro.pack(side="left")
 
-        self._campo_nome= CampoNome(row_id, label="Nome do Produto",
-            on_leitura= self._ao_ler_nome)
-        self._campo_nome.grid(row=0,column=1, padx=(0,4), sticky="ew")
+        # Pré-selecionar centro se veio de atalho
+        if self._centro_origem and self._centro_origem in _CENTROS:
+            self._opt_centro.set(_CENTROS[self._centro_origem])
+        elif self._baixa_vencido:
+            # No modo baixa o centro não é relevante (frame ocultado)
+            self._sec_centro.pack_forget()
 
-        grid_un = ctk.CTkFrame(sec1, fg_color="transparent")
-        grid_un.pack(fill="x", padx=14, pady=(0, 6))
-        grid_un.grid_columnconfigure((0, 1, 2), weight=1)
+        #-----Passo 2: identificação do produto (oculto até escolha do centro)--------------------------------------
+        self._sec_produto= SecaoFormulario(scroll, titulo="Identificar produto")
 
-        self._campo_qtd= Campo(grid_un, "Quantidade a retirar",
-                               obrigatorio=True, tipo="number", placeholder="0")
-        self._campo_qtd.grid(row=0, column=0, sticky="w", pady=(2, 0))
+        row_id= ctk.CTkFrame(self._sec_produto, fg_color="transparent")
+        row_id.pack(fill="x", padx=14, pady=(4,8))
+        row_id.grid_columnconfigure((0, 1), weight=1)
 
-        self._campo_unidade= ctk.CTkOptionMenu(
-                    grid_un, 
-                    values=list(_UNIDADES_LABEL.values()),
-                    width=160, height=32, corner_radius=6,
-                    fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
-                )
-        self._campo_unidade.grid(row=0, column=1, sticky="w", pady=(2, 0))
+        self._campo_ean = CampoBarras(
+            row_id, label="Código de barras (EAN)",
+            on_leitura=self._ao_ler_ean)
+        self._campo_ean.grid(row=0, column=0, padx=(0, 12), sticky="ew")
 
+        self._campo_nome = CampoNome(
+            row_id, label="Nome do produto",
+            on_leitura=self._ao_ler_nome)
+        self._campo_nome.grid(row=0, column=1, padx=(0, 4), sticky="ew")
 
-        self._campo_centro= ctk.CTkOptionMenu(
-                    grid_un,
-                    values=list(_CENTROS.values()),
-                    width=160, height=32, corner_radius=6,
-                    fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
-                )
-        self._campo_centro.grid(row=0, column=2, sticky="w", pady=(2, 0))
+        if self._baixa_vencido:
+            self._campo_ean._entry.configure(state="disabled")
+            self._campo_nome._entry.configure(state="disabled")
 
-
-        #Card produto encontrado
-        self._frame_produto= ctk.CTkFrame(sec1, fg_color=COR_VERDE_BG,
-                                          corner_radius=6, border_width=1, 
-                                          border_color="#97C459")
-
-        self._lbl_produto= ctk.CTkLabel(
-            self._frame_produto,text="", text_color=COR_VERDE_T,
+        # Card de produto encontrado
+        self._frame_produto = ctk.CTkFrame(
+            self._sec_produto, fg_color=COR_VERDE_BG,
+            corner_radius=6, border_width=1, border_color="#97C459")
+        self._lbl_produto = ctk.CTkLabel(
+            self._frame_produto, text="", text_color=COR_VERDE_T,
             font=ctk.CTkFont(size=12), justify="left", anchor="w")
         self._lbl_produto.pack(fill="x", padx=12, pady=8)
 
-        # ── Centro de destino (só no modo normal) ────────────────────────────
+        #------Passo 3: Quantidade+ toggle de transferência-------------------------------------------
+        self._sec_qtd = SecaoFormulario(scroll, titulo="3. Quantidade e destino")
+ 
+        grid_q = ctk.CTkFrame(self._sec_qtd, fg_color="transparent")
+        grid_q.pack(fill="x", padx=14, pady=(4, 8))
+        grid_q.grid_columnconfigure((0, 1, 2), weight=1)
+ 
+        self._campo_qtd = Campo(
+            grid_q, "Quantidade a retirar",
+            obrigatorio=True, tipo="number", placeholder="0")
+        self._campo_qtd.grid(row=0, column=0, sticky="w", padx=(0, 24))
+        
+        # Toggle de transferência (oculto no modo baixa)
         if not self._baixa_vencido:
-                # Modo de retirada normal: mostra opções de transferência entre centros e fracionamento
-                self._sec_transf= SecaoFormulario(
-                sec1, titulo="Transferência de centro (opcional)")
-                self._sec_transf.pack(fill="x", padx=16, pady=(12,0))
+            ctk.CTkLabel(grid_q, text="Transferir para outro centro?",
+                         font=ctk.CTkFont(size=11), text_color="#3d3d3a").grid(
+                row=0, column=1, sticky="w")
+ 
+            self._toggle_transf_var = ctk.BooleanVar(value=False)
+            self._toggle_transf = ctk.CTkSwitch(
+                grid_q, text="", variable=self._toggle_transf_var,
+                width=46, height=24,
+                button_color=COR_VERDE_T, progress_color=COR_VERDE_T,
+                command=self._ao_mudar_toggle_transf)
+            self._toggle_transf.grid(row=0, column=2, sticky="w")
 
-                ctk.CTkLabel(
-                    self._sec_transf,
-                    text=(
-                        "Preencha apenas se quiser mover estas unidades para outro centro.\n"
-                    ),
-                    text_color="#5F5E5A", font=ctk.CTkFont(size=11),
-                    justify="left", anchor="w", wraplength=640,
-                ).pack(fill="x", padx=14, pady=(0, 10))
-
-                row_t = ctk.CTkFrame(self._sec_transf, fg_color="transparent")
-                row_t.pack(fill="x", padx=14, pady=(0, 6))
-                row_t.grid_columnconfigure((0, 1, 2), weight=1)
-
-                # Centro de destino
-                ctk.CTkLabel(
-                    row_t, text="Centro de destino",
-                    font=ctk.CTkFont(size=11, weight="bold"), text_color="#3d3d3a",
-                ).grid(row=0, column=0, sticky="w")
-                self._opt_centro_dest = ctk.CTkOptionMenu(
-                    row_t,
-                    values=["— sem transferência —"] + list(_CENTROS.values()),
-                    width=180, height=32, corner_radius=6,
-                    fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
-                    command=self._ao_mudar_centro_dest,
-                )
-                self._opt_centro_dest.set("— sem transferência —")
-                self._opt_centro_dest.grid(row=1, column=0, sticky="w", padx=(0, 16), pady=(2, 0))
-
-                # Fator de fracionamento
-                ctk.CTkLabel(
-                    row_t, text="Fator  (unid. por embalagem)",
-                    font=ctk.CTkFont(size=11, weight="bold"), text_color="#3d3d3a",
-                ).grid(row=0, column=1, sticky="w")
-                frame_fator = ctk.CTkFrame(row_t, fg_color="transparent")
-                frame_fator.grid(row=1, column=1, sticky="w", padx=(0, 16), pady=(2, 0))
-                self._entry_fator = ctk.CTkEntry(
-                    frame_fator, width=80, height=32, corner_radius=6,
-                    placeholder_text="1",
-                )
-                self._entry_fator.insert(0, "1")
-                self._entry_fator.pack(side="left")
-                self._entry_fator.bind("<FocusOut>", lambda e: self._ao_mudar_fator())
-                self._entry_fator.bind("<Return>",   lambda e: self._ao_mudar_fator())
-
-                # Unidade de destino
-                ctk.CTkLabel(
-                    row_t, text="Unidade de destino",
-                    font=ctk.CTkFont(size=11, weight="bold"), text_color="#3d3d3a",
-                ).grid(row=0, column=2, sticky="w")
-                self._opt_unidade_dest = ctk.CTkOptionMenu(
-                    row_t,
-                    values=list(_UNIDADES_LABEL.values()),
-                    width=160, height=32, corner_radius=6,
-                    fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
-                )
-                self._opt_unidade_dest.grid(row=1, column=2, sticky="w", pady=(2, 0))
-                self._opt_unidade_dest.configure(state="disabled")
-
-                # Preview do fracionamento
-                self._lbl_preview = ctk.CTkLabel(
-                    self._sec_transf, text="", text_color=COR_AZUL_M,
-                    font=ctk.CTkFont(size=11), anchor="w",
-                )
-                self._lbl_preview.pack(fill="x", padx=14, pady=(6, 10))
-        else:
-            self._campo_ean._entry.configure(state="disabled")
-            self._campo_nome._entry.configure(state="disabled")
-            self._frame_destino = None
-            self._opt_unidade_dest   = None
-
-        ctk.CTkButton(sec1, text="Calcular plano de retirada →",
-                      width=200, height=32,
-                      fg_color=COR_AZUL_M, hover_color="#1a5276",
-                      font=ctk.CTkFont(size=12),
-                      command= self._calcular_plano).pack(anchor="w", padx=14, pady=(0,12)) 
+        # Subseção de transferência (oculta por padrão)
+        self._sec_transf = ctk.CTkFrame(
+            self._sec_qtd, fg_color="#E6F1FB",
+            corner_radius=6, border_width=1, border_color=COR_AZUL_M)
         
+        ctk.CTkLabel(
+            self._sec_transf,
+            text="O SCE define o lote de origem. O restante do lote fica no centro original.",
+            text_color=COR_AZUL, font=ctk.CTkFont(size=11),
+            justify="left", anchor="w", wraplength=620,
+        ).pack(fill="x", padx=12, pady=(8, 4))
         
-        #____ Seção 2: Plano de consumo
-        self._sec2= SecaoFormulario(scroll, titulo= "Plano de Consumo")
+        row_t = ctk.CTkFrame(self._sec_transf, fg_color="transparent")
+        row_t.pack(fill="x", padx=12, pady=(0, 10))
+        row_t.grid_columnconfigure((0, 1, 2), weight=1)
 
-        #Oculto até plano calculado
-        self._frame_plano=ctk.CTkFrame(self._sec2, fg_color=COR_CINZA_E,
-                                       corner_radius=6)
-        self._frame_plano.pack(fill="x", padx=14, pady=(0,8))
+        ctk.CTkLabel(row_t, text="Centro de destino",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color="#3d3d3a").grid(row=0, column=0, sticky="w")
+        self._opt_centro_dest = ctk.CTkOptionMenu(
+            row_t, values=list(_CENTROS.values()),
+            width=160, height=30, corner_radius=6,
+            fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
+            command=self._ao_mudar_centro_dest)
+        self._opt_centro_dest.grid(row=1, column=0, sticky="w", padx=(0, 16), pady=(2, 0))
 
-        #Aviso de estoque insuficiente
-        self._frame_insuf=ctk.CTkFrame(
-            self._sec2, fg_color="#FCEBEB", corner_radius=6,
-            border_width=1, border_color="#F09595")
-        self._lbl_insuf=ctk.CTkLabel(
+        ctk.CTkLabel(row_t, text="Fator (unid. por embalagem)",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color="#3d3d3a").grid(row=0, column=1, sticky="w")
+        frame_fator = ctk.CTkFrame(row_t, fg_color="transparent")
+        frame_fator.grid(row=1, column=1, sticky="w", padx=(0, 16), pady=(2, 0))
+        self._entry_fator = ctk.CTkEntry(frame_fator, width=70, height=30, corner_radius=6)
+        self._entry_fator.insert(0, "1")
+        self._entry_fator.pack(side="left")
+        self._entry_fator.bind("<FocusOut>", lambda e: self._ao_mudar_fator())
+        self._entry_fator.bind("<Return>", lambda e: self._ao_mudar_fator())
+
+        ctk.CTkLabel(row_t, text="Unidade de destino",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color="#3d3d3a").grid(row=0, column=2, sticky="w")
+        self._opt_unidade_dest = ctk.CTkOptionMenu(
+            row_t, values=list(_UNIDADES.values()),
+            width=150, height=30, corner_radius=6,
+            fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a")
+        self._opt_unidade_dest.grid(row=1, column=2, sticky="w", pady=(2, 0))
+        self._opt_unidade_dest.configure(state="disabled")
+
+        self._lbl_preview = ctk.CTkLabel(
+            self._sec_transf, text="", text_color=COR_AZUL_M,
+            font=ctk.CTkFont(size=11), anchor="w")
+        self._lbl_preview.pack(fill="x", padx=12, pady=(0, 6))
+
+        # Botão calcular plano
+        ctk.CTkButton(
+            self._sec_qtd, text="Calcular plano de retirada →",
+            width=210, height=32,
+            fg_color=COR_AZUL_M, hover_color="#1a5276",
+            font=ctk.CTkFont(size=12),
+            command=self._calcular_plano,
+        ).pack(anchor="w", padx=14, pady=(8, 12))
+
+        #-----Passp 4: Plano de consumo-----------------------------------------------------------
+        self._sec_plano = SecaoFormulario(scroll, titulo="4. Plano de consumo")
+ 
+        self._frame_plano = ctk.CTkFrame(
+            self._sec_plano, fg_color=COR_CINZA_E, corner_radius=6)
+        self._frame_plano.pack(fill="x", padx=14, pady=(0, 8))
+ 
+        self._frame_insuf = ctk.CTkFrame(
+            self._sec_plano, fg_color="#FCEBEB",
+            corner_radius=6, border_width=1, border_color="#F09595")
+        self._lbl_insuf = ctk.CTkLabel(
             self._frame_insuf, text="", text_color=COR_VERM,
             font=ctk.CTkFont(size=12), justify="left")
         self._lbl_insuf.pack(fill="x", padx=12, pady=8)
 
-        #___ Seção 3: Observações
-        self._sec3=SecaoFormulario(scroll, titulo="Observações")
-        self._campo_obs=ctk.CTkEntry(
-            self._sec3,
-            placeholder_text="Ex: Retirada para enfermaria, transferência para farmácia, etc.",
-            height=34, corner_radius=6 )
-        self._campo_obs.pack(fill="x", padx=14, pady=(0,6))
-        ctk.CTkLabel(self._sec3,
+        #----- Observações---------------------------------------------------------------------------
+        self._sec_obs = SecaoFormulario(scroll, titulo="Observações")
+        self._campo_obs = ctk.CTkEntry(
+            self._sec_obs,
+            placeholder_text="Ex: Retirada para enfermaria 2 — Dr. Silva",
+            height=34, corner_radius=6)
+        self._campo_obs.pack(fill="x", padx=14, pady=(0, 6))
+        ctk.CTkLabel(self._sec_obs,
                      text="Quando preenchido, aparece em todos os registros desta retirada.",
-                     text_color="#888780", font=ctk.CTkFont(size=10)
-        ).pack(anchor="w", padx=0, pady=(0,12))
-
-        #______Botões
-
-        self._row_btns= ctk.CTkFrame(scroll,fg_color="transparent")
-
-        label_cancelar = "Voltar" if self._baixa_vencido else "Cancelar"
-        destino_cancelar = "inicio" if self._baixa_vencido else "produtos"
-
-        #_____ botçao cancelar/voltar
+                     text_color="#888780", font=ctk.CTkFont(size=10)).pack(
+            anchor="w", pady=(0, 12))
+        
+        #----- Botões---------------------------------------------------------------------------
+        self._row_btns = ctk.CTkFrame(scroll, fg_color="transparent")
+ 
+        label_cancelar   = "Voltar"   if self._baixa_vencido else "Cancelar"
+        destino_cancelar = "inicio"   if self._baixa_vencido else "produtos"
+        texto_confirmar  = "Confirmar baixa" if self._baixa_vencido else "Confirmar retirada"
+        cor_confirmar    = COR_VERM if self._baixa_vencido else "#1D9E75"
+        hover_confirmar  = "#7a1f1f" if self._baixa_vencido else "#0F6E56"
+ 
         ctk.CTkButton(
             self._row_btns, text=label_cancelar,
             width=100, height=36,
             fg_color=COR_BRANCO, text_color="#3d3d3a",
-            border_width=1, border_color=COR_CINZA_B,
-            hover_color=COR_CINZA_E,
+            border_width=1, border_color=COR_CINZA_B, hover_color=COR_CINZA_E,
             command=lambda: self._on_navigate(destino_cancelar),
         ).pack(side="left", padx=(0, 8))
-
-        #______ Botão confirmar (texto e cor dependem do modo)
-        texto_confirmar = "Confirmar baixa" if self._baixa_vencido else "Confirmar retirada"
-        cor_confirmar   = COR_VERM if self._baixa_vencido else "#1D9E75"
-        hover_confirmar = "#7a1f1f" if self._baixa_vencido else "#0F6E56"
-
-        self._btn_confirmar= ctk.CTkButton(
+ 
+        self._btn_confirmar = ctk.CTkButton(
             self._row_btns, text=texto_confirmar,
-            width=180, height=36, 
-            fg_color=cor_confirmar, hover_color=hover_confirmar,    
+            width=190, height=36,
+            fg_color=cor_confirmar, hover_color=hover_confirmar,
             state="disabled",
-            command=lambda: self._confirmar())
-        
+            command=self._confirmar)
         self._btn_confirmar.pack(side="left")
 
-        self._campo_ean.focus()
-        if self._produto_id:
-            produto = ProdutoRepo.buscar_por_id(self._produto_id)
-            if produto:
-                self._campo_ean.set(produto.ean)
-                self._campo_nome.set(produto.nome)
-                self._ao_ler_ean(str(produto.ean))
-    
-    # ___ Produto____________________________________________________________
-    def _ao_ler_ean(self, ean:str):
-        try:
-            produto= EstoqueService.buscar_produto_por_ean(ean)
-        except Exception as exc:
-            self._banner.erro(f"Erro ao buscar produto:{exc}")
-            return
-        
-        if produto is None:
-            self._campo_ean.erro(f"EAN'{ean}' não cadastrado.")
-            self._frame_produto.pack_forget()
-            self._produto_sel=None
-            return
-        
-        # No modo baixa: filtra só lotes vencidos
-        if self._baixa_vencido:
-            lotes = [
-                l for l in LoteRepo.listar_por_produto(produto.id)
-                if l.data_vencimento < date.today() and l.quantidade_atual > 0
-            ]
-            saldo = sum(l.quantidade_atual for l in lotes)
-            descricao_saldo = f"Saldo vencido: {saldo} unid. em {len(lotes)} lote(s)"
+        # Estado inicial: passo 2 em diante oculto
+        # No modo baixa ou pré-seleção ja mostra o passo 2
+        if self._baixa_vencido or self._centro_origem:
+            self._mostrar_sec_produto()
         else:
-            lotes = LoteRepo.listar_por_produto(produto.id)
-            saldo = sum(
-                l.quantidade_atual for l in lotes
-                if l.data_vencimento >= date.today()
-            )
-            descricao_saldo = (
-                f"Saldo disponível: {saldo} unid. em "
-                f"{len([l for l in lotes if l.quantidade_atual > 0])} lote(s)"
-            )
-        
-        self._campo_ean.erro("")
-        self._produto_sel= produto
-        self._lbl_produto.configure(
-            text=(f"{produto.nome}\n"
-                    ))
-        self._frame_produto.pack(fill="x", padx=14, pady=(0,8))
+            self._sec_produto.pack_forget()
+            self._sec_qtd.pack_forget()
+            self._sec_plano.pack_forget()
+            self._sec_obs.pack_forget()
+            self._row_btns.pack_forget()
 
-        # Atualiza opções de destino (só no modo normal)
-        if not self._baixa_vencido and self._opt_unidade_dest is not None:
-            self._atualizar_opcoes_destino(produto)
-        
+    # ══════════════════════════════════════════════════════════════════════════
+    # Passo 1 — Escolha do centro
+    # ══════════════════════════════════════════════════════════════════════════
 
-        
-        self._plano= None
-        self._sec2.pack_forget()
-        self._btn_confirmar.configure(state="disabled")
-        self._row_btns.pack_forget()
+    def _ao_escolher_centro(self, label:str):
+        # Callback do OptionMenu de centro- revela passo 2
+        self._centro_origem = _LABEL_CENTRO.get(label, label.lower())
+        self._mostrar_sec_produto()
+        # Atualizar opções de destino excluindo o centro de origem
+        outros = ["— sem transferência —"] + [
+            lb for val, lb in _CENTROS.items() if val != self._centro_origem
+        ]
+        self._opt_centro_dest.configure(values=outros)
+        self._opt_centro_dest.set("— sem transferência —")
+        # Limpar produto selecionado caso tenha trocado de centro
+        self._limpar_produto()
+    
+    def _mostrar_sec_produto(self):
+        self._sec_produto.pack(fill="x", padx=16, pady=(10,0))
+        self._campo_ean.focus()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Passo 2 — Identificação do produto
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _ao_ler_ean(self, ean:str):
+        self._buscar_e_exibir(EstoqueService.buscar_produto_por_ean, ean, 
+                              erro_msg=f"EAN '{ean}' não cadastrado.")
+    
+
     
     def _ao_ler_nome(self, nome:str):
-        try:
-            produto= EstoqueService.buscar_produto_por_nome(nome)
-        except Exception as exc:
-            self._banner.erro(f"Erro ao buscar produto:{exc}")
-            return
-        
-        if produto is None:
-            self._campo_nome.erro(f"Nome '{nome}' não cadastrado.")
-            self._frame_produto.pack_forget()
-            self._produto_sel=None
-            return
-        
-        lotes= LoteRepo.listar_por_produto(produto.id)
-        saldo= sum(l.quantidade_atual for l in lotes
-                   if l.data_vencimento>= date.today())
-        
-        self._campo_ean.erro("")
-        self._produto_sel= produto
-        self._lbl_produto.configure(
-            text=(f"{produto.nome}\n"
-                  f"Saldo total disponivel: {saldo} unid. em "
-                  f"{len([l for l in lotes if l.quantidade_atual>0])} lote(s)\n")
-        )
-        self._frame_produto.pack(fill="x", padx=14, pady=(0,8))
-
-        # Atualiza opções de destino (só no modo normal)
-        if not self._baixa_vencido and self._opt_unidade_dest is not None:
-            self._atualizar_opcoes_destino(produto)
-        
-        self._plano= None
-        self._sec2.pack_forget()
-        self._btn_confirmar.configure(state="disabled")
-        self._row_btns.pack_forget()
+        self._buscar_e_exibir(EstoqueService.buscar_produto_por_nome, nome,
+                                erro_msg=f"Produto '{nome}' não encontrado.")
     
-    def _carregar_lote_vencido_atual(self):
-        """Carrega o lote vencido atual da fila de descarte na interface gráfica."""
-        if self._vencido_index >= len(self._lotes_vencidos):
+    def _buscar_e_exibir(self, func_busca, valor: str, erro_msg: str):
+        if not self._centro_origem and not self._baixa_vencido:
+            self._banner.erro("Selecione o centro de retirada antes de buscar o produto.")
             return
-            
-        item = self._lotes_vencidos[self._vencido_index]
+        try:
+            produto = func_busca(valor)
+        except Exception as exc:
+            self._banner.erro(f"Erro ao buscar produto: {exc}")
+            return
+ 
+        if produto is None:
+            self._banner.erro(erro_msg)
+            self._frame_produto.pack_forget()
+            self._produto_sel = None
+            return
         
-        # 1. Desbloqueia, preenche o EAN e bloqueia novamente
-        self._campo_ean._entry.configure(state="normal")
-        self._campo_ean.set(item["ean"])
-        self._campo_ean._entry.configure(state="disabled")
-        
-        # 2. Chama a função EXATA da sua tela para buscar o produto no banco
-        self._ao_ler_ean(item["ean"])
-            
-        # 3. Preenche a quantidade a retirar
-        if hasattr(self._campo_qtd, "_widget"):
-            self._campo_qtd._widget.configure(state="normal")
-        elif hasattr(self._campo_qtd, "_entry"):
-            self._campo_qtd._entry.configure(state="normal")
-        self._campo_qtd.set(str(item["quantidade"]))
-                
-        # 4. Preenche a observação
-        self._campo_obs.delete(0, "end")
-        self._campo_obs.insert(0, f"Descarte de lote vencido (Dashboard) - Lote {item['lote']}")
+        hoje = date.today()
+        lotes = LoteRepo.listar_por_produto(produto.id)
+ 
+        if self._baixa_vencido:
+            lotes_vis = [l for l in lotes
+                         if l.quantidade_atual > 0 and l.data_vencimento < hoje]
+        else:
+            lotes_vis = [l for l in lotes
+                         if l.quantidade_atual > 0
+                         and l.data_vencimento >= hoje
+                         and l.centro_alocacao.value == self._centro_origem]
+ 
+        saldo   = sum(l.quantidade_atual for l in lotes_vis)
+        n_lotes = len(lotes_vis)
 
-        if hasattr(self, "_calcular_plano"):
-            self._calcular_plano()
-                
-        # 5. Atualiza o texto do botão principal para guiar o usuário
-        if hasattr(self, "_btn_confirmar"):
-            if self._vencido_index < len(self._lotes_vencidos) - 1:
-                self._btn_confirmar.configure(text="Confirmar e Próximo Lote")
-            else:
-                self._btn_confirmar.configure(text="Confirmar e Finalizar")
+        # Unidades distintas presentes no centro
+        unidades = list({l.unidade_estoque.value for l in lotes_vis})
+        unid_txt = " / ".join(u.capitalize() for u in unidades) or "—"
+ 
+        self._produto_sel = produto
+        self._lbl_produto.configure(
+            text=(
+                f"{produto.nome}\n"
+                f"Saldo em '{(_CENTROS.get(self._centro_origem or '', '—'))}': "
+                f"{saldo} unid. em {n_lotes} lote(s)  ·  Unidade: {unid_txt}"
+            )
+        )
+        self._frame_produto.pack(fill="x", padx=14, pady=(0, 8))
 
-        self._banner.aviso(f"Fila de Vencidos: Exibindo lote {item['lote']} ({self._vencido_index + 1} de {len(self._lotes_vencidos)}).")
+        # Revela o passo 3
+        self._sec_qtd.pack(fill="x", padx=16, pady=(10, 0))
+        self._limpar_plano()
+    
+    def _preencher_produto_por_id(self, produto_id: int):
+        try:
+            p = ProdutoRepo.buscar_por_id(produto_id)
+            if p:
+                self._campo_ean.set(p.ean)
+                self._campo_nome.set(p.nome)
+                self._ao_ler_ean(str(p.ean))
+        except Exception as exc:
+            logger.error("Erro ao pré-selecionar produto: %s", exc)
+    
+    # ══════════════════════════════════════════════════════════════════════════
+    # Passo 3 — Toggle de transferência
+    # ══════════════════════════════════════════════════════════════════════════
 
-    def _atualizar_opcoes_destino(self, produto):
-        """Popula o dropdown com os centros diferentes do centro atual do produto."""
-        outros = [c for c in _CENTROS if c != produto.centro_alocacao.value]
-        opcoes = ["— sem transferência —"] + [_CENTROS[c] for c in outros]
-        self._opt_centro_dest.configure(values=opcoes)
-        self._opt_centro_dest.set("— sem transferência —")
-        #self._frame_destino.pack(fill="x", padx=14, pady=(0, 8))
+    def _ao_mudar_toggle_transf(self):
+        if self._toggle_transf_var.get():
+            self._sec_transf.pack(fill="x", padx=14, pady=(0, 10))
+            self._btn_confirmar.configure(text="Confirmar transferência")
+        else:
+            self._sec_transf.pack_forget()
+            self._entry_fator.delete(0, "end")
+            self._entry_fator.insert(0, "1")
+            self._lbl_preview.configure(text="")
+    
+    def _ao_mudar_centro_dest(self, _valor: str):
+        self._ao_mudar_fator()
 
-    #______Plano FEFO_______________________________________________________________________
+    def _ao_mudar_fator(self):
+        try:
+            fator = int(self._entry_fator.get())
+        except ValueError:
+            fator = 1
+ 
+        if fator > 1:
+            self._opt_unidade_dest.configure(state="normal")
+            qtd    = self._plano.quantidade_pedida if self._plano else 0
+            unid_o = self._plano.unidade_estoque.capitalize() if self._plano else "unid."
+            unid_d = _LABEL_UNIDADE.get(self._opt_unidade_dest.get(),
+                                         self._opt_unidade_dest.get().lower())
+            self._lbl_preview.configure(
+                text=f"→ {qtd} {unid_o} × {fator} = {qtd * fator} {unid_d} no destino."
+            )
+        else:
+            self._opt_unidade_dest.configure(state="disabled")
+            self._lbl_preview.configure(text="")
+
+   
+
+    
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Passo 4 — Cálculo e exibição do plano FEFO
+    # ══════════════════════════════════════════════════════════════════════════
 
     def _calcular_plano(self):
         if not self._produto_sel:
@@ -457,16 +476,16 @@ class TelaRetirada(ctk.CTkFrame):
         self._campo_qtd.erro("")
 
         try:
-            if self._baixa_vencido:
-                plano = EstoqueService.calcular_plano_fefo(
-                    self._produto_sel.id, qtd, apenas_vencidos=True
-                )
-            else:
-                plano= EstoqueService.calcular_plano_fefo(self._produto_sel.id, qtd)
+            plano= EstoqueService.calcular_plano_fefo(
+                self._produto_sel.id,
+                qtd,
+                apenas_vencidos= self._baixa_vencido,
+                centro_origem= self._centro_origem if not self._baixa_vencido else None,
+            )
             
         except Exception as exc:
             self._banner.erro(f"Erro ao calcular plano: {exc}")
-            logger.error("erro ao calcular plano:%s",exc)
+            logger.error("erro ao calcular plano: %s",exc)
             return
             
 
@@ -474,20 +493,24 @@ class TelaRetirada(ctk.CTkFrame):
         self._exibir_plano(plano)
 
     def _exibir_plano(self, plano):
-        #Limpar frame do plano
         for w in self._frame_plano.winfo_children():
             w.destroy()
 
-        if not plano.atendido_completo:
-                #RF-09- estoque insuficiente 
+        if not plano.atendido_completo: 
                 self._lbl_insuf.configure(
-                    text=(f"Estoque insufiente para {plano.quantidade_pedida} unidade(s).\n"
-                        f"Quantidade máxima disponível: {plano.quantidade_maxima_disponivel} unid.")
+                    text=(
+                    f"Estoque insuficiente para {plano.quantidade_pedida} unidade(s).\n"
+                    f"Máximo disponível em '{_CENTROS.get(self._centro_origem or '', '?')}': "
+                    f"{plano.quantidade_maxima_disponivel} unid.")
                 )
                 self._frame_insuf.pack(fill="x", padx=14, pady=(0,8))
                 self._btn_confirmar.configure(state="disabled")
+                self._sec_plano.pack(fill="x", padx=16, pady=(10,0))
+                self._row_btns.pack(anchor="e", padx=16, pady=(0,16))
                 return
+        
         self._frame_insuf.pack_forget()
+        
         # Cabeçalho do plano
         ctk.CTkLabel(
             self._frame_plano,
@@ -504,149 +527,87 @@ class TelaRetirada(ctk.CTkFrame):
                                  border_color=COR_CINZA_B)
             linha.pack(fill="x",padx=10,pady=3)
 
-            ctk.CTkLabel(
-                linha,
-                text=f" Lote {item.num_lote}",
-                font=ctk.CTkFont(size=12, weight="bold"),
-                text_color=COR_AZUL, anchor="w" ,width= 160
-            ).grid(row=0, column=8, padx=8, sticky="w")
-
-            ctk.CTkLabel(
-                linha,
-                text=f"Vence: {item.data_vencimento.strftime('%d/%m/%Y')}",
-                text_color="#888780", font=ctk.CTkFont(size=11),
-                anchor="w", width=160
-            ).grid(row=0,column=1, padx=8,sticky="w")
-
-            ctk.CTkLabel(
-                linha,
-                text=f"NF:{item.nota_fiscal}",
-                text_color="#888780", font=ctk.CTkFont(size=11),
-                anchor="w", width=130
-            ).grid(row=0, column=2, padx=8, pady=8, sticky="w")
-
-            ctk.CTkLabel(
-                linha,
-                text=f"Atual:{item.saldo_atual}",
-                text_color="#3d3d3a", font=ctk.CTkFont(size=11),
-                anchor="w", width=120
-            ).grid(row=0,column=3, padx=8, pady=8, sticky="w")
-
-            ctk.CTkLabel(
-                linha,
-                text=f"Retirar: {item.qtd_a_retirar}",
-                font=ctk.CTkFont(size=12, weight="bold"),
-                text_color=COR_AZUL_M, anchor="w", width=100
-            ).grid(row=0,column=4,padx=8,pady=8, sticky="w")
+            dados = [
+                (f" Lote {item.num_lote}",                              160, COR_AZUL,   True),
+                (f"Vence: {item.data_vencimento.strftime('%d/%m/%Y')}", 150, "#888780",  False),
+                (f"NF: {item.nota_fiscal}",                             120, "#888780",  False),
+                (f"{item.unidade_estoque.capitalize()}",                 90, "#3d3d3a",  False),
+                (f"Atual: {item.saldo_atual}",                          100, "#3d3d3a",  False),
+                (f"Retirar: {item.qtd_a_retirar}",                      110, COR_AZUL_M, True),
+            ]
+            for col, (txt, w, cor, bold) in enumerate(dados):
+                ctk.CTkLabel(
+                linha, text=txt, width=w, anchor="w",
+                font=ctk.CTkFont(size=11, weight="bold" if bold else "normal"),
+                text_color=cor,
+            ).grid(row=0, column=col, padx=6, pady=7, sticky="w")
 
             cor_saldo= COR_VERM if item.lote_esgotado else COR_VERDE_T
-
-            saldo_txt="0- lote esgotado" if item.lote_esgotado else str(item.saldo_restante)
+            saldo_txt="0 - lote esgotado" if item.lote_esgotado else str(item.saldo_restante)   
             ctk.CTkLabel(
-                linha,
-                text=f"Saldo restante: {saldo_txt}",
-                font=ctk.CTkFont(size=11),
-                text_color=cor_saldo, anchor="w", width=180
-            ).grid(row=0, column=5,padx=8,pady=8, sticky="w")
+                linha, text=f"Restante: {saldo_txt}", width=170,
+                font=ctk.CTkFont(size=11), text_color=cor_saldo, anchor="w",
+            ).grid(row=0, column=6, padx=6, pady=7, sticky="w")    
 
-            ctk.CTkLabel(
-                self._frame_plano,
-                text="Confirme o plano abaixo para registrar a retirada.",
-                text_color="#5F5E5A", font=ctk.CTkFont(size=11), anchor="w"
-            ).pack(fill="x", padx=10, pady=(4,8))
-            
-            self._sec2.pack(fill="x", padx=16,pady=(10,0))
-            self._sec3.pack(fill="x", padx=16,pady=(10,0))
-            self._btn_confirmar.configure(state="normal")
-            self._row_btns.pack(anchor="e", padx=16, pady=(0,16))
+        ctk.CTkLabel(
+            self._frame_plano,
+            text="Confirme abaixo para registrar.",
+            text_color="#5F5E5A", font=ctk.CTkFont(size=11), anchor="w",
+        ).pack(fill="x", padx=10, pady=(4, 8))
+ 
+        self._sec_plano.pack(fill="x", padx=16, pady=(10, 0))
+        self._sec_obs.pack(fill="x", padx=16, pady=(6, 0))
+        self._btn_confirmar.configure(state="normal")
+        self._row_btns.pack(anchor="e", padx=16, pady=(0, 16))        
 
-    #_____ Callbaks da seção de transferência (modo normal) __________________________________________
-    def _ao_mudar_centro_dest(self, valor: str):
-        if valor == "— sem transferência —":
-            self._btn_confirmar.configure(text="Confirmar retirada")
-            self._opt_unidade_dest.configure(state="disabled")
-            self._entry_fator.delete(0, "end")
-            self._entry_fator.insert(0, "1")
-            self._lbl_preview.configure(text="")
-        else:
-            self._btn_confirmar.configure(text="Confirmar transferência")
-            self._ao_mudar_fator()
-
-    def _ao_mudar_fator(self):
-        try:
-            fator = int(self._entry_fator.get())
-        except ValueError:
-            logger.warning("Fator de fracionamento inválido: '%s'", self._entry_fator.get())
-            fator = 1
-
-        if fator > 1:
-            self._opt_unidade_dest.configure(state="normal")
-            qtd_orig  = self._plano.quantidade_pedida
-            unid_orig = self._plano.itens[0].unidade_estoque.value.capitalize() if self._plano.itens else "unidade"
-            unid_dest = _LABEL_UNIDADE.get(
-                self._opt_unidade_dest.get(),
-                self._opt_unidade_dest.get().lower(),
-            )
-            self._lbl_preview.configure(
-                text=(
-                    f"→ {qtd_orig} {unid_orig} × {fator} "
-                    f"= {qtd_orig * fator} {unid_dest} criados no destino."
-                )
-            )
-        else:
-            self._opt_unidade_dest.configure(state="disabled")
-            self._lbl_preview.configure(text="")
-    #_____ Confirmar_______________________________________________________________________________
+    # ══════════════════════════════════════════════════════════════════════════
+    # Passo 5 — Confirmação
+    # ══════════════════════════════════════════════════════════════════════════
 
     def _confirmar(self):
         if not self._plano:
             return
-            
-        obs = self._campo_obs.get().strip() or None
-        
-        # 1. Verifica o centro de destino APENAS se o campo existir na tela (Modo Normal)
-        centro_dest_lb = "— sem transferência —"
-        if hasattr(self, '_opt_centro_dest') and self._opt_centro_dest is not None:
-            centro_dest_lb = self._opt_centro_dest.get()
-            
-        eh_transf = (centro_dest_lb != "— sem transferência —") and (not self._baixa_vencido)
-
-        # CENÁRIO A: Baixa de Vencidos (Dashboard)
+ 
+        obs          = self._campo_obs.get().strip() or None
+        eh_transf    = (not self._baixa_vencido
+                        and hasattr(self, "_toggle_transf_var")
+                        and self._toggle_transf_var.get())
+        #----- Cenário A: baixa de vencidos-----------------------------------------------------------
         if self._baixa_vencido:
             try:
-                estoque_baixo = EstoqueService.registrar_retirada(
-                    self._plano, self._usuario.id, obs, baixa_vencido=True               )
-                msg = (
-                    f"Baixa registrada: {self._plano.quantidade_pedida} unid. "
-                    f"de '{self._produto_sel.nome}' removidas do estoque."
-                )
-                if estoque_baixo:
-                    msg += "\n⚠ Estoque abaixo do mínimo — alerta enviado."
+                EstoqueService.registrar_retirada(
+                    self._plano, self._usuario.id, obs, baixa_vencido=True)
+                msg = (f"Baixa registrada: {self._plano.quantidade_pedida} unid. "
+                       f"de '{self._produto_sel.nome}'.")
                 self._banner.sucesso(msg)
-                
-                # --- Motor Sequencial de Fila ---
-                if getattr(self, '_lotes_vencidos', None):
+
+                # Fila sequencial de vencidos
+                if self._lotes_vencidos:
                     self._vencido_index += 1
-                    
                     if self._vencido_index < len(self._lotes_vencidos):
                         self._limpar()
                         self._carregar_lote_vencido_atual()
                     else:
-                        messagebox.showinfo("Concluído", "Todos os lotes vencidos listados foram baixados com sucesso!")
+                        messagebox.showinfo(
+                            "Concluído",
+                            "Todos os lotes vencidos listados foram baixados.")
                         self._on_navigate("inicio")
                 else:
                     self._limpar()
-                    
             except ValueError as exc:
                 self._banner.erro(str(exc))
             except Exception as exc:
-                logger.error("Erro ao registrar baixa: %s", exc)
+                logger.error("Erro na baixa: %s", exc)
                 self._banner.erro(f"Erro ao registrar: {exc}")
-
-       
-        # CENÁRIO B: Transferência entre Centros com Fracionamento
+        
+        #----- Cenário B: Transferência entre centros-----------------------------------------------------------
         elif eh_transf:
+            centro_dest_lb = self._opt_centro_dest.get()
+            if centro_dest_lb == "— sem transferência —":
+                self._banner.erro("Selecione o centro de destino.")
+                return
             destino_centro = _LABEL_CENTRO.get(centro_dest_lb, centro_dest_lb.lower())
+
             try:
                 fator = int(self._entry_fator.get())
                 if fator < 1:
@@ -654,7 +615,7 @@ class TelaRetirada(ctk.CTkFrame):
             except ValueError:
                 self._banner.erro("Fator de fracionamento inválido. Mínimo: 1.")
                 return
-
+            
             unidade_dest = None
             if fator > 1:
                 unid_lb = self._opt_unidade_dest.get()
@@ -662,69 +623,103 @@ class TelaRetirada(ctk.CTkFrame):
                 if not unidade_dest:
                     self._banner.erro("Selecione a unidade de destino.")
                     return
+            
             try:
                 EstoqueService.registrar_transferencia(
-                    self._plano,
-                    self._usuario.id,
+                    self._plano, self._usuario.id,
                     destino_centro      = destino_centro,
                     fator_fracionamento = fator,
                     unidade_destino     = unidade_dest,
                     observacao          = obs,
                 )
-                unid_orig = self._produto_sel.unidade_estoque.value
+                unid_o = self._plano.unidade_estoque.capitalize()
                 if fator > 1:
                     qtd_dest = self._plano.quantidade_pedida * fator
-                    msg = (
-                        f"Transferência registrada: "
-                        f"{self._plano.quantidade_pedida} {unid_orig} → "
-                        f"{qtd_dest} {unidade_dest} em '{centro_dest_lb}'."
-                    )
+                    msg = (f"Transferência: {self._plano.quantidade_pedida} {unid_o} → "
+                           f"{qtd_dest} {unidade_dest} em '{centro_dest_lb}'.")
                 else:
-                    msg = (
-                        f"Transferência registrada: "
-                        f"{self._plano.quantidade_pedida} {unid_orig} "
-                        f"→ '{centro_dest_lb}'."
-                    )
+                    msg = (f"Transferência: {self._plano.quantidade_pedida} {unid_o} "
+                           f"→ '{centro_dest_lb}'.")
                 self._banner.sucesso(msg)
                 self._limpar()
             except ValueError as exc:
                 self._banner.erro(str(exc))
             except Exception as exc:
-                logger.error("Erro ao registrar transferência: %s", exc)
+                logger.error("Erro na transferência: %s", exc)
                 self._banner.erro(f"Erro ao registrar: {exc}")
-
-        
-        # CENÁRIO C: Retirada Simples (Consumo Normal)
-        else:
+        #----- Cenário C: Retirada simples-----------------------------------------------------------
+        else: 
             try:
-                estoque_baixo = EstoqueService.registrar_retirada(
-                    self._plano, self._usuario.id, obs,
-                )
-                msg = (
-                    f"Retirada registrada: {self._plano.quantidade_pedida} unid. "
-                    f"de '{self._produto_sel.nome}'."
-                )
+                estoque_baixo= EstoqueService.registrar_retirada(
+                    self._plano, self._usuario.id, obs)
+                msg=(f"Retirada registrada: {self._plano.quantidade_pedida} unid."
+                     f"de '{self._produto_sel.nome}'.")
                 if estoque_baixo:
-                    msg += "\n⚠ Estoque abaixo do mínimo — alerta enviado."
+                    msg+= "\n⚠ Estoque abaixo do mínimo — alerta enviado."
                 self._banner.sucesso(msg)
-                self._limpar()
+                self._limpar()     
+            
             except ValueError as exc:
                 self._banner.erro(str(exc))
             except Exception as exc:
-                logger.error("Erro ao registrar retirada: %s", exc)
+                logger.error("Erro na retirada: %s", exc)
                 self._banner.erro(f"Erro ao registrar: {exc}")
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # Helpers
+    # ══════════════════════════════════════════════════════════════════════════
+    def _carregar_lote_vencido_atual(self):
+        """Carrega o próximo lote da fila de baixa de vencidos."""
+        if self._vencido_index >= len(self._lotes_vencidos):
+            return
+            
+        item = self._lotes_vencidos[self._vencido_index]
+
+        self._campo_ean._entry.configure(state="normal")
+        self._campo_ean.set(item["ean"])
+        self._campo_ean._entry.configure(state="disabled")
+        self._ao_ler_ean(item["ean"])
+
+        self._campo_qtd.set(str(item["quantidade"]))
+        self._campo_obs.delete(0, "end")
+        self._campo_obs.insert(0, f"Descarte lote vencido — Lote {item['lote']}")
+        self._calcular_plano()  
+
+        n_total = len(self._lotes_vencidos)
+        self._btn_confirmar.configure(
+            text="Confirmar e Próximo" if self._vencido_index < n_total - 1
+            else "Confirmar e Finalizar")
+        self._banner.aviso(
+            f"Lote {item['lote']}  ({self._vencido_index + 1} de {n_total})")
                 
-    def _limpar(self):
+
+    def _limpar_produto(self):
+        """Limpa apenas a seleção de produto (mantém centro escolhido)."""
         self._produto_sel = None
         self._plano       = None
         self._campo_ean.limpar()
-        self._campo_qtd.limpar()
-        self._campo_obs.delete(0, "end")
+        self._campo_nome.limpar()
         self._frame_produto.pack_forget()
-        self._sec2.pack_forget()
-        self._sec3.pack_forget()
+        self._sec_qtd.pack_forget()
+        self._limpar_plano()
+ 
+    def _limpar_plano(self):
+        """Oculta plano, observações e botões."""
+        self._sec_plano.pack_forget()
+        self._sec_obs.pack_forget()
         self._row_btns.pack_forget()
         self._btn_confirmar.configure(state="disabled")
-        self._opt_centro_dest.set("— sem transferência —") if hasattr(self, '_opt_centro_dest') and self._opt_centro_dest is not None else None
-        self._campo_ean.focus()
+        if not self._baixa_vencido:
+            self._toggle_transf_var.set(False)
+            self._sec_transf.pack_forget()
+            self._lbl_preview.configure(text="")
+ 
+    def _limpar(self):
+        """Reset completo para nova operação."""
+        self._limpar_produto()
+        self._campo_obs.delete(0, "end")
+        if not self._baixa_vencido and not self._centro_origem:
+            # Volta ao passo 1 se não há pré-seleção
+            self._sec_produto.pack_forget()
+            self._opt_centro.set(list(_CENTROS.values())[0])
+            self._centro_origem = None

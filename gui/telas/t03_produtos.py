@@ -47,7 +47,7 @@ class TelaProdutos(ctk.CTkFrame):
         self._on_navigate = on_navigate
         self._produtos    = []
         self._construir()
-        self._carregar()
+        self._carregar_todos()
 
     def _construir(self):
         #Topbar
@@ -71,11 +71,20 @@ class TelaProdutos(ctk.CTkFrame):
         self._entry_busca.pack(side="left", padx=(0,8))
         self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
 
+        self._opt_lista= ctk.CTkOptionMenu( 
+            filt,
+            values=["Todas as situações", "Somente ativos", "Somente inativos", "Estoque baixo"],
+            width=170, height=32, corner_radius=6,
+            fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#161614",
+            command=self._filtrar)
+        self._opt_lista.pack(side="left", padx=(0,8))
+
         ctk.CTkButton(filt, text="Limpar", width=70, height=32,
                       fg_color=COR_BRANCO, text_color="#3d3d3a",
                       border_width=1, border_color= COR_CINZA_B,
                       hover_color= COR_CINZA_E,
                       command= self._limpar_filtros).pack(side="left")
+
         
         #Cabeçalho da tabela
         hdr= ctk.CTkFrame(self, fg_color="#FAFAF8", corner_radius=0,
@@ -84,11 +93,8 @@ class TelaProdutos(ctk.CTkFrame):
         hdr.grid_columnconfigure(5, weight=1) # Status expande para ocupar espaço extra, alinhado à esquerda)
         
         for col, (txt, largura) in enumerate(_COLUNAS):
-            # Títulos alinhados ao centro, com exceção de "Ações" que cola na direita
-            if col == 6: # Ações -> extrema direita
-                ancora = "e"
-                stick  = "e"
-            elif col in (3, 4, 5): # Est.min, Saldo E STATUS -> centralizados
+            
+            if col in (3, 4, 5,6): # Est.min, Saldo E STATUS -> centralizados
                 ancora = "center"
                 stick  = "ew"
             else: # Restante -> esquerda
@@ -108,7 +114,7 @@ class TelaProdutos(ctk.CTkFrame):
         )
         self._scroll.pack(fill="both", expand=True, padx=16, pady=(0,16))
     
-    def _carregar(self):
+    def _fitrar_ativos(self):
         try:
             self._produtos= EstoqueService.listar_produtos(apenas_ativos=True)
         except Exception as exc:
@@ -116,61 +122,81 @@ class TelaProdutos(ctk.CTkFrame):
             self._produtos=[]
         self._renderizar(self._produtos)
     
-    def _filtrar(self):
-        busca= self._entry_busca.get().lower()
-        filtrados=[]
-        for p in self._produtos:
-           nome_ok= busca in p.nome.lower() or busca in p.ean.lower()
-           if nome_ok :
-            filtrados.append(p)
+    def _carregar_todos(self):
+        """Vai ao banco de dados UMA ÚNICA VEZ e calcula todos os saldos e status."""
+        self._dados_completos = []
+        hoje = date.today()
+        try:
+            # Traz todos, ativos e inativos
+            produtos_db = EstoqueService.listar_produtos(apenas_ativos=False)
+            
+            for p in produtos_db:
+                # Calcula saldo
+                lotes = LoteRepo.listar_por_produto(p.id)
+                saldo = sum(l.quantidade_atual for l in lotes if l.data_vencimento >= hoje)
+                
+                # Define Status Visual
+                if not p.ativo:
+                    status = "Inativo"
+                elif p.estoque_minimo > 0 and saldo <= p.estoque_minimo:
+                    status = "Estoque baixo"
+                else:
+                    status = "Ativo"
+                    
+                # Salva a tupla completa na memória
+                self._dados_completos.append((p, saldo, status))
+                
+        except Exception as exc:
+            logger.error("Erro ao carregar produtos: %s", exc)
+            self._dados_completos = []
 
-        
+        # Aplica os filtros padrão e desenha a tela
+        self._filtrar()
+    def _filtrar(self, event=None):
+        """Filtra apenas na memória (super rápido), sem ir ao banco de dados."""
+        busca = self._entry_busca.get().lower().strip()
+        filtro_selecionado = self._opt_lista.get()
+
+        filtrados = []
+        for p, saldo, status in self._dados_completos:
+            # 1. Filtro de Texto (Nome ou EAN)
+            nome_ok = busca in p.nome.lower() or busca in p.ean.lower()
+
+            # 2. Filtro de Situação (Dropdown)
+            status_ok = True
+            if filtro_selecionado == "Somente ativos":
+                status_ok = p.ativo is True
+            elif filtro_selecionado == "Somente inativos":
+                status_ok = p.ativo is False
+            elif filtro_selecionado == "Estoque baixo":
+                status_ok = status == "Estoque baixo"
+
+            # Se atendeu as duas condições, adiciona na lista da tela
+            if nome_ok and status_ok:
+                filtrados.append((p, saldo, status))
+
         self._renderizar(filtrados)
     
     def _limpar_filtros(self):
-        self._entry_busca.delete(0,"end")
-        self._renderizar(self._produtos)
+        self._entry_busca.delete(0, "end")
+        self._opt_lista.set("Todas as situações")
+        self._filtrar()
     
-    def _renderizar(self, produtos):
+    def _renderizar(self, lista_produtos):
+        """Apenas desenha os componentes visuais, sem processamento de dados."""
         for w in self._scroll.winfo_children():
             w.destroy()
         
-        if not produtos:
-            ctk.CTkLabel(
-                self._scroll,
-                text="Nenhum produto encontrado",
-                text_color="#888780",
-                font= ctk.CTkFont(size=12),
-            ).pack(pady=24)
+        if not lista_produtos:
+            ctk.CTkLabel(self._scroll, text="Nenhum produto encontrado.",
+                         text_color="#888780", font=ctk.CTkFont(size=12)).pack(pady=24)
             return
-        
-        hoje= date.today()
 
-        for i, p in enumerate(produtos):
-            bg= COR_BRANCO if i % 2 == 0 else COR_CINZA_E
-            row= ctk.CTkFrame(self._scroll, fg_color= bg, corner_radius=0)
+        for i, (p, saldo, status) in enumerate(lista_produtos):
+            bg = COR_BRANCO if i % 2 == 0 else COR_CINZA_E
+            row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
             row.pack(fill="x")
-
             row.grid_columnconfigure(5, weight=1)
-
-            # Calcular saldo atual
-            try:
-                lotes = LoteRepo.listar_por_produto(p.id)
-                saldo = sum(l.quantidade_atual for l in lotes if l.data_vencimento >= hoje)
-            except Exception:
-                saldo = 0
-                
-            # Calcular status
-            if not p.ativo:
-                status="Inativo"
-            else:
-                try:
-                    lotes = LoteRepo.listar_por_produto(p.id)
-                    saldo=sum(l.quantidade_atual for l in lotes if l.data_vencimento>=hoje)
-                    status=("Estoque baixo" if p.estoque_minimo>0 and saldo <= p.estoque_minimo else "Ativo")
-                except Exception:
-                    status="Ativo"
-            
 
             valores = [
                 p.nome[:28],
@@ -179,34 +205,25 @@ class TelaProdutos(ctk.CTkFrame):
                 str(p.estoque_minimo),
                 str(saldo),
             ]
+            
             for col, (val, (_, largura)) in enumerate(zip(valores, _COLUNAS)):
                 if col == 5:
-                    ctk.CTkFrame(row, width=20, height=0, fg_color="transparent").grid(row=0, column=7) # Ações -> extrema direita
-                if col in (3, 4, 5): 
-                    stick = "ew"
-                    justifica = "center"
-                else:            
-                    stick = "w"
-                    justifica = "left"
-
-                ctk.CTkEntry(row,
-                                textvariable=tk.StringVar(value=val),
-                                state="readonly",
-                                justify=justifica, # Define alinhamento do texto
-                                text_color="#3d3d3a",
-                                fg_color="transparent",
-                                border_width=0,
-                                font=ctk.CTkFont(size=12),
-                                width=largura
-                                ).grid(row=0, column=col, padx=8, pady=7, sticky=stick)
+                    ctk.CTkFrame(row, width=20, height=0, fg_color="transparent").grid(row=0, column=7)
                     
+                if col in (3, 4, 5, 6): 
+                    stick, justifica = "ew", "center"
+                else:            
+                    stick, justifica = "w", "left"
 
-            
-            fg,tc=_STATUS_COR.get(status, ("#F1EFE8", "#5F5E5A"))
-
-            
-            
-            largura_status = _COLUNAS[5][1] 
+                ctk.CTkEntry(row, textvariable=tk.StringVar(value=val),
+                             state="readonly", justify=justifica, 
+                             text_color="#3d3d3a", fg_color="transparent", border_width=0,
+                             font=ctk.CTkFont(size=12), width=largura
+                             ).grid(row=0, column=col, padx=8, pady=7, sticky=stick)
+                    
+            # --- STATUS VISUAL ---
+            fg, tc = _STATUS_COR.get(status, ("#F1EFE8", "#5F5E5A"))
+            largura_status = _COLUNAS[5][1]
             frame_status = ctk.CTkFrame(row, fg_color="transparent", width=largura_status, height=26)
             frame_status.pack_propagate(False) 
             frame_status.grid(row=0, column=5, padx=8, pady=2, sticky="w")
@@ -216,28 +233,22 @@ class TelaProdutos(ctk.CTkFrame):
                          corner_radius=8, padx=8, pady=2, width=80
                          ).grid(row=0, column=5, padx=8, pady=2)
 
-            
-           # --- COLUNA 6: AÇÕES ---
+            # --- AÇÕES ---
             largura_acoes = _COLUNAS[6][1] 
             acoes = ctk.CTkFrame(row, fg_color="transparent", width=largura_acoes, height=30)
-            
-            # sticky="e" (East) cola todo o bloco de botões na extrema direita
             acoes.grid(row=0, column=6, padx=8, pady=4, sticky="e")
             
             pid = p.id
             ctk.CTkButton(acoes, text="Editar", width=64, height=26,
                           fg_color=COR_BRANCO, text_color="#3d3d3a",
-                          border_width=1, border_color=COR_CINZA_B,
-                          hover_color=COR_CINZA_E,
+                          border_width=1, border_color=COR_CINZA_B, hover_color=COR_CINZA_E,
                           font=ctk.CTkFont(size=11),
                           command=lambda p=pid: self._on_navigate("editar_produto", extra=p)
                           ).pack(side="left", padx=(0,4))
                           
             ctk.CTkButton(acoes, text="Ver lotes", width=72, height=26,
                           fg_color=COR_BRANCO, text_color="#3d3d3a",
-                          border_width=1, border_color=COR_CINZA_B,
-                          hover_color=COR_CINZA_E,
+                          border_width=1, border_color=COR_CINZA_B, hover_color=COR_CINZA_E,
                           font=ctk.CTkFont(size=11),
                           command=lambda p=pid: self._on_navigate("posicao", extra=p)
                           ).pack(side="left")
-            saldo = 0

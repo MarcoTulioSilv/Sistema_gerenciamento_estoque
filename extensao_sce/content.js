@@ -28,7 +28,6 @@ function extrairDadosSefaz() {
         
         let itens = [];
         
-        // CORREÇÃO: Usando '>' para pegar SOMENTE as tabelas pai (ignora as de PIS/COFINS internas)
         let tbToggles = document.querySelectorAll("#Prod > fieldset > div > table.toggle");
         let tbDetalhes = document.querySelectorAll("#Prod > fieldset > div > table.toggable");
         
@@ -45,7 +44,6 @@ function extrairDadosSefaz() {
             let vUnNode = document.evaluate(".//label[contains(text(), 'Valor unitário de comercialização')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let vUn = vUnNode ? parseFloat(vUnNode.innerText.replace(/\./g, '').replace(',', '.')) : 0;
             
-            let loteNode = document.evaluate(".//label[contains(text(), 'Número do Lote do produto')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let valNode = document.evaluate(".//label[contains(text(), 'Data de validade')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let fabNode = document.evaluate(".//label[contains(text(), 'Data de fabricação')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             
@@ -55,21 +53,40 @@ function extrairDadosSefaz() {
                 validade = `${p[2]}/${p[1]}/${p[0]}`;
             }
 
-            // CORREÇÃO: Extração da data de fabricação real do lote
             let fabricacao = fabNode ? fabNode.innerText.trim() : "";
             if (fabricacao && fabricacao.includes('-')) {
                 let p = fabricacao.split('-');
                 fabricacao = `${p[2]}/${p[1]}/${p[0]}`;
             }
             
+            // --- NOVA LÓGICA CORRIGIDA PARA EXTRAÇÃO DE LOTE ---
+            let loteNode = document.evaluate(".//label[contains(text(), 'Número do Lote do produto')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+            let loteValor = loteNode ? loteNode.innerText.trim() : "";
+
+            if (!loteValor) {
+                // Busca especificamente na tabela de "Informações adicionais do produto" (ignora o nome do produto no topo)
+                let infoAdicionalNode = document.evaluate(".//fieldset[contains(@class, 'fieldset-internal')]//label[contains(text(), 'Descrição')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                
+                if (infoAdicionalNode) {
+                    let descText = infoAdicionalNode.innerText;
+                    // Procura o padrão "Lote:" ou "LOTE " seguido de letras/números
+                    let matchLote = descText.match(/Lote\s*[:\-]?\s*([A-Za-z0-9_\-]+)/i);
+                    if (matchLote && matchLote[1]) {
+                        loteValor = matchLote[1].trim();
+                        console.log(`SCE: Lote resgatado das informações adicionais: ${loteValor}`);
+                    }
+                }
+            }
+            // ----------------------------------------------------
+
             if (eanNode && eanNode.innerText.trim() !== "") {
                 itens.push({
                     ean: eanNode.innerText.trim(),
                     quantidade: qtd,
                     valor_unitario: vUn,
-                    lote: loteNode ? loteNode.innerText.trim() : "",
+                    lote: loteValor, 
                     validade: validade,
-                    fabricacao: fabricacao, // <-- Adicionado no JSON
+                    fabricacao: fabricacao,
                     unidade_estoque: unidadeNode ? unidadeNode.innerText.trim() : ""
                 });
             }

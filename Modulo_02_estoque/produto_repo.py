@@ -11,17 +11,37 @@ logger= logging.getLogger(__name__)
 class ProdutoRepo:
     
     @staticmethod
-    def listar(apenas_ativos: bool=True)-> list[Produto]:
-        with get_read_session() as s:
-            q=(s.query(Produto)
-               .options(joinedload(Produto.lotes))
-            )
-            if apenas_ativos:
-                q= q.filter(Produto.ativo==1)
-            itens= q.order_by(Produto.nome).all()
-            s.expunge_all()
-            return itens
+    def listar(apenas_ativos: bool|None=None)-> list[Produto]:
+        if apenas_ativos== True:
+            with get_read_session() as s:
+                q=(s.query(Produto)
+                .options(joinedload(Produto.lotes))
+                )
+                if apenas_ativos:
+                    q= q.filter(Produto.ativo==1)
+                itens= q.order_by(Produto.nome).all()
+                s.expunge_all()
+                return itens
+        elif apenas_ativos==False:
+            with get_read_session() as s:
+                q=(s.query(Produto)
+                .options(joinedload(Produto.lotes))
+                )
+                if apenas_ativos:
+                    q= q.filter(Produto.ativo==0)
+                itens= q.order_by(Produto.nome).all()
+                s.expunge_all()
+                return itens
+        else:
+            with get_read_session() as s:
+                q=(s.query(Produto)
+                .options(joinedload(Produto.lotes))
+                )
+                itens= q.order_by(Produto.nome).all()
+                s.expunge_all()
+                return itens
 
+        
     @staticmethod
     def buscar_por_id(id_: int)-> Produto | None:
         with get_read_session() as s :

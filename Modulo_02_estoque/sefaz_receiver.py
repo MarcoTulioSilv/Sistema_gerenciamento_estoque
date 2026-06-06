@@ -50,7 +50,7 @@ def iniciar_escuta_e_abrir_navegador(chave: str) -> DadosSefaz:
                         except ValueError: pass
 
                     # Remove o arquivo após a leitura para não duplicar
-                   # os.remove(arquivo)
+                    os.remove(arquivo)
 
                     return DadosSefaz(
                         sucesso=True,

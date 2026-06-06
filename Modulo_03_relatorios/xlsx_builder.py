@@ -8,11 +8,11 @@ from datetime import date, datetime, timedelta
 from pathlib  import Path
 from decimal  import Decimal
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side 
-from openpyxl.styles import Alignment
 from openpyxl import Workbook
-from Modulo_06_dados import get_read_session, Movimentacao, Lote, Produto, Usuario, Lote
+from Modulo_06_dados import get_read_session, Movimentacao, Lote, Produto, Usuario
 from sqlalchemy.orm import joinedload
 from datetime import datetime as dt
+import io as _io_bg
 
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,117 @@ COR_LINHA_ALT    = "F2F1ED"   # cinza claro (linhas alternadas)
 COR_AMBER_FILL   = "FAEEDA"   # âmbar claro
 COR_AMBER_FONT   = "854F0B"   # âmbar escuro
  
+# imagem de fundo
+LOGO_BG_PATH= Path("assets")/ "logo_Centro_Uro_Nefrologia_sem_fundo.png"
  
+def _aplicar_background(xlsx_bytes: bytes) -> bytes:
+    """
+    Insere LOGO_BG_PATH como background (marca d'água) em todas as abas
+    do arquivo .xlsx representado por xlsx_bytes.
+ 
+    Retorna os bytes do arquivo modificado.
+    Se a imagem não existir ou ocorrer erro, retorna xlsx_bytes sem modificação.
+    """
+    if not LOGO_BG_PATH.exists():
+        logger.warning(
+            "Logo de background não encontrada em '%s' — planilha gerada sem marca d'água.",
+            LOGO_BG_PATH,
+        )
+        return xlsx_bytes
+ 
+    try:
+        img_bytes = LOGO_BG_PATH.read_bytes()
+        img_ext   = LOGO_BG_PATH.suffix.lstrip(".").lower()   # "png" ou "jpeg"
+        return _injetar_background_ooxml(xlsx_bytes, img_bytes, img_ext)
+    except Exception as exc:
+        logger.warning("Erro ao aplicar background na planilha: %s", exc)
+        return xlsx_bytes
+
+def _injetar_background_ooxml(
+    xlsx_bytes: bytes,
+    img_bytes:  bytes,
+    img_ext:    str = "png",
+) -> bytes:
+    """
+    Manipula o ZIP interno do .xlsx para injetar a imagem como background
+    em todas as abas, seguindo a especificação OOXML (ECMA-376, §18.3.1.16).
+ 
+    A tag <picture r:id="rIdBG"/> dentro de <worksheet> instrui o Excel a
+    renderizar a imagem como fundo repetido/centralizado na aba — o mesmo
+    comportamento de Página → Plano de Fundo no Excel.
+    """
+    import zipfile, io as _io
+ 
+    buf_in  = _io.BytesIO(xlsx_bytes)
+    buf_out = _io.BytesIO()
+    REL_TYPE = (
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+    )
+    MEDIA_PATH = f"xl/media/logo_background.{img_ext}"
+    RID        = "rIdBG"
+ 
+    with zipfile.ZipFile(buf_in, "r") as zin,          zipfile.ZipFile(buf_out, "w", zipfile.ZIP_DEFLATED) as zout:
+ 
+        nomes  = zin.namelist()
+        sheets = [
+            n for n in nomes
+            if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")
+        ]
+        img_gravada = False
+ 
+        for item in nomes:
+            data = zin.read(item)
+ 
+            # Grava a imagem antes do primeiro sheet (ordem no ZIP não importa)
+            if not img_gravada and item == (sheets[0] if sheets else ""):
+                zout.writestr(MEDIA_PATH, img_bytes)
+                img_gravada = True
+ 
+            if item in sheets:
+                xml = data.decode("utf-8")
+                # Garante namespace r:
+                if "xmlns:r=" not in xml:
+                    xml = xml.replace(
+                        "<worksheet ",
+                        "<worksheet "
+                        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ',
+                    )
+                # Injeta <picture> antes de </worksheet> (apenas uma vez)
+                if "<picture " not in xml:
+                    xml = xml.replace(
+                        "</worksheet>",
+                        f'<picture r:id="{RID}"/></worksheet>',
+                    )
+                zout.writestr(item, xml.encode("utf-8"))
+ 
+            elif (
+                item.startswith("xl/worksheets/_rels/")
+                and item.endswith(".rels")
+            ):
+                xml = data.decode("utf-8")
+                if RID not in xml:
+                    rel = (
+                        f'<Relationship Id="{RID}" Type="{REL_TYPE}" '                        f'Target="../{MEDIA_PATH[3:]}"/>'                    )
+                    xml = xml.replace("</Relationships>", rel + "</Relationships>")
+                zout.writestr(item, xml.encode("utf-8"))
+ 
+            else:
+                zout.writestr(item, data)
+ 
+        # Cria _rels para sheets que ainda não tinham o arquivo de relacionamentos
+        for sheet in sheets:
+            rels_path = (
+                sheet.replace("xl/worksheets/", "xl/worksheets/_rels/") + ".rels"
+            )
+            if rels_path not in nomes:
+                rels_xml = (
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'                    '<Relationships '                    'xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'                    f'<Relationship Id="{RID}" Type="{REL_TYPE}" '                    f'Target="../{MEDIA_PATH[3:]}"/>'                    "</Relationships>"
+                )
+                zout.writestr(rels_path, rels_xml.encode("utf-8"))
+ 
+    buf_out.seek(0)
+    return buf_out.read()
+
 def _wb_styles():
     """Retorna os estilos reutilizáveis para o workbook."""
     header_fill = PatternFill("solid", fgColor=COR_HEADER_FILL)
@@ -123,7 +233,7 @@ class XlsxBuilder:
         colunas = [
             ("Data/Hora", 18), ("Produto", 50), ("Lote", 14),
             ("Nota Fiscal", 14), ("Tipo", 16), ("Quantidade", 12),
-            ("Usuário", 20), ("Observação", 35),
+            ("Usuário", 20), ("Observação", 45),
         ]
         inicio = dt.combine(data_ini, dt.min.time())
         fim    = dt.combine(data_fim, dt.max.time())
@@ -195,9 +305,12 @@ class XlsxBuilder:
                 
         # Congela as duas linhas superiores
         ws.freeze_panes = "A3"
- 
+
+        _buf = _io_bg.BytesIO()
+        wb.save(_buf)
+        _bytes_final = _aplicar_background(_buf.getvalue())
         caminho = XlsxBuilder._nome_arquivo("movimentacao")
-        wb.save(caminho)
+        Path(caminho).write_bytes(_bytes_final)
         logger.info("Relatório movimentação gerado: %s", caminho)
         return caminho
  
@@ -278,8 +391,11 @@ class XlsxBuilder:
                 ], st, fill=fill, font=font)
  
         ws.freeze_panes = "A3"
+        _buf = _io_bg.BytesIO()
+        wb.save(_buf)
+        _bytes_final = _aplicar_background(_buf.getvalue())
         caminho = XlsxBuilder._nome_arquivo("estoque_atual")
-        wb.save(caminho)
+        Path(caminho).write_bytes(_bytes_final)
         logger.info("Relatório estoque atual gerado: %s", caminho)
         return caminho
  
@@ -350,8 +466,11 @@ class XlsxBuilder:
                 ], st, fill=fill, font=font)
  
         ws.freeze_panes = "A3"
+        _buf = _io_bg.BytesIO()
+        wb.save(_buf)
+        _bytes_final = _aplicar_background(_buf.getvalue())
         caminho = XlsxBuilder._nome_arquivo("a_vencer")
-        wb.save(caminho)
+        Path(caminho).write_bytes(_bytes_final)
         logger.info("Relatório a vencer gerado: %s (%d lotes)", caminho, len(lotes))
         return caminho
  
@@ -448,7 +567,10 @@ class XlsxBuilder:
                 ], st, fill=st["vf"], font=st["vft"], alignments=alinhamentos)
  
         ws.freeze_panes = "A3" # Congela Título e Cabeçalho
+        _buf = _io_bg.BytesIO()
+        wb.save(_buf)
+        _bytes_final = _aplicar_background(_buf.getvalue())
         caminho = XlsxBuilder._nome_arquivo("lotes_vencidos")
-        wb.save(caminho)
+        Path(caminho).write_bytes(_bytes_final)
         logger.info("Relatório lotes vencidos gerado: %s (%d lotes)", caminho, len(lotes))
         return caminho

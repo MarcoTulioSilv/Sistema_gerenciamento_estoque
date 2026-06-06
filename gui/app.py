@@ -80,6 +80,8 @@ class SCEApp(ctk.CTk):
 
         self.geometry("1100x600")
         self.minsize(900, 600)
+        if sys.platform.startswith("win"):
+            self.after(0, lambda: self.state("zoomed"))
         self.configure(fg_color=COR_CINZA_E)
 
         # Estado dee sessão
@@ -313,7 +315,7 @@ class Sidebar(ctk.CTkFrame):
         ("entrada_manual"   ,"Entrada Manual",                ["admin", "tecnico", "ti"]),
         ("importar_nfe"     ,"Importar NF-e",                 ["admin", "tecnico", "ti"]),
         ("entrada_danfe"    ,"Entrada DANFE",                 ["admin", "tecnico", "ti"]),
-        ("retirada"         ,"Retirada",                      ["admin", "tecnico", "ti"]),
+        ("retirada"         ,"Retirada/ Transferencia",                      ["admin", "tecnico", "ti"]),
         ("__label__"        ,"Consulta",                      None),
         ("posicao"          ,"Posição de Estoque",            ["admin", "tecnico", "ti"]),
         ("dashboard"        ,"Dashboard",                     ["admin", "tecnico", "ti"]),

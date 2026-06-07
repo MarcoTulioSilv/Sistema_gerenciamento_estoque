@@ -723,3 +723,15 @@ class TelaRetirada(ctk.CTkFrame):
             self._sec_produto.pack_forget()
             self._opt_centro.set(list(_CENTROS.values())[0])
             self._centro_origem = None
+            
+    def limpar_memoria(self):
+        # Quebra o vínculo com objetos instanciados do banco de dados
+        if hasattr(self, '_produto_sel'):
+            self._produto_sel = None
+        
+        if hasattr(self, '_plano') and self._plano is not None:
+            # O _plano tem uma lista de itens dentro dele que precisa ser solta
+            self._plano = None
+            
+        if hasattr(self, '_lotes_vencidos'):
+            self._lotes_vencidos = None

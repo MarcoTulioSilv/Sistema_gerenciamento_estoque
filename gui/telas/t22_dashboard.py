@@ -194,6 +194,8 @@ class TelaDashboard(ctk.CTkFrame):
         if self._timer:
             self.after_cancel(self._timer)
         super().destroy()
+    
+    
 
 
 class _CardDash(ctk.CTkFrame):

@@ -337,3 +337,9 @@ class PainelUsuario(ctk.CTkFrame):
         except Exception as exc:
             logger.error("Erro ao salvar usuário: %s", exc)
             self._banner.erro(f"Erro ao salvar: {exc}")
+
+    def limpar_memoria(self):
+        """Garante o fechamento do painel de edição flutuante, se aberto."""
+        if hasattr(self, '_painel_edicao') and self._painel_edicao is not None:
+            self._painel_edicao.destroy()
+            self._painel_edicao = None

@@ -235,6 +235,15 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
             logger.error("Erro ao salvar estoque mínimo (produto %s): %s", produto_id, exc)
             self._banner.erro(f"Erro ao salvar: {exc}")
         self._renderizar(self._dados)
+    
+    def limpar_memoria(self):
+        """Esvazia os dicionários e listas de cache de estoque."""
+        if hasattr(self, '_dados') and self._dados is not None:
+            self._dados.clear()
+            self._dados = None
+        if hasattr(self, '_linhas') and self._linhas is not None:
+            self._linhas.clear()
+            self._linhas = None
 
 # ── Utilitários ───────────────────────────────────────────────────────────────
 

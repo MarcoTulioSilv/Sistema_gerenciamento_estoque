@@ -853,6 +853,21 @@ class TelaEntradaDANFE(ctk.CTkFrame):
     def destroy(self):
         """Destrói a tela de forma limpa."""
         super().destroy()
+    
+    def limpar_memoria(self):
+        """Limpa as listas de scraping, itens pendentes e referências de banco."""
+        if hasattr(self, '_produto_sel'):
+            self._produto_sel = None
+        if hasattr(self, '_dados_chave'):
+            self._dados_chave = None
+            
+        if hasattr(self, '_itens_pendentes') and self._itens_pendentes is not None:
+            self._itens_pendentes.clear()
+            self._itens_pendentes = None
+            
+        if hasattr(self, '_resumo_danfe') and self._resumo_danfe is not None:
+            self._resumo_danfe.clear()
+            self._resumo_danfe = None
 
 # ── Utilitário ────────────────────────────────────────────────────────────────
 

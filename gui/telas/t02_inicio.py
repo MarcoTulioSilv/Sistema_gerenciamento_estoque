@@ -289,8 +289,19 @@ class TelaInicio(ctk.CTkFrame):
             font=ctk.CTkFont(size=12, weight="bold"),
             command=_acao_dar_baixa
         ).pack(side="right", padx=(0, 10))
+
     def destroy(self):
         """Cancela o timer ao destruir tela"""
         if self._timer:
             self.after_cancel(self._timer)
         super().destroy()
+
+    def limpar_memoria(self):
+        """Para o timer de auto-refresh e limpa a lista de vencidos."""
+        if hasattr(self, '_timer') and self._timer is not None:
+            self.after_cancel(self._timer)
+            self._timer = None
+            
+        if hasattr(self, '_lista_vencidos') and self._lista_vencidos is not None:
+            self._lista_vencidos.clear()
+            self._lista_vencidos = None

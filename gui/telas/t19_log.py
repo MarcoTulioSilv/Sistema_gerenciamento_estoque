@@ -318,3 +318,9 @@ class TelaLog(ctk.CTkFrame):
         self._lbl_rodape.configure(
             text=f"{len(linhas)} registro(s) exibidos — somente leitura.")
     
+    def limpar_memoria(self):
+        """Limpa as centenas de registros de log baixados do banco."""
+        if hasattr(self, '_linhas') and self._linhas is not None:
+            self._linhas.clear()
+            self._linhas = None
+    

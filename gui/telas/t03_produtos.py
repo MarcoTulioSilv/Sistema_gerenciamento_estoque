@@ -46,6 +46,7 @@ class TelaProdutos(ctk.CTkFrame):
         self._usuario     = usuario
         self._on_navigate = on_navigate
         self._produtos    = []
+        self._timer_busca= None
         self._construir()
         self._carregar_todos()
 
@@ -69,7 +70,7 @@ class TelaProdutos(ctk.CTkFrame):
         self._entry_busca= ctk.CTkEntry(filt, placeholder_text="Buscar por nome ou EAN...",
                                     height=32, width= 300, corner_radius=6)
         self._entry_busca.pack(side="left", padx=(0,8))
-        self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
+        self._entry_busca.bind("<KeyRelease>", self._agendar_filtro)
 
         self._opt_lista= ctk.CTkOptionMenu( 
             filt,
@@ -176,7 +177,19 @@ class TelaProdutos(ctk.CTkFrame):
                 filtrados.append((p, saldo, status))
 
         self._renderizar(filtrados)
-    
+    def _limpar_filtros(self):
+        busca = self._entry_busca.get().strip()
+        situacao = self._opt_lista.get()
+
+        # 1. VALIDAÇÃO DE ESTADO: Se já está tudo limpo, aborta a função silenciosamente!
+        if not busca and situacao == "Todas as situações":
+            return
+
+        self._entry_busca.delete(0, "end")
+        self._opt_lista.set("Todas as situações") # Corrigido a letra maiúscula aqui para coincidir com a lista
+        
+        self._filtrar()
+
     def _limpar_filtros(self):
         self._entry_busca.delete(0, "end")
         self._opt_lista.set("Todas as situações")
@@ -252,3 +265,25 @@ class TelaProdutos(ctk.CTkFrame):
                           font=ctk.CTkFont(size=11),
                           command=lambda p=pid: self._on_navigate("posicao", extra=p)
                           ).pack(side="left")
+    
+    def limpar_memoria(self):
+
+        """Método chamado pelo app.py ao sair da tela para esvaziar a RAM."""
+        # Limpa a lista principal de renderização
+        if hasattr(self, '_dados_completos') and self._dados_completos is not None:
+            self._dados_completos.clear()
+            self._dados_completos = None
+            
+        # Limpa a lista secundária
+        if hasattr(self, '_produtos') and self._produtos is not None:
+            self._produtos.clear()
+            self._produtos = None
+    
+    def _agendar_filtro(self, event=None):
+        """Espera o usuário parar de digitar por 400ms antes de travar a tela renderizando."""
+        # Se já existe uma contagem rodando (o usuário ainda está digitando), cancela!
+        if self._timer_busca is not None:
+            self.after_cancel(self._timer_busca)
+            
+        # Inicia um novo cronômetro de 400 milissegundos para disparar o filtro real
+        self._timer_busca = self.after(400, self._filtrar)

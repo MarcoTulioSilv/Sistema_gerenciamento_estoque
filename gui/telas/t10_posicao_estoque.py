@@ -65,6 +65,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         self._produto_id= produto_id
         self._linhas= [] #(lote, produto, situacao)
         self.permissao= usuario.perfil.value=="tecnico", "admin"
+        self._timer_busca= None
         self._construir()
         self._carregar()
 
@@ -91,7 +92,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
             filt, placeholder_text="Buscar produto ou lote",
             height=32, width=260, corner_radius=6)
         self._entry_busca.pack(side="left")
-        self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
+        self._entry_busca.bind("<KeyRelease>",self._agendar_filtro)
 
         self._opt_centro= ctk.CTkOptionMenu(
             filt, values=["Todos os centros", "Almoxarifado", "Farmacia","Deposito"],
@@ -209,9 +210,18 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
     
 
     def _limpar_filtros(self):
-        self._entry_busca.delete(0,"end")
+        busca = self._entry_busca.get().strip()
+        centro = self._opt_centro.get()
+        situacao = self._opt_situacao.get()
+
+        # 1. VALIDAÇÃO DE ESTADO: Se já está tudo limpo, aborta a função silenciosamente!
+        if not busca and centro == "Todos os centros" and situacao == "Todas as situações":
+            return
+
+        self._entry_busca.delete(0, "end")
         self._opt_centro.set("Todos os centros")
-        self._opt_situacao.set("todas as situações")
+        self._opt_situacao.set("Todas as situações") # Corrigido a letra maiúscula aqui para coincidir com a lista
+        
         self._renderizar(self._linhas)
 
     
@@ -296,3 +306,17 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                      text=f"Erro ao carregar estoque: \n {detalhe}",
                      text_color= COR_VERM, font=ctk.CTkFont(size=12),
                      wraplength=600, justify="left").pack(pady=24, padx=16)
+    
+    def limpar_memoria(self):
+        """Método chamado pelo app.py ao sair da tela para esvaziar a RAM."""
+        self._linhas.clear()
+        self._linhas = None
+
+    def _agendar_filtro(self, event=None):
+        """Espera o usuário parar de digitar por 400ms antes de travar a tela renderizando."""
+        # Se já existe uma contagem rodando (o usuário ainda está digitando), cancela!
+        if self._timer_busca is not None:
+            self.after_cancel(self._timer_busca)
+            
+        # Inicia um novo cronômetro de 400 milissegundos para disparar o filtro real
+        self._timer_busca = self.after(400, self._filtrar)

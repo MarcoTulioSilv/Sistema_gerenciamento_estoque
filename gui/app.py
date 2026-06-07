@@ -1,8 +1,11 @@
 import os
 import sys
+import time
 import tkinter as tk
 import customtkinter as ctk
+import gc
 from customtkinter.windows.widgets.core_widget_classes.dropdown_menu import DropdownMenu
+from customtkinter.windows.widgets.ctk_button import CTkButton
 from datetime import datetime
 
 
@@ -51,6 +54,26 @@ def _safe_set_scaling(self, *args, **kwargs):
 
 DropdownMenu._set_scaling = _safe_set_scaling
 
+_original_button_clicked = CTkButton._clicked
+
+def _safe_button_clicked(self, event=None):
+    agora = time.time()
+    
+    # Inicializa a memória de tempo no botão, se não existir
+    if not hasattr(self, '_ultimo_clique'):
+        self._ultimo_clique = 0
+        
+    # COOLDOWN: Se passou menos de 0.5 segundos (500ms) desde o último clique, ele simplesmente ignora!
+    if agora - self._ultimo_clique < 0.7:
+        return 
+        
+    # Se passou no teste de tempo, atualiza a memória e executa a função do botão
+    self._ultimo_clique = agora
+    _original_button_clicked(self, event)
+
+# Injeta a nossa função segura dentro do CustomTkinter
+CTkButton._clicked = _safe_button_clicked
+
 class SCEApp(ctk.CTk):
     # Janela raiz do sistema, gerencia login e navegação entre telas
     def __init__(self):
@@ -91,10 +114,10 @@ class SCEApp(ctk.CTk):
         self.session_timer = None
 
         #exibe tela de login na inicialização
-        self._monstrar_login()
+        self._mostrar_login()
 
 #---- login/ logout ----
-    def _monstrar_login(self):
+    def _mostrar_login(self):
         """limpa a janela e exibe a tela de login"""        
         for widget in self.winfo_children():
             widget.destroy()
@@ -113,7 +136,7 @@ class SCEApp(ctk.CTk):
             self.after_cancel(self.session_timer)
         SessionManager.encerrar_sessao()
         self.usuario_logado = None
-        self._monstrar_login()
+        self._mostrar_login()
 
 #----- sessão ---------------------------------------------------------------------------------
     def _iniciar_timer_sessao(self):
@@ -162,8 +185,7 @@ class SCEApp(ctk.CTk):
     def _navegar(self, destino: str):
         """troca o conteudo da area principal pela tela indicada """
         self.resetar_timer_sessao()
-        for w in self._area_conteudo.winfo_children():
-            w.destroy()
+        self._limpar_area_conteudo()
         
         tela = self._resolver_tela(destino)
         if tela:
@@ -233,8 +255,7 @@ class SCEApp(ctk.CTk):
     def _on_navigate_com_extra(self, destino: str, extra=None):
         """Versão do _navegar que aceita parâmetro extra(ex: produto_id)"""
         self.resetar_timer_sessao()
-        for w in self._area_conteudo.winfo_children():
-            w.destroy()
+        self._limpar_area_conteudo()
         tela= self._resolver_tela(destino, extra= extra)
         if tela:
             tela.pack(fill="both", expand= True)
@@ -264,6 +285,25 @@ class SCEApp(ctk.CTk):
 
     def pararScheduler(self):
         self._scheduler.parar()
+    
+    def _limpar_area_conteudo(self):
+        """Destrói os widgets e força o Python a liberar a memória RAM retida."""
+        for w in self._area_conteudo.winfo_children():
+            # 1. Tenta limpar grandes volumes de dados se a tela tiver esse recurso
+            if hasattr(w, 'limpar_memoria'):
+                try:
+                    w.limpar_memoria()
+                except Exception as e:
+                    print(f"Erro ao limpar memória da tela: {e}")
+            
+            # 2. Destrói o widget visualmente
+            w.destroy()
+            
+            # 3. Remove a referência local
+            del w 
+            
+        # 4. Força o Coletor de Lixo do Python a passar e esvaziar a RAM imediatamente
+        gc.collect()
        
 #---- Componentes da janela principal (titlebar, sidebar) --------------------------------------------------------------
 

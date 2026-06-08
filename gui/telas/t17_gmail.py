@@ -42,6 +42,7 @@ class TelaGmail(ctk.CTkFrame):
                      text_color=COR_AZUL).pack(side="left", padx=16, pady=10)
 
         self._banner = FeedbackBanner(self)
+        self._banner.pack(fill="x", padx=16)
 
         scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=0)
         scroll.pack(fill="both", expand=True)
@@ -93,22 +94,6 @@ class TelaGmail(ctk.CTkFrame):
             command=self._salvar,
         ).pack(side="left")
         
-        frame_Agendamento= ctk.CTkFrame( self, fg_color=COR_CINZA_E, corner_radius=0)
-        frame_Agendamento.pack(anchor="w", padx=16, pady=(0, 8))
-
-        entry_agendamento=ctk.CTkEntry(
-            frame_Agendamento, placeholder_text="07:00",
-            width=70, height=28, corner_radius=4)
-        entry_agendamento.pack(side="left", padx=(0, 12))
-        entry_agendamento.insert(0, "07:00")
-        
-        btn_exc= ctk.CTkButton( frame_Agendamento, text="Executar job de notificações agora", width=250, height=36,
-            fg_color=COR_BRANCO, text_color=COR_AZUL_M,
-            border_width=1, border_color=COR_AZUL_M,
-            hover_color=COR_CINZA_E, font=ctk.CTkFont(size=12),
-            command= lambda: scheduler.NotificacaoScheduler.executar_agora(),
-        )
-        btn_exc.pack(side="left", padx=(0, 12), pady=(0, 16))
     # ── Dados ─────────────────────────────────────────────────────────────────
 
     def _carregar(self):

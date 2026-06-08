@@ -63,24 +63,21 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
                       command=self._carregar).pack(side="right", padx=16, pady=8)
 
         self._banner = FeedbackBanner(self)
+        self._banner.pack(fill="x", padx=16)
        
 
-        # Filtros
-        filt = ctk.CTkFrame(self, fg_color="transparent")
-        filt.pack(fill="x", padx=16, pady=(0))
-
         self._entry_busca = ctk.CTkEntry(
-            filt, placeholder_text="Buscar produto...",
+        self._topbar, placeholder_text="Buscar produto...",
             height=32, width=280, corner_radius=6)
         self._entry_busca.pack(side="left")
         self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
 
 
-        ctk.CTkButton(filt, text="Limpar", width=70, height=32,
+        ctk.CTkButton(self._topbar, text="Limpar", width=70, height=32,
                       fg_color=COR_BRANCO, text_color="#161614",
                       border_width=1, border_color=COR_CINZA_B,
                       hover_color=COR_CINZA_E,
-                      command=self._limpar_filtros).pack(side="left")
+                      command=self._limpar_filtros).pack(side="left", padx=16, pady=8)
 
         # Cabeçalho da tabela
         hdr = ctk.CTkFrame(self, fg_color=COR_BRANCO, corner_radius=0,

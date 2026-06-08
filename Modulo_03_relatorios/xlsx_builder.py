@@ -29,28 +29,35 @@ COR_AMBER_FONT   = "854F0B"   # âmbar escuro
 # imagem de fundo
 LOGO_BG_PATH= Path("assets")/ "logo_Centro_Uro_Nefrologia_sem_fundo.png"
  
+
+MIME_MAP = {
+    "png":  "image/png",
+    "jpg":  "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif":  "image/gif",
+    "tiff": "image/tiff",
+}
+
+
 def _aplicar_background(xlsx_bytes: bytes) -> bytes:
     """
-    Insere LOGO_BG_PATH como background (marca d'água) em todas as abas
-    do arquivo .xlsx representado por xlsx_bytes.
- 
-    Retorna os bytes do arquivo modificado.
-    Se a imagem não existir ou ocorrer erro, retorna xlsx_bytes sem modificação.
+    Insere LOGO_BG_PATH como background (marca d'água) em todas as abas.
+    Retorna os bytes modificados; em caso de erro retorna xlsx_bytes intacto.
     """
     if not LOGO_BG_PATH.exists():
         logger.warning(
-            "Logo de background não encontrada em '%s' — planilha gerada sem marca d'água.",
+            "Logo de background não encontrada em '%s' — planilha sem marca d'água.",
             LOGO_BG_PATH,
         )
         return xlsx_bytes
- 
     try:
         img_bytes = LOGO_BG_PATH.read_bytes()
-        img_ext   = LOGO_BG_PATH.suffix.lstrip(".").lower()   # "png" ou "jpeg"
+        img_ext   = LOGO_BG_PATH.suffix.lstrip(".").lower()
         return _injetar_background_ooxml(xlsx_bytes, img_bytes, img_ext)
     except Exception as exc:
-        logger.warning("Erro ao aplicar background na planilha: %s", exc)
+        logger.warning("Erro ao aplicar background: %s", exc)
         return xlsx_bytes
+
 
 def _injetar_background_ooxml(
     xlsx_bytes: bytes,
@@ -58,72 +65,79 @@ def _injetar_background_ooxml(
     img_ext:    str = "png",
 ) -> bytes:
     """
-    Manipula o ZIP interno do .xlsx para injetar a imagem como background
-    em todas as abas, seguindo a especificação OOXML (ECMA-376, §18.3.1.16).
- 
-    A tag <picture r:id="rIdBG"/> dentro de <worksheet> instrui o Excel a
-    renderizar a imagem como fundo repetido/centralizado na aba — o mesmo
-    comportamento de Página → Plano de Fundo no Excel.
+    Injeta a imagem como background OOXML em todas as abas do .xlsx.
+
+    Três requisitos do Excel para o background funcionar:
+      1. Imagem em xl/media/logo_background.<ext>
+      2. <Default Extension="png" ContentType="image/png"/> no Content_Types.xml
+      3. <picture r:id="rIdBG"/> dentro de <worksheet>
+      4. Relationship no _rels de cada aba
     """
-    import zipfile, io as _io
- 
+    import zipfile
+    import io as _io
+
     buf_in  = _io.BytesIO(xlsx_bytes)
     buf_out = _io.BytesIO()
-    REL_TYPE = (
-        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
-    )
+    REL_TYPE   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
     MEDIA_PATH = f"xl/media/logo_background.{img_ext}"
     RID        = "rIdBG"
- 
-    with zipfile.ZipFile(buf_in, "r") as zin,          zipfile.ZipFile(buf_out, "w", zipfile.ZIP_DEFLATED) as zout:
- 
+    MIME       = MIME_MAP.get(img_ext, "image/png")
+
+    with zipfile.ZipFile(buf_in, "r") as zin, \
+         zipfile.ZipFile(buf_out, "w", zipfile.ZIP_DEFLATED) as zout:
+
         nomes  = zin.namelist()
-        sheets = [
-            n for n in nomes
-            if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")
-        ]
+        sheets = [n for n in nomes
+                  if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")]
         img_gravada = False
- 
+
         for item in nomes:
             data = zin.read(item)
- 
-            # Grava a imagem antes do primeiro sheet (ordem no ZIP não importa)
+
+            # 1. Gravar imagem no media
             if not img_gravada and item == (sheets[0] if sheets else ""):
                 zout.writestr(MEDIA_PATH, img_bytes)
                 img_gravada = True
- 
-            if item in sheets:
+
+            # 2. Content_Types: registrar extensão PNG/JPEG
+            if item == "[Content_Types].xml":
                 xml = data.decode("utf-8")
-                # Garante namespace r:
+                entry = f'<Default Extension="{img_ext}" ContentType="{MIME}"/>'
+                if f'Extension="{img_ext}"' not in xml:
+                    xml = xml.replace(
+                        'xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
+                        f'xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' + entry,
+                    )
+                zout.writestr(item, xml.encode("utf-8"))
+
+            # 3. Sheet XML: injetar <picture> e namespace r:
+            elif item in sheets:
+                xml = data.decode("utf-8")
                 if "xmlns:r=" not in xml:
                     xml = xml.replace(
                         "<worksheet ",
-                        "<worksheet "
-                        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ',
+                        '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ',
                     )
-                # Injeta <picture> antes de </worksheet> (apenas uma vez)
                 if "<picture " not in xml:
                     xml = xml.replace(
                         "</worksheet>",
                         f'<picture r:id="{RID}"/></worksheet>',
                     )
                 zout.writestr(item, xml.encode("utf-8"))
- 
-            elif (
-                item.startswith("xl/worksheets/_rels/")
-                and item.endswith(".rels")
-            ):
+
+            # 4. _rels: adicionar relationship da imagem
+            elif item.startswith("xl/worksheets/_rels/") and item.endswith(".rels"):
                 xml = data.decode("utf-8")
                 if RID not in xml:
                     rel = (
                         f'<Relationship Id="{RID}" Type="{REL_TYPE}" '                        f'Target="../{MEDIA_PATH[3:]}"/>'                    )
                     xml = xml.replace("</Relationships>", rel + "</Relationships>")
                 zout.writestr(item, xml.encode("utf-8"))
- 
+
             else:
                 zout.writestr(item, data)
- 
-        # Cria _rels para sheets que ainda não tinham o arquivo de relacionamentos
+
+        # 5. Criar _rels para sheets que não tinham
         for sheet in sheets:
             rels_path = (
                 sheet.replace("xl/worksheets/", "xl/worksheets/_rels/") + ".rels"
@@ -133,9 +147,10 @@ def _injetar_background_ooxml(
                     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'                    '<Relationships '                    'xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'                    f'<Relationship Id="{RID}" Type="{REL_TYPE}" '                    f'Target="../{MEDIA_PATH[3:]}"/>'                    "</Relationships>"
                 )
                 zout.writestr(rels_path, rels_xml.encode("utf-8"))
- 
+
     buf_out.seek(0)
     return buf_out.read()
+
 
 def _wb_styles():
     """Retorna os estilos reutilizáveis para o workbook."""
@@ -215,7 +230,7 @@ class XlsxBuilder:
     @staticmethod
     def _nome_arquivo(tipo: str) -> Path:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return XlsxBuilder._dir_temp() / f"SCE_{tipo}_{ts}.xlsx"
+        return XlsxBuilder._dir_temp() / f"SCE_uro_nefrologia_{tipo}_{ts}.xlsx"
  
     # ── 1. Movimentação por período ────────────────────────────────────────
  

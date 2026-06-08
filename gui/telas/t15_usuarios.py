@@ -27,7 +27,7 @@ COR_VERDE   = "#1D9E75"
 
 _PERFIS_LABEL = {
     PerfilEnum.tecnico: "Técnico",
-    PerfilEnum.admin:   "Admin (Gestora)",
+    PerfilEnum.admin:   "Administrativo",
     PerfilEnum.ti:      "TI",
 }
 _LABEL_PERFIL = {v: k for k, v in _PERFIS_LABEL.items()}

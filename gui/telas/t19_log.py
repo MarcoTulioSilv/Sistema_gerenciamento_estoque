@@ -72,6 +72,7 @@ class TelaLog(ctk.CTkFrame):
                       command=self._carregar).pack(side="right", padx=16, pady=8)
 
         self._banner = FeedbackBanner(self)
+        self._banner.pack(fill="x", padx=16)
 
         # Filtros
         filt = ctk.CTkFrame(self, fg_color="transparent")

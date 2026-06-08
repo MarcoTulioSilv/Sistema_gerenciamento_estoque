@@ -63,6 +63,7 @@ class TelaEntradaManual(ctk.CTkFrame):
                      text_color="#888780").pack(side="left", padx=4)
  
         self._banner = FeedbackBanner(self)
+        self._banner.pack(fill="x", padx=16)
         
         self._scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=8, border_width=1, border_color=COR_CINZA_B)
         self._scroll.pack(fill="both", expand=True, padx=16, pady=1)

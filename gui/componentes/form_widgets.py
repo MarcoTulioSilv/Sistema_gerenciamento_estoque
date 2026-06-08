@@ -464,24 +464,24 @@ class FeedbackBanner(ctk.CTkFrame):
     """Banner de feedback- sucesso ou erro- exibido temporariamente"""
 
     def __init__(self, master, **kwargs):
-        super().__init__(master, fg_color="transparent", **kwargs)
+        super().__init__(master, fg_color="transparent", height=0, width=0, **kwargs)
         self._lbl= ctk.CTkLabel(self, text="",font=ctk.CTkFont(size=12),
                                 corner_radius=6, padx=12, pady=6 )
         self._timer=None
     
     def sucesso(self, msg: str, duração_ms: int=5000):
         self._lbl.configure(text=msg, fg_color="#EAF3DE", text_color="#27500A")
-        self._lbl.pack(fill="x")
+        self._lbl.pack(fill="x", pady=(8,8))
         self._agendar_ocultar(duração_ms)
 
     def erro(self, msg: str, duração_ms: int=5000):
         self._lbl.configure(text=msg, fg_color="#FCEBEB", text_color="#A32D2D")
-        self._lbl.pack(fill="x")
+        self._lbl.pack(fill="x", pady=(8,8))
         self._agendar_ocultar(duração_ms)
     
     def aviso(self, msg: str, duração_ms: int=5000):
         self._lbl.configure(text=msg, fg_color="#FAEEDA", text_color="#854F0B")
-        self._lbl.pack(fill="x")
+        self._lbl.pack(fill="x", pady=(8,8))
         self._agendar_ocultar(duração_ms)
 
     def _agendar_ocultar(self, ms: int):

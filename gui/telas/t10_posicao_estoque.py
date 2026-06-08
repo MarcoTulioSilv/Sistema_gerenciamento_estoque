@@ -31,10 +31,10 @@ _SITUACAO_COR = {
 }
 
 _COLUNAS = [
-    ("Produto",     180),
-    ("Lote",         90),
-    ("Nota Fiscal",  90),
-    ("Centro",       90),
+    ("Produto",     200),
+    ("Lote",         100),
+    ("Nota Fiscal",  100),
+    ("Centro",       100),
     ("Qtd atual",    80),
     ("Vencimento",  100),
     ("Situação",    120),
@@ -65,6 +65,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         self._produto_id= produto_id
         self._linhas= [] #(lote, produto, situacao)
         self.permissao= usuario.perfil.value=="tecnico", "admin"
+        self._timer_busca= None
         self._construir()
         self._carregar()
 
@@ -85,12 +86,13 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         #Filtros
         filt= ctk.CTkFrame(self, fg_color="transparent")
         filt.pack(fill="x", padx=16, pady=(10,0))
+        
 
         self._entry_busca= ctk.CTkEntry(
             filt, placeholder_text="Buscar produto ou lote",
             height=32, width=260, corner_radius=6)
         self._entry_busca.pack(side="left")
-        self._entry_busca.bind("<KeyRelease>", lambda e: self._filtrar())
+        self._entry_busca.bind("<KeyRelease>",self._agendar_filtro)
 
         self._opt_centro= ctk.CTkOptionMenu(
             filt, values=["Todos os centros", "Almoxarifado", "Farmacia","Deposito"],
@@ -115,17 +117,21 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                       command= self._limpar_filtros).pack(side="left")
         
         self._banner= FeedbackBanner(self)
+        self._banner.pack(fill="x", padx=16)
         
         #Cabeçalho
         hdr=ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=0,
                          border_width=1, border_color=COR_CINZA_B)
         hdr.pack(fill="x", padx=16, pady=(10,0))
+        hdr.grid_columnconfigure(6, weight=1)
+
         for col,(txt, largura) in enumerate(_COLUNAS):
             ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
                          font=ctk.CTkFont(size=9, weight="bold"),
                          width=largura, anchor="w"
                          ).grid(row=0, column=col, padx=6, pady=5, sticky="w")
         
+        ctk.CTkFrame(hdr, width=20, height=0, fg_color="transparent").grid(row=0, column=8)
 
         self._scroll=ctk.CTkScrollableFrame(
             self, fg_color=COR_BRANCO,
@@ -140,6 +146,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
     #___________Dados___________________________________________________________________
     def _carregar(self):
         try:
+            nome_produto_filtro= "" 
             hoje= date.today()
             with get_read_session() as s:
                 query=(
@@ -150,6 +157,9 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                 )
                 if self._produto_id:
                     query=query.filter(Lote.produto_id==self._produto_id)
+                    produto_ref = s.query(Produto).get(self._produto_id)
+                    if produto_ref:
+                        nome_produto_filtro = produto_ref.nome
 
                 lotes= query.order_by(Produto.nome, Lote.data_vencimento).all()
 
@@ -177,8 +187,12 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         
         except Exception as exc:
             logger.error("Erro ao carregar posição estoque: %s", exc)
-            self._erro(str(exc))
+            self._banner.erro(str(exc))
             return
+        
+        if nome_produto_filtro:
+            self._entry_busca.delete(0, "end")
+            self._entry_busca.insert(0, nome_produto_filtro)
 
         self._renderizar(self._linhas)
     
@@ -197,9 +211,18 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
     
 
     def _limpar_filtros(self):
-        self._entry_busca.delete(0,"end")
+        busca = self._entry_busca.get().strip()
+        centro = self._opt_centro.get()
+        situacao = self._opt_situacao.get()
+
+        # 1. VALIDAÇÃO DE ESTADO: Se já está tudo limpo, aborta a função silenciosamente!
+        if not busca and centro == "Todos os centros" and situacao == "Todas as situações":
+            return
+
+        self._entry_busca.delete(0, "end")
         self._opt_centro.set("Todos os centros")
-        self._opt_situacao.set("todas as situações")
+        self._opt_situacao.set("Todas as situações") # Corrigido a letra maiúscula aqui para coincidir com a lista
+        
         self._renderizar(self._linhas)
 
     
@@ -220,16 +243,17 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
             bg=COR_BRANCO if i%2 ==0 else "#A1C3E4"
             row= ctk.CTkFrame(self._scroll,fg_color=bg, corner_radius=0)
             row.pack(fill="x")
-
+            row.grid_columnconfigure(6, weight=1)
             valores=[
-                (produto.nome[:22], 180),
-                (lote.num_lote,      90),
-                (lote.nota_fiscal,   90),
-                (lote.centro_alocacao.value.capitalize(), 90),
-                (str(lote.quantidade_atual), 80),
-                (lote.data_vencimento.strftime("%d/%m/%Y"), 100),
+                (produto.nome[:22],),
+                (lote.num_lote,     ),
+                (lote.nota_fiscal,   ),
+                (lote.centro_alocacao.value.capitalize(), ),
+                (str(lote.quantidade_atual), ),
+                (lote.data_vencimento.strftime("%d/%m/%Y"), ),
             ]
-            for col,(val,largura) in enumerate(valores):
+            for col,val in enumerate(valores):
+                largura = _COLUNAS[col][1] # Puxa a largura exata definida no topo do arquivo
                 ctk.CTkLabel(row, text=val, text_color="#3d3d3a",
                              font=ctk.CTkFont(size=11), width=largura,
                              anchor="w").grid(
@@ -260,6 +284,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
 
                 #Retirada bloqueada para lotes vencidos
                 pode_retirar= situacao!= "Vencido"
+                centro_val= lote.centro_alocacao.value
                 ctk.CTkButton(
                     acoes, text="Retirada", width=64, height=26,
                     fg_color=COR_BRANCO, text_color="#3d3d3a" if pode_retirar else "#AAAAAA",
@@ -267,7 +292,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                     hover_color=COR_CINZA_E if pode_retirar else COR_BRANCO,
                     font= ctk.CTkFont(size=11),
                     state="normal" if pode_retirar else "disabled",
-                    command=(lambda p=pid: self._on_navigate("retirada", extra=p))
+                    command=(lambda p=pid, c=centro_val: self._on_navigate("retirada", extra={"produto_id": p, "centro_origem": c}))
                     if pode_retirar else None,
                 ).pack(side="left")
         
@@ -283,3 +308,17 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                      text=f"Erro ao carregar estoque: \n {detalhe}",
                      text_color= COR_VERM, font=ctk.CTkFont(size=12),
                      wraplength=600, justify="left").pack(pady=24, padx=16)
+    
+    def limpar_memoria(self):
+        """Método chamado pelo app.py ao sair da tela para esvaziar a RAM."""
+        self._linhas.clear()
+        self._linhas = None
+
+    def _agendar_filtro(self, event=None):
+        """Espera o usuário parar de digitar por 400ms antes de travar a tela renderizando."""
+        # Se já existe uma contagem rodando (o usuário ainda está digitando), cancela!
+        if self._timer_busca is not None:
+            self.after_cancel(self._timer_busca)
+            
+        # Inicia um novo cronômetro de 400 milissegundos para disparar o filtro real
+        self._timer_busca = self.after(400, self._filtrar)

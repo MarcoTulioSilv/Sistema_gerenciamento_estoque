@@ -8,6 +8,7 @@ import logging
 import customtkinter as ctk
 
 from gui.componentes.form_widgets import Campo, SecaoFormulario, FeedbackBanner
+from Modulo_04_notificacoes import scheduler
 from Modulo_05_admin import ConfigService
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ class TelaGmail(ctk.CTkFrame):
                      text_color=COR_AZUL).pack(side="left", padx=16, pady=10)
 
         self._banner = FeedbackBanner(self)
-        self._banner.pack(fill="x", padx=16, pady=(8, 0))
+        self._banner.pack(fill="x", padx=16)
 
         scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=0)
         scroll.pack(fill="both", expand=True)
@@ -92,7 +93,7 @@ class TelaGmail(ctk.CTkFrame):
             font=ctk.CTkFont(size=12),
             command=self._salvar,
         ).pack(side="left")
-
+        
     # ── Dados ─────────────────────────────────────────────────────────────────
 
     def _carregar(self):
@@ -111,9 +112,9 @@ class TelaGmail(ctk.CTkFrame):
             self._salvar(apenas_persistir=True)
         try:
             msg = ConfigService.testar_conexao_gmail()
-            self._banner.sucesso(f"✓ {msg}")
+            self._banner.sucesso(f"✓ {msg}", 6000)
         except Exception as exc:
-            self._banner.erro(f"Falha na conexão: {exc}")
+            self._banner.erro(f"Falha na conexão: {exc}",6000)
 
     def _salvar(self, apenas_persistir: bool = False):
         usuario = self._campo_usuario.get().strip()
@@ -130,7 +131,7 @@ class TelaGmail(ctk.CTkFrame):
             if senha:
                 self._entry_senha.delete(0, "end")
             if not apenas_persistir:
-                self._banner.sucesso("Configuração Gmail salva com sucesso.")
+                self._banner.sucesso("Configuração Gmail salva com sucesso.",6000)
                 logger.info("Config Gmail atualizada por %s.", self._usuario.login)
         except ValueError as exc:
             self._banner.erro(str(exc))

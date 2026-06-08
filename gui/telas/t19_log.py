@@ -40,7 +40,7 @@ _COLUNAS_MOV = [
     ("Produto/Lote", 200),
     ("Qtd",           50),
     ("Nº NF",         80),
-    ("Observação",   180),
+    ("Observação",   200),
     ("Resultado",     80),
 ]
 
@@ -72,6 +72,7 @@ class TelaLog(ctk.CTkFrame):
                       command=self._carregar).pack(side="right", padx=16, pady=8)
 
         self._banner = FeedbackBanner(self)
+        self._banner.pack(fill="x", padx=16)
 
         # Filtros
         filt = ctk.CTkFrame(self, fg_color="transparent")
@@ -110,12 +111,14 @@ class TelaLog(ctk.CTkFrame):
         hdr = ctk.CTkFrame(self, fg_color=COR_BRANCO, corner_radius=0,
                            border_width=1, border_color=COR_CINZA_B)
         hdr.pack(fill="x", padx=16, pady=(8, 0))
+        hdr.grid_columnconfigure(3, weight=1)  # Detalhe é a coluna que expande
+
         for col, (txt, larg) in enumerate(_COLUNAS_MOV):
             ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
                          font=ctk.CTkFont(size=10, weight="bold"),
                          width=larg, anchor="w").grid(
                 row=0, column=col, padx=4, pady=5, sticky="w")
-
+        ctk.CTkLabel(hdr, text="", width=10).grid(row=0, column=len(_COLUNAS_MOV), padx=4)  # Espaço extra no fim
         self._scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E,
                                                corner_radius=0)
         self._scroll.pack(fill="both", expand=True, padx=16, pady=(0, 4))
@@ -294,6 +297,7 @@ class TelaLog(ctk.CTkFrame):
             bg = COR_BRANCO if i % 2 == 0 else COR_CINZA_E
             row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
             row.pack(fill="x")
+            row.grid_columnconfigure(3, weight=1)  # Detalhe é a coluna que expande
 
             valores = [
                 d["data_hora"], d["usuario"], d["operacao"],
@@ -315,4 +319,9 @@ class TelaLog(ctk.CTkFrame):
         self._lbl_rodape.configure(
             text=f"{len(linhas)} registro(s) exibidos — somente leitura.")
     
-
+    def limpar_memoria(self):
+        """Limpa as centenas de registros de log baixados do banco."""
+        if hasattr(self, '_linhas') and self._linhas is not None:
+            self._linhas.clear()
+            self._linhas = None
+    

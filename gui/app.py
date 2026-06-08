@@ -1,9 +1,16 @@
 import os
+import sys
+import time
+import tkinter as tk
 import customtkinter as ctk
+import gc
+from customtkinter.windows.widgets.core_widget_classes.dropdown_menu import DropdownMenu
+from customtkinter.windows.widgets.ctk_button import CTkButton
 from datetime import datetime
+
+
 from Modulo_04_notificacoes.scheduler import NotificacaoScheduler
 from gui.telas.t01_login import TelaLogin
-from gui.telas.placeholder import TelaPlaceholder
 from tkinter import messagebox
 from Modulo_01_autenticacao import SessionManager
 from gui.telas.t02_inicio import TelaInicio
@@ -37,29 +44,82 @@ COR_CINZA_E   = "#F2F1ED"
 COR_TEXTO     = "#3d3d3a"
 COR_VERMELHO  = "#A32D2D"
 
+_original_set_scaling = DropdownMenu._set_scaling
+
+def _safe_set_scaling(self, *args, **kwargs):
+    try:
+        _original_set_scaling(self, *args, **kwargs)
+    except tk.TclError:
+        pass # Se o widget for um "fantasma", simplesmente ignora e segue o jogo
+
+DropdownMenu._set_scaling = _safe_set_scaling
+
+_original_button_clicked = CTkButton._clicked
+
+def _safe_button_clicked(self, event=None):
+    agora = time.time()
+    
+    # Inicializa a memória de tempo no botão, se não existir
+    if not hasattr(self, '_ultimo_clique'):
+        self._ultimo_clique = 0
+        
+    # COOLDOWN: Se passou menos de 0.5 segundos (500ms) desde o último clique, ele simplesmente ignora!
+    if agora - self._ultimo_clique < 0.7:
+        return 
+        
+    # Se passou no teste de tempo, atualiza a memória e executa a função do botão
+    self._ultimo_clique = agora
+    _original_button_clicked(self, event)
+
+# Injeta a nossa função segura dentro do CustomTkinter
+CTkButton._clicked = _safe_button_clicked
+
 class SCEApp(ctk.CTk):
     # Janela raiz do sistema, gerencia login e navegação entre telas
     def __init__(self):
+        
         super().__init__()
+        if sys.platform.startswith("win"):
+            try:
+                import ctypes
+                myappid = 'uronefrologia.sce.v1.0' # Uma string única (ID) para o seu app
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            except Exception as e:
+                print(f"Erro ao definir App ID no Windows: {e}")
+
+        self.escala_atual = 1.0
 
         self.title("Sistema de Controle de Estoque - Centro de Uronefrologia")
+        
+        #icone
+        caminho_atual = os.path.dirname(os.path.abspath(__file__))
+        caminho_assets = os.path.join(os.path.dirname(caminho_atual), "assets")
+        caminho_icone = os.path.join(caminho_assets, "logo_Centro_Uro.ico")
+        
+        if os.path.exists(caminho_icone):
+            self.iconbitmap(caminho_icone)
+        else:
+            print(f"Aviso: Ícone não encontrado em {caminho_icone}")
+
         self.geometry("1100x600")
         self.minsize(900, 600)
+        if sys.platform.startswith("win"):
+            self.after(0, lambda: self.state("zoomed"))
         self.configure(fg_color=COR_CINZA_E)
 
         # Estado dee sessão
         self.usuario_logado = None #objeto do usuário logado
 
-        #Inicializa o scheduler de notificações
-        self._scheduler= NotificacaoScheduler()
-        self._scheduler.iniciar()
+        self.bind_all("<Button-1>", self._remover_foco_global)
+        
+        self.iniciarScheduler()
         self.session_timer = None
 
         #exibe tela de login na inicialização
-        self._monstrar_login()
+        self._mostrar_login()
 
 #---- login/ logout ----
-    def _monstrar_login(self):
+    def _mostrar_login(self):
         """limpa a janela e exibe a tela de login"""        
         for widget in self.winfo_children():
             widget.destroy()
@@ -78,7 +138,7 @@ class SCEApp(ctk.CTk):
             self.after_cancel(self.session_timer)
         SessionManager.encerrar_sessao()
         self.usuario_logado = None
-        self._monstrar_login()
+        self._mostrar_login()
 
 #----- sessão ---------------------------------------------------------------------------------
     def _iniciar_timer_sessao(self):
@@ -127,8 +187,7 @@ class SCEApp(ctk.CTk):
     def _navegar(self, destino: str):
         """troca o conteudo da area principal pela tela indicada """
         self.resetar_timer_sessao()
-        for w in self._area_conteudo.winfo_children():
-            w.destroy()
+        self._limpar_area_conteudo()
         
         tela = self._resolver_tela(destino)
         if tela:
@@ -141,56 +200,132 @@ class SCEApp(ctk.CTk):
         # telas reais colocadas aqui nas proximas sprints
         if destino=="inicio":
             return TelaInicio(self._area_conteudo, usuario=self.usuario_logado, on_navigate= nav)
+        
         if destino=="troca_senha":
             return TelaTrocaSenha(self._area_conteudo, usuario=self.usuario_logado, on_navigate= nav)
-        #______ Sprint 2A_ MOD-02 cadastros
+        
+    
         if destino=="produtos":
             return TelaProdutos(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav)
+        
         if destino in("novo_produto", "editar_produto"):
             return TelaNovoProduto(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, produto_id= extra)
+        
         if destino=="entrada_manual":
             return TelaEntradaManual(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, produto_id=extra)
+        
         if destino=="importar_nfe":
             return TelaImportarNFe(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        
         if destino=="entrada_danfe":
             return TelaEntradaDANFE(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav, produto_id=extra)
-        if destino=="retirada":
-            return TelaRetirada(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        
+        if destino == "retirada":
+            # Se o extra for um dicionário (veio da T-10)
+            if isinstance(extra, dict):
+                return TelaRetirada(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, 
+                                    produto_id=extra.get("produto_id"), centro_origem=extra.get("centro_origem"))
+            
+            # Se for só um número simples (retrocompatibilidade)
+            return TelaRetirada(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, produto_id=extra)
+        
         if destino=="baixa_vencido":
             return TelaRetirada(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, baixa_vencido=True, lotes_vencidos=extra)
+        
         if destino=="posicao":
-            return TelaPosicaoEstoque(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+            return TelaPosicaoEstoque(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, produto_id=extra)
+        
         if destino=="dashboard":
             return TelaDashboard(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        
         if destino=="relatorios":
             return TelaCentralRelatorios(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        
         if destino=="agendamento":
             return TelaAgendamento(self._area_conteudo,usuario= self.usuario_logado, on_navigate= nav)
+        
         if destino=="estoque_minimo":
             return TelaEstoqueMinimo(self._area_conteudo, usuario=self.usuario_logado, on_navigate= nav)
+        
         if destino == "usuarios":
             return TelaUsuarios(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+        
         if destino == "gmail":
             return TelaGmail(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+        
         if destino == "backup":
             return TelaBackup(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+        
         if destino == "log":
             return TelaLog(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
-        return TelaPlaceholder(self._area_conteudo, titulo=destino)
+        
     
     def _on_navigate_com_extra(self, destino: str, extra=None):
         """Versão do _navegar que aceita parâmetro extra(ex: produto_id)"""
         self.resetar_timer_sessao()
-        for w in self._area_conteudo.winfo_children():
-            w.destroy()
+        self._limpar_area_conteudo()
         tela= self._resolver_tela(destino, extra= extra)
         if tela:
             tela.pack(fill="both", expand= True)
-    
+
+    def ajustar_zoom(self, incremento):
+        """Aumenta ou diminui o tamanho de todas as fontes e componentes do sistema"""
+        nova_escala = self.escala_atual + incremento
+        
+        # Limites de segurança para a interface não explodir na tela nem ficar minúscula
+        if 0.8 <= nova_escala <= 1.4: 
+            self.escala_atual = nova_escala
+            
+            # Aplica o zoom nos textos e widgets
+            ctk.set_widget_scaling(self.escala_atual)
+            
+            # (Opcional) Se quiser que a janela inteira cresça junto
+            # ctk.set_window_scaling(self.escala_atual)
+
     def destroy(self):
        self._scheduler.parar()
        super().destroy()
+    
+    def iniciarScheduler(self):
+        #Inicializa o scheduler de notificações
+        self._scheduler= NotificacaoScheduler()
+        self._scheduler.iniciar()
 
+    def pararScheduler(self):
+        self._scheduler.parar()
+    
+    def _limpar_area_conteudo(self):
+        """Destrói os widgets e força o Python a liberar a memória RAM retida."""
+        for w in self._area_conteudo.winfo_children():
+            # 1. Tenta limpar grandes volumes de dados se a tela tiver esse recurso
+            if hasattr(w, 'limpar_memoria'):
+                try:
+                    w.limpar_memoria()
+                except Exception as e:
+                    print(f"Erro ao limpar memória da tela: {e}")
+            
+            # 2. Destrói o widget visualmente
+            w.destroy()
+            
+            # 3. Remove a referência local
+            del w 
+            
+        # 4. Força o Coletor de Lixo do Python a passar e esvaziar a RAM imediatamente
+        gc.collect()
+    
+    def _remover_foco_global(self, event):
+        """Remove o cursor do campo de texto ao clicar no fundo ou em outros elementos."""
+        try:
+            # O CustomTkinter é feito de várias camadas. Precisamos saber a classe base do item clicado
+            classe_widget = event.widget.winfo_class()
+            
+            # "Entry" é o input de uma linha, "Text" é o input de múltiplas linhas
+            # Se o usuário clicou em algo que não seja um input (ex: no fundo cinza, num Label, etc)
+            if classe_widget not in ("Entry", "Text"):
+                # Nós mandamos a janela principal (o fundo) assumir o controle do teclado
+                self.focus_set()
+        except Exception:
+            pass # Ignora erros caso o widget clicado já tenha sido destruído
        
 #---- Componentes da janela principal (titlebar, sidebar) --------------------------------------------------------------
 
@@ -209,6 +344,19 @@ class TitleBar(ctk.CTkFrame):
         #Informações do usuário e botão de logout
         frame_direita = ctk.CTkFrame(self, fg_color="transparent")
         frame_direita.pack(side="right", padx=12)
+
+        # Exemplo de botões (podem ser colocados na sua barra de menu)
+        frame_zoom = ctk.CTkFrame(self, fg_color="transparent")
+        frame_zoom.pack(side="right", padx=16)
+
+
+        # Botão Aumentar (A+)
+        ctk.CTkButton(frame_zoom, text="A+", width=30, height=28,
+                      command=lambda: self.winfo_toplevel().ajustar_zoom(0.1)).pack(side="left", padx=2)
+                      
+        # Botão Diminuir (A-)
+        ctk.CTkButton(frame_zoom, text="A-", width=27, height=25,
+                      command=lambda: self.winfo_toplevel().ajustar_zoom(-0.1)).pack(side="left", padx=2)
 
 
         hora= datetime.now().strftime("| %d/%m/%Y %H:%M")
@@ -229,7 +377,7 @@ class Sidebar(ctk.CTkFrame):
         ("entrada_manual"   ,"Entrada Manual",                ["admin", "tecnico", "ti"]),
         ("importar_nfe"     ,"Importar NF-e",                 ["admin", "tecnico", "ti"]),
         ("entrada_danfe"    ,"Entrada DANFE",                 ["admin", "tecnico", "ti"]),
-        ("retirada"         ,"Retirada",                      ["admin", "tecnico", "ti"]),
+        ("retirada"         ,"Retirada/ Transferencia",                      ["admin", "tecnico", "ti"]),
         ("__label__"        ,"Consulta",                      None),
         ("posicao"          ,"Posição de Estoque",            ["admin", "tecnico", "ti"]),
         ("dashboard"        ,"Dashboard",                     ["admin", "tecnico", "ti"]),
@@ -352,3 +500,5 @@ class Sidebar(ctk.CTkFrame):
         self._ativo = destino
         self._botoes[destino].configure(fg_color=COR_SIDEBAR_A)
         self._on_navigate(destino)
+
+

@@ -10,7 +10,7 @@ Questão 1 aplicada:
 import logging
 import customtkinter as ctk
 from gui.componentes.form_widgets import (
-    Campo, CampoBarras, BotoesFormulario, SecaoFormulario, FeedbackBanner
+    Campo, CampoBarras, BotoesFormulario, SecaoFormulario, FeedbackBanner, CampoFornecedor
 )
 from Modulo_02_estoque import EstoqueService, ProdutoRepo
  
@@ -33,7 +33,6 @@ class TelaNovoProduto(ctk.CTkFrame):
         self._on_navigate = on_navigate
         self._produto_id  = produto_id
         self._construir()
-        self._carregar_sugestoes_fornecedor()
         if self._produto_id:
             self._preencher_produto(self._produto_id)
  
@@ -52,6 +51,7 @@ class TelaNovoProduto(ctk.CTkFrame):
                      text_color="#888780").pack(side="left", padx=4)
  
         self._banner = FeedbackBanner(self)
+        self._banner.pack(fill="x", padx=16)
  
         scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=0)
         scroll.pack(fill="both", expand=True, padx=16, pady=15)
@@ -77,40 +77,23 @@ class TelaNovoProduto(ctk.CTkFrame):
         grid1 = ctk.CTkFrame(sec2, fg_color="transparent")
         grid1.pack(fill="x", padx=14, pady=(0, 8))
         grid1.grid_columnconfigure((0, 1, 2), weight=1)
- 
+
+        self._marca = Campo(grid1, "Marca", placeholder="Texto livre", largura=220)
+        self._marca.grid(row=0, column=0, padx=(0, 12), sticky="ew")
+
         self._estoque_min = Campo(grid1, "Estoque mínimo", tipo="number",
                                   placeholder="0", largura=120, obrigatorio=True)
         self._estoque_min.grid(row=0, column=2, sticky="ew")
  
         grid2 = ctk.CTkFrame(sec2, fg_color="transparent")
         grid2.pack(fill="x", padx=14, pady=(0, 8))
-        grid2.grid_columnconfigure((0, 1), weight=1)
  
-        self._marca = Campo(grid2, "Marca", placeholder="Texto livre", largura=220)
-        self._marca.grid(row=0, column=0, padx=(0, 12), sticky="ew")
- 
+        
         # ── Fornecedor: ComboBox editável ─────────────────────────────────────
-        frn_frame = ctk.CTkFrame(grid2, fg_color="transparent")
-        frn_frame.grid(row=0, column=1, sticky="ew")
- 
-        ctk.CTkLabel(frn_frame, text="Fornecedor",
-                     text_color="#5F5E5A",
-                     font=ctk.CTkFont(size=11, weight="bold"),
-                     anchor="w").pack(fill="x")
-        ctk.CTkLabel(frn_frame,
-                     text="Digite livremente ou selecione um existente",
-                     text_color="#AAAAAA",
-                     font=ctk.CTkFont(size=9), anchor="w").pack(fill="x")
- 
-        self._combo_fornecedor = ctk.CTkComboBox(
-            frn_frame, values=[""],
-            width=280, height=32, corner_radius=6,
-            fg_color=COR_CINZA_E, button_color=COR_AZUL_M,
-            text_color="#3d3d3a",
-        )
-        self._combo_fornecedor.pack(fill="x", pady=(4, 0))
-        self._combo_fornecedor.set("")
- 
+        self._fornecedor=CampoFornecedor(grid2, obrigatorio=False)
+        self._fornecedor.pack(fill="x", pady=(4, 0))
+        self._fornecedor.set("")
+         
         self._ativo_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(sec2, text="Produto ativo",
                         variable=self._ativo_var,
@@ -123,14 +106,6 @@ class TelaNovoProduto(ctk.CTkFrame):
  
     # ── Dados ─────────────────────────────────────────────────────────────────
  
-    def _carregar_sugestoes_fornecedor(self):
-        """Popula o ComboBox com fornecedores únicos já cadastrados no banco."""
-        try:
-            sugestoes = EstoqueService.listar_fornecedores_unicos()
-            self._combo_fornecedor.configure(values=[""] + sugestoes)
-        except Exception as exc:
-            logger.warning("Erro ao carregar sugestões de fornecedor: %s", exc)
- 
     def _preencher_produto(self, produto_id: int):
         p = ProdutoRepo.buscar_por_id(produto_id)
         if not p:
@@ -142,7 +117,7 @@ class TelaNovoProduto(ctk.CTkFrame):
         self._estoque_min.set(str(p.estoque_minimo))
         self._marca.set(p.marca or "")
         self._ativo_var.set(p.ativo)
-        self._combo_fornecedor.set(p.fornecedor or "")
+        self._fornecedor.set(p.fornecedor or "")
  
     def _ao_ler_ean(self, ean: str):
         prod = EstoqueService.buscar_produto_por_ean(ean)
@@ -166,7 +141,7 @@ class TelaNovoProduto(ctk.CTkFrame):
             self._estoque_min.erro("Informe um número inteiro não negativo.")
             return
  
-        fornecedor = self._combo_fornecedor.get().strip() or None
+        fornecedor = self._fornecedor.get().strip() or None
  
         try:
             if self._produto_id:
@@ -193,9 +168,7 @@ class TelaNovoProduto(ctk.CTkFrame):
                 )
                 self._banner.sucesso("Produto criado com sucesso.")
                 self._limpar()
-                
-            # Recarrega sugestões caso o fornecedor seja inédito
-            self._carregar_sugestoes_fornecedor()
+        
             self._on_navigate("produtos")
  
         except ValueError as exc:
@@ -210,7 +183,7 @@ class TelaNovoProduto(ctk.CTkFrame):
         self._descricao.limpar()
         self._marca.limpar()
         self._estoque_min.set("0")
-        self._combo_fornecedor.set("")
+        self._fornecedor.limpar()
         self._ativo_var.set(True)
         self._nome.focus()
  

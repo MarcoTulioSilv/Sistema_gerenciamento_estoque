@@ -63,6 +63,7 @@ class TelaEntradaManual(ctk.CTkFrame):
                      text_color="#888780").pack(side="left", padx=4)
  
         self._banner = FeedbackBanner(self)
+        self._banner.pack(fill="x", padx=16)
         
         self._scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=8, border_width=1, border_color=COR_CINZA_B)
         self._scroll.pack(fill="both", expand=True, padx=16, pady=1)
@@ -147,7 +148,7 @@ class TelaEntradaManual(ctk.CTkFrame):
             command=self._cancelar_cadastro_rapido,
         ).pack(side="left", padx=(0, 8))
         ctk.CTkButton(
-            row_rap_btns, text="Cadastrar e continuar →", width=180, height=28,
+            row_rap_btns, text="Cadastrar e continuar ->", width=180, height=28,
             fg_color=COR_AZUL_M, hover_color="#1a5276",
             font=ctk.CTkFont(size=11),
             command=self._executar_cadastro_rapido,
@@ -163,14 +164,10 @@ class TelaEntradaManual(ctk.CTkFrame):
         self._num_lote = Campo(row1, "Número do lote *", obrigatorio=True,
                                placeholder="Ex: L2024-0512")
         self._num_lote.grid(row=0, column=0, padx=(0, 8), sticky="ew")
-        self._nota_fiscal = Campo(row1, "Nota fiscal (NF) *", obrigatorio=True,
+        self._nota_fiscal = Campo(row1, "Nota fiscal (NF)", obrigatorio=True,
                                   placeholder="Número da NF física")
         self._nota_fiscal.grid(row=0, column=1, sticky="ew")
-        ctk.CTkLabel(self._sec2,
-                     text="Nota fiscal opcional na entrada manual.",
-                     text_color="#888780",
-                     font=ctk.CTkFont(size=10), anchor="w").pack(
-            fill="x", padx=14, pady=(0, 6))
+        
         
         row2 = ctk.CTkFrame(self._sec2, fg_color="transparent")
         row2.pack(fill="x", padx=14, pady=(0, 6))
@@ -181,9 +178,9 @@ class TelaEntradaManual(ctk.CTkFrame):
         self._centro.grid(row=0, column=0, padx=(0, 8), sticky="ew")
 
         #campo unidade
-        self._unidade = Campo(grid_rap2, "Unidade *", tipo="select",
+        self._unidade = Campo(row2, "Unidade *", tipo="select",
                                   opcoes=UNIDADES, largura=160)
-        self._unidade.grid(row=0, column=1, sticky="ew")
+        self._unidade.grid(row=0, column=1, sticky="e")
  
         row3 = ctk.CTkFrame(self._sec2, fg_color="transparent")
         row3.pack(fill="x", padx=14, pady=(0, 6))
@@ -522,6 +519,13 @@ class TelaEntradaManual(ctk.CTkFrame):
             campo.limpar()
         self._lbl_total.configure(text="Valor total: —")
         self._ean.focus()
+    
+    def limpar_memoria(self):
+        """Solta a referência ao objeto SQLAlchemy do produto."""
+        if hasattr(self, '_produto_sel'):
+            self._produto_sel = None
+        if hasattr(self, '_ean_pendente'):
+            self._ean_pendente = None
  
  
 # ── Utilitário ────────────────────────────────────────────────────────────────

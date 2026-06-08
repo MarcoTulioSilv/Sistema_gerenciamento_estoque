@@ -9,6 +9,7 @@ from Modulo_03_relatorios import RelatorioService
 import customtkinter as ctk
 from gui.componentes.form_widgets import FeedbackBanner
 
+
 logger = logging.getLogger(__name__)
 
 COR_AZUL   = "#1F4E79"
@@ -53,8 +54,7 @@ class TelaAgendamento(ctk.CTkFrame):
                      text_color=COR_AZUL).pack(side="left", padx=16)
 
         self._banner = FeedbackBanner(self)
-        self._banner.pack(fill="x", padx=16, pady=(8, 0))
-
+        self._banner.pack(fill="x", padx=16)
         # Card principal
         card = ctk.CTkFrame(self, fg_color=COR_BRANCO, corner_radius=8,
                              border_width=1, border_color=COR_CINZA_B)
@@ -119,6 +119,7 @@ class TelaAgendamento(ctk.CTkFrame):
             for linha in self._linhas:
                 hab, per, hor = linha.obter_valores()
                 RelatorioService.salvar_agendamento(linha.tipo, hab, per, hor)
+            self.winfo_toplevel()._scheduler.atualizar_relatorios_em_tempo_real()
             self._banner.sucesso("Agendamentos salvos com sucesso.")
         except Exception as exc:
             logger.error("Erro ao salvar agendamentos: %s", exc)
@@ -206,8 +207,20 @@ class _LinhaAgendamento(ctk.CTkFrame):
     def preencher(self, habilitado: bool, periodicidade: str, horario: time):
         if not self._obrigatorio:
             self._toggle_var.set(habilitado)
-        self._opt_per.set(periodicidade)
-        hor_str = horario.strftime("%H:%M") if hasattr(horario, "strftime") else "07:00"
+            
+        self._entry_hora.configure(state="normal")
+        self._opt_per.configure(state="normal")
+        
+        val_per = periodicidade.value if hasattr(periodicidade, "value") else periodicidade
+        self._opt_per.set(val_per)
+        
+        
+        if hasattr(horario, "strftime"):
+            hor_str = horario.strftime("%H:%M")
+        elif isinstance(horario, str) and len(horario) >= 5:
+            hor_str = horario[:5]  
+        else:
+            hor_str = "07:00"     
         self._entry_hora.delete(0, "end")
         self._entry_hora.insert(0, hor_str)
         self._atualizar_estado()

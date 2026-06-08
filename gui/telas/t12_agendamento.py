@@ -54,7 +54,7 @@ class TelaAgendamento(ctk.CTkFrame):
                      text_color=COR_AZUL).pack(side="left", padx=16)
 
         self._banner = FeedbackBanner(self)
-
+        self._banner.pack(fill="x", padx=16)
         # Card principal
         card = ctk.CTkFrame(self, fg_color=COR_BRANCO, corner_radius=8,
                              border_width=1, border_color=COR_CINZA_B)

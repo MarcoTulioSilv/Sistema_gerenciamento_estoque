@@ -110,6 +110,8 @@ class SCEApp(ctk.CTk):
         # Estado dee sessão
         self.usuario_logado = None #objeto do usuário logado
 
+        self.bind_all("<Button-1>", self._remover_foco_global)
+        
         self.iniciarScheduler()
         self.session_timer = None
 
@@ -218,8 +220,14 @@ class SCEApp(ctk.CTk):
         if destino=="entrada_danfe":
             return TelaEntradaDANFE(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav, produto_id=extra)
         
-        if destino=="retirada":
-            return TelaRetirada(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav, produto_id=extra)
+        if destino == "retirada":
+            # Se o extra for um dicionário (veio da T-10)
+            if isinstance(extra, dict):
+                return TelaRetirada(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, 
+                                    produto_id=extra.get("produto_id"), centro_origem=extra.get("centro_origem"))
+            
+            # Se for só um número simples (retrocompatibilidade)
+            return TelaRetirada(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, produto_id=extra)
         
         if destino=="baixa_vencido":
             return TelaRetirada(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, baixa_vencido=True, lotes_vencidos=extra)
@@ -304,6 +312,20 @@ class SCEApp(ctk.CTk):
             
         # 4. Força o Coletor de Lixo do Python a passar e esvaziar a RAM imediatamente
         gc.collect()
+    
+    def _remover_foco_global(self, event):
+        """Remove o cursor do campo de texto ao clicar no fundo ou em outros elementos."""
+        try:
+            # O CustomTkinter é feito de várias camadas. Precisamos saber a classe base do item clicado
+            classe_widget = event.widget.winfo_class()
+            
+            # "Entry" é o input de uma linha, "Text" é o input de múltiplas linhas
+            # Se o usuário clicou em algo que não seja um input (ex: no fundo cinza, num Label, etc)
+            if classe_widget not in ("Entry", "Text"):
+                # Nós mandamos a janela principal (o fundo) assumir o controle do teclado
+                self.focus_set()
+        except Exception:
+            pass # Ignora erros caso o widget clicado já tenha sido destruído
        
 #---- Componentes da janela principal (titlebar, sidebar) --------------------------------------------------------------
 

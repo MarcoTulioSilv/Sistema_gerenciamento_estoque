@@ -87,6 +87,7 @@ class TelaRetirada(ctk.CTkFrame):
         
         #Atalhos de entrada
         if produto_id:
+            set
             self._preencher_produto_por_id(produto_id)
         if self._baixa_vencido and self._lotes_vencidos:
             self._carregar_lote_vencido_atual()
@@ -113,6 +114,7 @@ class TelaRetirada(ctk.CTkFrame):
                 corner_radius=6).pack(side="left", padx=(0, 12), pady=10)
 
         self._banner= FeedbackBanner(self)
+        self._banner.pack(fill="x", padx=16)
         
         #label scrollavel 
         scroll= ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=0)
@@ -182,7 +184,7 @@ class TelaRetirada(ctk.CTkFrame):
         grid_q.grid_columnconfigure((0, 1, 2), weight=1)
  
         self._campo_qtd = Campo(
-            grid_q, "Quantidade a retirar",
+            grid_q, "Quantidade a retirar/transferir",
             obrigatorio=True, tipo="number", placeholder="0")
         self._campo_qtd.grid(row=0, column=0, sticky="w", padx=(0, 24))
         
@@ -222,8 +224,7 @@ class TelaRetirada(ctk.CTkFrame):
         self._opt_centro_dest = ctk.CTkOptionMenu(
             row_t, values=list(_CENTROS.values()),
             width=160, height=30, corner_radius=6,
-            fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a",
-            command=self._ao_mudar_centro_dest)
+            fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a")
         self._opt_centro_dest.grid(row=1, column=0, sticky="w", padx=(0, 16), pady=(2, 0))
 
         ctk.CTkLabel(row_t, text="Fator (unid. por embalagem)",
@@ -245,7 +246,6 @@ class TelaRetirada(ctk.CTkFrame):
             width=150, height=30, corner_radius=6,
             fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a")
         self._opt_unidade_dest.grid(row=1, column=2, sticky="w", pady=(2, 0))
-        self._opt_unidade_dest.configure(state="disabled")
 
         self._lbl_preview = ctk.CTkLabel(
             self._sec_transf, text="", text_color=COR_AZUL_M,
@@ -331,6 +331,7 @@ class TelaRetirada(ctk.CTkFrame):
     def _ao_escolher_centro(self, label:str):
         # Callback do OptionMenu de centro- revela passo 2
         self._centro_origem = _LABEL_CENTRO.get(label, label.lower())
+        
         self._mostrar_sec_produto()
         # Atualizar opções de destino excluindo o centro de origem
         outros = ["— sem transferência —"] + [
@@ -338,8 +339,9 @@ class TelaRetirada(ctk.CTkFrame):
         ]
         self._opt_centro_dest.configure(values=outros)
         self._opt_centro_dest.set("— sem transferência —")
+        
         # Limpar produto selecionado caso tenha trocado de centro
-        self._limpar_produto()
+        self._limpar_produto
     
     def _mostrar_sec_produto(self):
         self._sec_produto.pack(fill="x", padx=16, pady=(10,0))
@@ -404,6 +406,7 @@ class TelaRetirada(ctk.CTkFrame):
         )
         self._frame_produto.pack(fill="x", padx=14, pady=(0, 8))
 
+
         # Revela o passo 3
         self._sec_qtd.pack(fill="x", padx=16, pady=(10, 0))
         self._limpar_plano()
@@ -432,8 +435,6 @@ class TelaRetirada(ctk.CTkFrame):
             self._entry_fator.insert(0, "1")
             self._lbl_preview.configure(text="")
     
-    def _ao_mudar_centro_dest(self, _valor: str):
-        self._ao_mudar_fator()
 
     def _ao_mudar_fator(self):
         try:

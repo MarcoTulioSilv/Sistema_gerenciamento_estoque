@@ -117,6 +117,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                       command= self._limpar_filtros).pack(side="left")
         
         self._banner= FeedbackBanner(self)
+        self._banner.pack(fill="x", padx=16)
         
         #Cabeçalho
         hdr=ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=0,
@@ -283,6 +284,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
 
                 #Retirada bloqueada para lotes vencidos
                 pode_retirar= situacao!= "Vencido"
+                centro_val= lote.centro_alocacao.value
                 ctk.CTkButton(
                     acoes, text="Retirada", width=64, height=26,
                     fg_color=COR_BRANCO, text_color="#3d3d3a" if pode_retirar else "#AAAAAA",
@@ -290,7 +292,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                     hover_color=COR_CINZA_E if pode_retirar else COR_BRANCO,
                     font= ctk.CTkFont(size=11),
                     state="normal" if pode_retirar else "disabled",
-                    command=(lambda p=pid: self._on_navigate("retirada", extra=p))
+                    command=(lambda p=pid, c=centro_val: self._on_navigate("retirada", extra={"produto_id": p, "centro_origem": c}))
                     if pode_retirar else None,
                 ).pack(side="left")
         

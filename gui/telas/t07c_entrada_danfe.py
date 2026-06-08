@@ -74,6 +74,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
                      text_color="#888780").pack(side="left", padx=4)
 
         self._banner = FeedbackBanner(self)
+        self._banner.pack(fill="x", padx=16)
        
 
         self._scroll = ctk.CTkScrollableFrame(

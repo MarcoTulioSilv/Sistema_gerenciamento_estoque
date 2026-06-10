@@ -56,8 +56,9 @@ class TelaLogin(ctk.CTkFrame):
         
         card.grid_propagate(False)
         card.configure(height=416)
+        card.pack(expand=True, pady=10)
 
-        card.place(x=1300, y=255)
+        #card.place(x=1300, y=255)
 
         # --- 4. CABEÇALHO ---
         ctk.CTkLabel(card, text="SCE- Sistema de Controle de Estoque \n Centro de Uro-Nefrologia", text_color=COR_AZUL,

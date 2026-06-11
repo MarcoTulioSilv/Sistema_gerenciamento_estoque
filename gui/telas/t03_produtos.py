@@ -30,12 +30,13 @@ _STATUS_COR={
 # Colunas: (header, largura)
 _COLUNAS = [
     ("Nome",      300),
-    ("EAN",       150),
-    ("Marca",     220),
+    ("EAN ",       150),
+    ("Marca ",     150),
+    ("Fornecedor ", 150),
     ("Est.mín.",   80),
-    ("Saldo",      80),
-    ("Status",    300),
-    ("Ações",     200),
+    ("Saldo ",      80),
+    ("Status",    100),
+    ("Ações",     100),
 ]
 
 class TelaProdutos(ctk.CTkFrame):
@@ -67,7 +68,7 @@ class TelaProdutos(ctk.CTkFrame):
         filt= ctk.CTkFrame(self, fg_color="transparent")
         filt.pack(fill="x", padx=16, pady=(10,0))
 
-        self._entry_busca= ctk.CTkEntry(filt, placeholder_text="Buscar por nome ou EAN...",
+        self._entry_busca= ctk.CTkEntry(filt, placeholder_text="Buscar por nome, EAN ou Fornecedor...",
                                     height=32, width= 300, corner_radius=6)
         self._entry_busca.pack(side="left", padx=(0,8))
         self._entry_busca.bind("<KeyRelease>", self._agendar_filtro)
@@ -91,21 +92,30 @@ class TelaProdutos(ctk.CTkFrame):
         hdr= ctk.CTkFrame(self, fg_color="#FAFAF8", corner_radius=0,
                           border_width=1, border_color=COR_CINZA_B)
         hdr.pack(fill="x", padx=16, pady=(10,0))
-        hdr.grid_columnconfigure(5, weight=1) # Status expande para ocupar espaço extra, alinhado à esquerda)
+        hdr.grid_columnconfigure(6, weight=1) # Status expande para ocupar espaço extra, alinhado à esquerda)
         
         for col, (txt, largura) in enumerate(_COLUNAS):
             
-            if col in (3, 4, 5,6): # Est.min, Saldo E STATUS -> centralizados
-                ancora = "center"
-                stick  = "ew"
-            else: # Restante -> esquerda
+            if col in (0,3): # Est.min, Saldo E STATUS -> centralizados
                 ancora = "w"
                 stick  = "w"
-
-            ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
+            else: # Restante -> esquerda
+                stick  = "ew"
+                ancora = "center"
+            
+            celula = ctk.CTkFrame(hdr, fg_color="transparent")
+            celula.grid(row=0, column=col, sticky="nsew")
+            
+            ctk.CTkLabel(celula, text=txt.upper(), text_color="#888780",
                          font=ctk.CTkFont(size=10, weight="bold"),
                          width=largura, anchor=ancora
-                         ).grid(row=0, column=col, padx=8, pady=6, sticky=stick)
+                         ).pack(side="left", fill="x", expand=True, padx=8, pady=6)
+            
+            # 3. Injeta a barra de divisão de 1px à direita (exceto na última coluna)
+            if col < len(_COLUNAS) - 1:
+                divisor = ctk.CTkFrame(celula, width=1, height=18, fg_color=COR_CINZA_B)
+                divisor.pack_propagate(False) # Impede que a barra mude de tamanho
+                divisor.pack(side="right", pady=6)
             
         # Área scrollável de linhas
         self._scroll = ctk.CTkScrollableFrame(
@@ -209,12 +219,13 @@ class TelaProdutos(ctk.CTkFrame):
             bg = COR_BRANCO if i % 2 == 0 else COR_CINZA_E
             row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
             row.pack(fill="x")
-            row.grid_columnconfigure(5, weight=1)
+            row.grid_columnconfigure(6, weight=1)
 
             valores = [
                 p.nome[:28],
                 p.ean,
                 p.marca or "—",
+                p.fornecedor or "-",
                 str(p.estoque_minimo),
                 str(saldo),
             ]
@@ -223,7 +234,7 @@ class TelaProdutos(ctk.CTkFrame):
                 if col == 5:
                     ctk.CTkFrame(row, width=20, height=0, fg_color="transparent").grid(row=0, column=7)
                     
-                if col in (3, 4, 5, 6): 
+                if col in (4,5, 6, 7): 
                     stick, justifica = "ew", "center"
                 else:            
                     stick, justifica = "w", "left"
@@ -236,20 +247,20 @@ class TelaProdutos(ctk.CTkFrame):
                     
             # --- STATUS VISUAL ---
             fg, tc = _STATUS_COR.get(status, ("#F1EFE8", "#5F5E5A"))
-            largura_status = _COLUNAS[5][1]
+            largura_status = _COLUNAS[6][1]
             frame_status = ctk.CTkFrame(row, fg_color="transparent", width=largura_status, height=26)
             frame_status.pack_propagate(False) 
-            frame_status.grid(row=0, column=5, padx=8, pady=2, sticky="w")
+            frame_status.grid(row=0, column=6, padx=8, pady=2, sticky="w")
             
             ctk.CTkLabel(row, text=status, fg_color=fg, text_color=tc,
                          font=ctk.CTkFont(size=10, weight="bold"),
                          corner_radius=8, padx=8, pady=2, width=80
-                         ).grid(row=0, column=5, padx=8, pady=2)
+                         ).grid(row=0, column=6, padx=8, pady=2)
 
             # --- AÇÕES ---
-            largura_acoes = _COLUNAS[6][1] 
+            largura_acoes = _COLUNAS[7][1] 
             acoes = ctk.CTkFrame(row, fg_color="transparent", width=largura_acoes, height=30)
-            acoes.grid(row=0, column=6, padx=8, pady=4, sticky="e")
+            acoes.grid(row=0, column=7, padx=8, pady=4, sticky="e")
             
             pid = p.id
             ctk.CTkButton(acoes, text="Editar", width=64, height=26,

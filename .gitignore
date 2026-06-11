@@ -37,3 +37,7 @@ backups/
 
 .Modulo_04_notificacoes/
 crip.py
+
+dist/
+build/
+*.spec.bak

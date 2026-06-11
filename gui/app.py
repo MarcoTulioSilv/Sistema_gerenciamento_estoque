@@ -90,23 +90,40 @@ class SCEApp(ctk.CTk):
         self.escala_atual = 1.0
 
         self.title("Sistema de Controle de Estoque - Centro de Uronefrologia")
-        
-        #icone
-        caminho_atual = os.path.dirname(os.path.abspath(__file__))
-        caminho_assets = os.path.join(os.path.dirname(caminho_atual), "assets")
-        caminho_icone = os.path.join(caminho_assets, "logo_Centro_Uro.ico")
-        
-        if os.path.exists(caminho_icone):
-            self.iconbitmap(caminho_icone)
-        else:
-            print(f"Aviso: Ícone não encontrado em {caminho_icone}")
-
         self.geometry("1100x600")
         self.minsize(900, 600)
+
         if sys.platform.startswith("win"):
             self.after(0, lambda: self.state("zoomed"))
         self.configure(fg_color=COR_CINZA_E)
 
+        def aplicar_icone():
+            # 1. Mapeamento blindado da pasta raiz
+            if getattr(sys, 'frozen', False):
+                caminho_raiz = sys._MEIPASS
+            else:
+                caminho_raiz = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+                
+            caminho_ico = os.path.join(caminho_raiz, "assets", "Logo_Uro_sem_Nome.ico")
+            caminho_png = os.path.join(caminho_raiz, "assets", "logo_Centro_Uro_Nefrologia_sem_fundo_sem_letras.png")
+            
+            try:
+                # Tentativa 1: Método nativo do Windows (.ico)
+                if os.path.exists(caminho_ico):
+                    self.iconbitmap(caminho_ico)
+                    self.wm_iconbitmap(caminho_ico)
+                
+                # Tentativa 2: O Fallback invencível do Tkinter (.png)
+                # O CustomTkinter respeita muito mais imagens injetadas via iconphoto
+                if os.path.exists(caminho_png):
+                    img = tk.PhotoImage(file=caminho_png)
+                    self.iconphoto(False, img)
+            except Exception as e:
+                print(f"Erro ao forçar o ícone: {e}")
+
+        # Atrasa a aplicação do ícone para 200ms DEPOIS que o CustomTkinter maximizar a tela
+        self.after(200, aplicar_icone)
+        # ------------------------------------
         # Estado dee sessão
         self.usuario_logado = None #objeto do usuário logado
 
@@ -380,10 +397,10 @@ class Sidebar(ctk.CTkFrame):
         ("retirada"         ,"Retirada/ Transferencia",                      ["admin", "tecnico", "ti"]),
         ("__label__"        ,"Consulta",                      None),
         ("posicao"          ,"Posição de Estoque",            ["admin", "tecnico", "ti"]),
-        ("dashboard"        ,"Dashboard",                     ["admin", "tecnico", "ti"]),
+        ("dashboard"        ,"Dashboard",                     ["admin", "ti"]),
         ("__label__"        ,"Relatórios",                    None),
         ("relatorios"       ,"Gerar Relatórios",              ["admin", "ti"]),
-        ("agendamento"      ,"Agendamento",                   ["ti"]),
+        ("agendamento"      ,"Agendamento",                   ["ti", "admin"]),
         ("estoque_minimo"   ,"Estoque Mínimo" ,               ["admin", "ti"]),
         ("__label__"        ,"Configurações",                 None),
         ("usuarios"         ,"Gerenciamento de Usuários" ,    ["ti"]),

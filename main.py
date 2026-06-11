@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from Modulo_06_dados import init_db
 from gui.app import SCEApp
+from auto_updater import verificar_atualizacao, aplicar_atualizacao
 #---------------------------Logging---------------------------------------------------
 
 logging.basicConfig(
@@ -25,9 +26,51 @@ logging.basicConfig(
 )
 logger = logging.getLogger("sce.main")
 
+def _checar_e_perguntar() -> None:
+    """
+    Verifica o share de atualização e exibe um dialog nativo do
+    Windows (tkinter.messagebox) para não depender do CTk ainda
+    não inicializado.
+ 
+    Se o usuário confirmar, baixa e executa o instalador e encerra.
+    Se recusar ou em caso de erro, continua a inicialização normal.
+    """
+    import tkinter as tk
+    import tkinter.messagebox as mb
+ 
+    info = verificar_atualizacao()
+    if info is None:
+        return  # sem atualização ou share offline — segue em frente
+ 
+    # Root oculto só para hospedar o messagebox
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+ 
+    resposta = mb.askyesno(
+        title="Atualização disponível",
+        message=(
+            f"Nova versão disponível: {info.version}\n\n"
+            "Deseja atualizar agora?\n\n"
+            "O sistema será fechado e reinstalado automaticamente.\n"
+            "Você poderá usá-lo novamente em instantes."
+        ),
+        icon=mb.INFO,
+        default=mb.YES,
+    )
+    root.destroy()
+ 
+    if resposta:
+        aplicar_atualizacao(info)
+        # Se aplicar_atualizacao retornar (falha na cópia),
+        # continua a inicialização normal abaixo.
+ 
+ 
+
 
 def main():
     logger.info("Iniciando SCE V1.0.0")
+    _checar_e_perguntar()
 
     #1. Inicializar banco de dados
     try:

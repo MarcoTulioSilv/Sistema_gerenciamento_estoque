@@ -103,6 +103,7 @@ class TelaProdutos(ctk.CTkFrame):
                 stick  = "ew"
                 ancora = "center"
             
+            
             celula = ctk.CTkFrame(hdr, fg_color="transparent")
             celula.grid(row=0, column=col, sticky="nsew")
             

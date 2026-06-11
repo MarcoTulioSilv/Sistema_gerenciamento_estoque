@@ -171,10 +171,10 @@ class TelaProdutos(ctk.CTkFrame):
 
         filtrados = []
         for p, saldo, status in self._dados_completos:
-            # 1. Filtro de Texto (Nome ou EAN)
-            nome_ok = busca in p.nome.lower() or busca in p.ean.lower()
-
-            # 2. Filtro de Situação (Dropdown)
+            # 1. Filtro de Texto
+            nome_ok = busca in p.nome.lower() or busca in p.ean.lower() or  busca in p.fornecedor.lower()
+    
+            # 2. Filtro de Situação 
             status_ok = True
             if filtro_selecionado == "Somente ativos":
                 status_ok = p.ativo is True
@@ -188,6 +188,7 @@ class TelaProdutos(ctk.CTkFrame):
                 filtrados.append((p, saldo, status))
 
         self._renderizar(filtrados)
+
     def _limpar_filtros(self):
         busca = self._entry_busca.get().strip()
         situacao = self._opt_lista.get()

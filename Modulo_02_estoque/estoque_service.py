@@ -7,9 +7,9 @@ import logging
 import threading
 from datetime import date, datetime as _dt, datetime
 from decimal import Decimal
-
+from sqlalchemy import select
 from Modulo_04_notificacoes.notificacao_service import NotificacaoService
-from Modulo_06_dados import TipoMovimentacaoEnum, CentroAlocacaoEnum,UnidadeEstoqueEnum, get_session, Lote, Movimentacao, get_read_session, Produto
+from Modulo_06_dados import TipoMovimentacaoEnum, CentroAlocacaoEnum,UnidadeEstoqueEnum, get_session, Lote, Movimentacao, get_read_session, Produto, VwSaldoProduto
 from .produto_repo import ProdutoRepo
 from .lote_repo import LoteRepo
 from .fefo_selector import FEFOSelector
@@ -491,6 +491,20 @@ class EstoqueService:
         )
 
         return lotes_criados
+    
+    @classmethod
+    def listar_view_produtos(cls):
+        """Busca os produtos e seus saldos totais consumindo o Modelo ORM da View."""
+        try:
+            # Usando a sessão read-only do seu database.py
+            with get_read_session() as session:
+                query = select(VwSaldoProduto)
+                # scalars().all() desembrulha o resultado e devolve uma lista limpa de objetos VwSaldoProduto
+                resultados = session.execute(query).scalars().all()
+                return resultados
+        except Exception as e:
+            logger.error("Erro ao buscar view de saldos via ORM: %s", e)
+            return []
     
     # ── Helper fora da classe para uso em thread separada ────────────────────────
  

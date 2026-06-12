@@ -8,7 +8,7 @@ from .models import  (
     Usuario, Produto, Lote, Movimentacao,
     NotificacaoLog, JobLog, Configuracao, RelatorioAgendamento,
     PerfilEnum, CentroAlocacaoEnum, UnidadeEstoqueEnum,
-    TipoMovimentacaoEnum, TipoAlertaEnum, PeriodicidadeEnum, TipoRelatorioEnum,
+    TipoMovimentacaoEnum, TipoAlertaEnum, PeriodicidadeEnum, TipoRelatorioEnum, VwSaldoProduto
 )
 
 __all__ = [
@@ -16,5 +16,5 @@ __all__ = [
     "Usuario", "Produto", "Lote", "Movimentacao",
     "NotificacaoLog", "JobLog", "Configuracao", "RelatorioAgendamento",
     "PerfilEnum", "CentroAlocacaoEnum", "UnidadeEstoqueEnum",
-    "TipoMovimentacaoEnum", "TipoAlertaEnum", "PeriodicidadeEnum", "TipoRelatorioEnum",
+    "TipoMovimentacaoEnum", "TipoAlertaEnum", "PeriodicidadeEnum", "TipoRelatorioEnum", "VwSaldoProduto"
 ]

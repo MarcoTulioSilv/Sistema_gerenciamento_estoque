@@ -210,3 +210,16 @@ class RelatorioAgendamento(Base):
     periodicidade:  Mapped[PeriodicidadeEnum]   = mapped_column(Enum(PeriodicidadeEnum), nullable=False)
     horario:        Mapped[str]                 = mapped_column(Time, nullable=False)
     ultimo_envio:   Mapped[datetime | None]     = mapped_column(DateTime, nullable=True)
+
+class VwSaldoProduto(Base):
+    """view de saldo total de produtos"""
+    __tablename__ = "vw_saldo_produtos"
+
+    id:             Mapped[int]        = mapped_column("produto_id", Integer, primary_key=True)
+    nome:           Mapped[str]        = mapped_column(String(120))
+    ean:            Mapped[str]        = mapped_column(String(20))
+    marca:          Mapped[str | None] = mapped_column(String(100), nullable=True)
+    fornecedor:     Mapped[str | None] = mapped_column(String(150), nullable=True)
+    estoque_minimo: Mapped[int]        = mapped_column(Integer)
+    ativo:          Mapped[bool]       = mapped_column(Boolean)
+    saldo_total:    Mapped[Decimal]    = mapped_column(Numeric(10, 2))

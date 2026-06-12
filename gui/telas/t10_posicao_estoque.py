@@ -64,10 +64,16 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         self._on_navigate= on_navigate
         self._produto_id= produto_id
         self._linhas= [] #(lote, produto, situacao)
-        self.permissao= usuario.perfil.value=="tecnico", "admin"
+        self.permissao= usuario.perfil.value in ("tecnico", "admin")
         self._timer_busca= None
+        self._pagina_atual = 0          
+        self._itens_por_pagina = 30 # Lotes ocupam menos espaço visual, podemos renderizar 30 por vez
+        self._lista_filtrada_atual = [] 
+        self._carregando_pagina = False 
+        self._timer_scroll = None
         self._construir()
         self._carregar()
+        self._monitorar_scroll()
 
     #___ Construçãp_________________________________________________________________________________________
     def _construir(self):
@@ -194,7 +200,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
             self._entry_busca.delete(0, "end")
             self._entry_busca.insert(0, nome_produto_filtro)
 
-        self._renderizar(self._linhas)
+        self._filtrar()
     
     def _filtrar(self):
         busca = self._entry_busca.get().lower()
@@ -207,8 +213,40 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
             and(centro=="Todos os centros" or l.centro_alocacao.value.lower() in centro.lower())
             and (situacao== "Todas as situações" or s == situacao)
         ]
-        self._renderizar(filtrados)
+        
+        # --- ATIVA A PAGINAÇÃO ---
+        self._lista_filtrada_atual = filtrados
+        self._pagina_atual = 0
+
+        for w in self._scroll.winfo_children():
+            w.destroy()
+            
+        self._renderizar_proxima_pagina()
     
+    def _renderizar_proxima_pagina(self):
+        self._carregando_pagina = True 
+        
+        inicio = self._pagina_atual * self._itens_por_pagina
+        fim = inicio + self._itens_por_pagina
+        
+        lote_linhas = self._lista_filtrada_atual[inicio:fim]
+        self._renderizar(lote_linhas, limpar_tela=False)
+        
+        self._pagina_atual += 1
+        self.after(100, lambda: setattr(self, '_carregando_pagina', False))
+
+    def _monitorar_scroll(self):
+        inicio_proxima = self._pagina_atual * self._itens_por_pagina
+        
+        if not self._carregando_pagina and inicio_proxima < len(self._lista_filtrada_atual):
+            try:
+                _, bottom = self._scroll._parent_canvas.yview()
+                if bottom >= 0.95:
+                    self._renderizar_proxima_pagina()
+            except Exception:
+                pass
+            
+        self._timer_scroll = self.after(200, self._monitorar_scroll)
 
     def _limpar_filtros(self):
         busca = self._entry_busca.get().strip()
@@ -225,12 +263,11 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         
         self._renderizar(self._linhas)
 
-    
-    #_______Renderização______________________________________________________
 
-    def _renderizar(self, linhas):
-        for w in self._scroll.winfo_children():
-            w.destroy()
+    def _renderizar(self, linhas, limpar_tela=True):
+        if limpar_tela:
+            for w in self._scroll.winfo_children():
+                w.destroy()
         
         if not linhas:
             ctk.CTkLabel(self._scroll, text="Nenhum lote encontrado.",
@@ -295,10 +332,10 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                     command=(lambda p=pid, c=centro_val: self._on_navigate("retirada", extra={"produto_id": p, "centro_origem": c}))
                     if pode_retirar else None,
                 ).pack(side="left")
-        
+        total_encontrado = len(self._lista_filtrada_atual)
         vencidos=  sum(1 for _,_,s in linhas if s=="Vencido")
         self._lbl_rodape.configure(
-            text=f"{len(linhas)} lotes(s) exibidos"+ (f". {vencidos} vencidos" if vencidos else"")
+            text=f"{total_encontrado} lotes(s) exibidos"+ (f". {vencidos} vencidos" if vencidos else"")
         )
 
     def _erro_na_tela(self, detalhe:str):
@@ -311,8 +348,13 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
     
     def limpar_memoria(self):
         """Método chamado pelo app.py ao sair da tela para esvaziar a RAM."""
-        self._linhas.clear()
-        self._linhas = None
+        if hasattr(self, '_linhas') and self._linhas is not None:
+            self._linhas.clear()
+            self._linhas = None
+            
+        if self._timer_scroll is not None:
+            self.after_cancel(self._timer_scroll)
+            self._timer_scroll = None
 
     def _agendar_filtro(self, event=None):
         """Espera o usuário parar de digitar por 400ms antes de travar a tela renderizando."""

@@ -48,8 +48,14 @@ class TelaProdutos(ctk.CTkFrame):
         self._on_navigate = on_navigate
         self._produtos    = []
         self._timer_busca= None
+        self._pagina_atual = 0          
+        self._itens_por_pagina = 20     
+        self._lista_filtrada_atual = [] 
+        self._carregando_pagina = False 
+        self._timer_scroll = None
         self._construir()
         self._carregar_todos()
+        self._monitorar_scroll()
 
     def _construir(self):
         #Topbar
@@ -135,34 +141,29 @@ class TelaProdutos(ctk.CTkFrame):
         self._renderizar(self._produtos)
     
     def _carregar_todos(self):
-        """Vai ao banco de dados UMA ÚNICA VEZ e calcula todos os saldos e status."""
         self._dados_completos = []
-        hoje = date.today()
         try:
-            # Traz todos, ativos e inativos
-            produtos_db = EstoqueService.listar_produtos(apenas_ativos=False)
+            produtos_view = EstoqueService.listar_view_produtos()
             
-            for p in produtos_db:
-                # Calcula saldo
-                lotes = LoteRepo.listar_por_produto(p.id)
-                saldo = sum(l.quantidade_atual for l in lotes if l.data_vencimento >= hoje)
+            for p in produtos_view:
+                saldo = int(p.saldo_total) if p.saldo_total is not None else 0
                 
-                # Define Status Visual
-                if not p.ativo:
+                ativo = bool(p.ativo)
+                
+                if not ativo:
                     status = "Inativo"
                 elif p.estoque_minimo > 0 and saldo <= p.estoque_minimo:
                     status = "Estoque baixo"
                 else:
                     status = "Ativo"
-                    
-                # Salva a tupla completa na memória
+                
                 self._dados_completos.append((p, saldo, status))
                 
         except Exception as exc:
-            logger.error("Erro ao carregar produtos: %s", exc)
+            logger.error("Erro ao carregar produtos pela View: %s", exc)
             self._dados_completos = []
 
-        # Aplica os filtros padrão e desenha a tela
+        # Aplica os filtros padrão e aciona a paginação para desenhar a tela
         self._filtrar()
     def _filtrar(self, event=None):
         """Filtra apenas na memória (super rápido), sem ir ao banco de dados."""
@@ -186,8 +187,14 @@ class TelaProdutos(ctk.CTkFrame):
             # Se atendeu as duas condições, adiciona na lista da tela
             if nome_ok and status_ok:
                 filtrados.append((p, saldo, status))
+            
+        self._lista_filtrada_atual = filtrados  # Guarda a lista completa
+        self._pagina_atual = 0
 
-        self._renderizar(filtrados)
+        for w in self._scroll.winfo_children():
+            w.destroy()
+            
+        self._renderizar_proxima_pagina()
 
     def _limpar_filtros(self):
         busca = self._entry_busca.get().strip()
@@ -207,12 +214,13 @@ class TelaProdutos(ctk.CTkFrame):
         self._opt_lista.set("Todas as situações")
         self._filtrar()
     
-    def _renderizar(self, lista_produtos):
+    def _renderizar(self, lista_produtos, limpar_tela=True):
         """Apenas desenha os componentes visuais, sem processamento de dados."""
-        for w in self._scroll.winfo_children():
-            w.destroy()
+        if limpar_tela:
+            for w in self._scroll.winfo_children():
+                w.destroy()
         
-        if not lista_produtos:
+        if not lista_produtos and self._pagina_atual == 0:
             ctk.CTkLabel(self._scroll, text="Nenhum produto encontrado.",
                          text_color="#888780", font=ctk.CTkFont(size=12)).pack(pady=24)
             return
@@ -279,6 +287,35 @@ class TelaProdutos(ctk.CTkFrame):
                           command=lambda p=pid: self._on_navigate("posicao", extra=p)
                           ).pack(side="left")
     
+    def _renderizar_proxima_pagina(self):
+        #avisa ao sistema que já estamos buscando dados para ele não duplicar
+        self._carregando_pagina = True 
+        
+        inicio = self._pagina_atual * self._itens_por_pagina
+        fim = inicio + self._itens_por_pagina
+        
+        lote_produtos = self._lista_filtrada_atual[inicio:fim]
+        self._renderizar(lote_produtos, limpar_tela=False)
+        
+        self._pagina_atual += 1
+
+        self.after(100, lambda: setattr(self, '_carregando_pagina', False))
+
+    def _monitorar_scroll(self):
+        """Monitora se a barra de rolagem chegou ao fim para carregar mais itens."""
+        inicio_proxima = self._pagina_atual * self._itens_por_pagina
+        
+        if not self._carregando_pagina and inicio_proxima < len(self._lista_filtrada_atual):
+            try:
+                _, bottom = self._scroll._parent_canvas.yview()
+                
+                if bottom >= 0.95:
+                    self._renderizar_proxima_pagina()
+            except Exception:
+                pass
+            
+        self._timer_scroll = self.after(200, self._monitorar_scroll)
+
     def limpar_memoria(self):
 
         """Método chamado pelo app.py ao sair da tela para esvaziar a RAM."""
@@ -291,6 +328,10 @@ class TelaProdutos(ctk.CTkFrame):
         if hasattr(self, '_produtos') and self._produtos is not None:
             self._produtos.clear()
             self._produtos = None
+        
+        if self._timer_scroll is not None:
+            self.after_cancel(self._timer_scroll)
+            self._timer_scroll = None
     
     def _agendar_filtro(self, event=None):
         """Espera o usuário parar de digitar por 400ms antes de travar a tela renderizando."""

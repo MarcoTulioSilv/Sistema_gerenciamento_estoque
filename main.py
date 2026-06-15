@@ -7,6 +7,7 @@ sprint 0- inicializa o banco, controi janela prinicipal e inicia o loop da GUI
 import sys
 import logging
 from pathlib import Path
+import os 
 
 #Garante que o diretório raiz esteja no path quando executado via pyInstaller
 sys.path.insert(0, str(Path(__file__).parent))
@@ -16,15 +17,34 @@ from gui.app import SCEApp
 from auto_updater import verificar_atualizacao, aplicar_atualizacao
 #---------------------------Logging---------------------------------------------------
 
+local_app_data = os.getenv("LOCALAPPDATA")
+
+if not local_app_data:
+    # Monta o caminho manualmente: C:\Users\SeuUsuario\AppData\Local
+    local_app_data = os.path.join(os.path.expanduser("~"), "AppData", "Local")
+
+pasta_log = os.path.join(local_app_data, "SCE_Urofrologia")
+arquivo_log = os.path.join(pasta_log, "sce.log")
+
+try:
+    os.makedirs(pasta_log, exist_ok=True)
+    # Imprimir o caminho absoluto ajuda a rastrear exatamente onde a pasta foi criada
+    print(f"PASTA CRIADA/EXISTENTE: {os.path.exists(pasta_log)} -> {pasta_log}")
+except Exception as e:
+    print(f"ERRO AO CRIAR PASTA: {e}")
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler("sce.log", encoding="utf-8"),
+        logging.FileHandler(arquivo_log, encoding="utf-8"),
     ],
+    force=True
 )
+
 logger = logging.getLogger("sce.main")
+logger.info("Sistema de logs inicializado.")
 
 def _checar_e_perguntar() -> None:
     """
@@ -71,6 +91,7 @@ def _checar_e_perguntar() -> None:
 def main():
     logger.info("Iniciando SCE V1.0.0")
     _checar_e_perguntar()
+    print ("%s",pasta_log)
 
     #1. Inicializar banco de dados
     try:
@@ -95,6 +116,7 @@ def main():
     app.mainloop()
     app.pararScheduler()
     logger.info("SCE encerrado")
+
 
 
 if __name__ == "__main__":

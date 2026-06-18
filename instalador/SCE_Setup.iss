@@ -5,10 +5,10 @@
 ; ================================================================
 
 #define AppName      "SCE - Controle de Estoque Uronefrologia"
-#define AppVersion   "1.0.0"
+#define AppVersion   "1.0.1"
 #define AppPublisher "Centro Uronefrologia"
-#define AppExeName   "SCE_Uro_v1.0.0.exe"
-#define SourceDir    "..\dist\SCE_Uro_v1"
+#define AppExeName   "SCE_Uro_v1.0.1.exe"
+#define SourceDir    "..\dist\SCE_Uro_v1.0.1"
 #define AppIcon      "..\assets\Logo_Uro_sem_Nome.ico"
 
 [Setup]

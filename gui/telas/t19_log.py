@@ -53,8 +53,15 @@ class TelaLog(ctk.CTkFrame):
         self._usuario     = usuario
         self._on_navigate = on_navigate
         self._linhas: list[dict] = []
+        self._timer_busca= None
+        self._pagina_atual = 0          
+        self._itens_por_pagina = 30 
+        self._lista_filtrada_atual = [] 
+        self._carregando_pagina = False 
+        self._timer_scroll = None
         self._construir()
         self._carregar()
+        self._monitorar_scroll()
 
     # ── Construção ────────────────────────────────────────────────────────────
 
@@ -277,15 +284,49 @@ class TelaLog(ctk.CTkFrame):
             or busca in l["detalhe"].lower()
             or busca in l["operacao"].lower()
         ]
-        self._renderizar(filtrados)
+        self._lista_filtrada_atual= filtrados
+        self._pagina_atual= 0
+
+        for w in self._scroll.winfo_children():
+            w.destroy()
+            
+        self._renderizar_proxima_pagina()
+
+
+    def _renderizar_proxima_pagina(self):
+        self._carregando_pagina = True 
+        
+        inicio = self._pagina_atual * self._itens_por_pagina
+        fim = inicio + self._itens_por_pagina
+        
+        lote_linhas = self._lista_filtrada_atual[inicio:fim]
+        self._renderizar(lote_linhas, limpar_tela=False)
+        
+        self._pagina_atual += 1
+        self.after(100, lambda: setattr(self, '_carregando_pagina', False))
+
+    def _monitorar_scroll(self):
+        inicio_proxima = self._pagina_atual * self._itens_por_pagina
+        
+        if not self._carregando_pagina and inicio_proxima < len(self._lista_filtrada_atual):
+            try:
+                _, bottom = self._scroll._parent_canvas.yview()
+                if bottom >= 0.95:
+                    self._renderizar_proxima_pagina()
+            except Exception:
+                pass
+            
+        self._timer_scroll = self.after(200, self._monitorar_scroll)
+
 
     # ── Renderização ──────────────────────────────────────────────────────────
 
-    def _renderizar(self, linhas: list[dict]):
-        for w in self._scroll.winfo_children():
-            w.destroy()
+    def _renderizar(self, linhas: list[dict], limpar_tela=True):
+        if limpar_tela:
+            for w in self._scroll.winfo_children():
+                w.destroy()
 
-        if not linhas:
+        if not linhas and self._pagina_atual==0:
             ctk.CTkLabel(self._scroll, text="Nenhum registro encontrado.",
                          text_color="#888780").pack(pady=24)
             self._lbl_rodape.configure(text="")

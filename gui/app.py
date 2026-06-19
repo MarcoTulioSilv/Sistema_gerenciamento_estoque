@@ -18,7 +18,7 @@ from gui.telas.t03_produtos import TelaProdutos
 from gui.telas.t21_troca_senha import TelaTrocaSenha
 from gui.telas.t05_novo_produto import TelaNovoProduto
 from gui.telas.t07_entrada_manual import TelaEntradaManual
-from gui.telas.t08_importar_nfe import TelaImportarNFe
+#from gui.telas.t08_importar_nfe import TelaImportarNFe
 from gui.telas.t07c_entrada_danfe import TelaEntradaDANFE
 from gui.telas.t09_retirada import TelaRetirada
 from gui.telas.t10_posicao_estoque import TelaPosicaoEstoque
@@ -82,7 +82,7 @@ class SCEApp(ctk.CTk):
         if sys.platform.startswith("win"):
             try:
                 import ctypes
-                myappid = 'uronefrologia.sce.v1.0' # Uma string única (ID) para o seu app
+                myappid = 'uronefrologia.sce.v1.0.1' # Uma string única (ID) para o seu app
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
             except Exception as e:
                 print(f"Erro ao definir App ID no Windows: {e}")
@@ -231,8 +231,8 @@ class SCEApp(ctk.CTk):
         if destino=="entrada_manual":
             return TelaEntradaManual(self._area_conteudo, usuario= self.usuario_logado, on_navigate= nav, produto_id=extra)
         
-        if destino=="importar_nfe":
-            return TelaImportarNFe(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
+        #if destino=="importar_nfe":
+        #    return TelaImportarNFe(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav)
         
         if destino=="entrada_danfe":
             return TelaEntradaDANFE(self._area_conteudo,usuario=self.usuario_logado,on_navigate=nav, produto_id=extra)
@@ -354,7 +354,7 @@ class TitleBar(ctk.CTkFrame):
         self.pack_propagate(False)
         
         ctk.CTkLabel(
-            self, text= "Sistema de Controle de Estoque - Centro de Uro-nefrologia V1.0",
+            self, text= "Sistema de Controle de Estoque - Centro de Uro-nefrologia",
             text_color="white", font=ctk.CTkFont(size=14, weight="bold")
         ).pack(side="left", padx=8)
 
@@ -388,13 +388,13 @@ class Sidebar(ctk.CTkFrame):
     """Menu lateral com itens por perfil - CP-02"""
     MENU= [
         ("__label__"        ,"Estoque",                       None),
-        ("inicio"           ,"Início",                        ["tecnico", "adimin","ti"]),
+        ("inicio"           ,"Início",                        ["tecnico", "admin","ti"]),
         ("produtos"         ,"Produtos",                      ["ti", "tecnico", "admin"]),
         ("__label__"        ,"Movimentações",                 None),
         ("entrada_manual"   ,"Entrada Manual",                ["admin", "tecnico", "ti"]),
-        ("importar_nfe"     ,"Importar NF-e",                 ["admin", "tecnico", "ti"]),
+        ("importar_nfe"     ,"Importar NF-e",                 []),
         ("entrada_danfe"    ,"Entrada DANFE",                 ["admin", "tecnico", "ti"]),
-        ("retirada"         ,"Retirada/ Transferencia",                      ["admin", "tecnico", "ti"]),
+        ("retirada"         ,"Retirada/ Transferencia",       ["admin", "tecnico", "ti"]),
         ("__label__"        ,"Consulta",                      None),
         ("posicao"          ,"Posição de Estoque",            ["admin", "tecnico", "ti"]),
         ("dashboard"        ,"Dashboard",                     ["admin", "ti"]),

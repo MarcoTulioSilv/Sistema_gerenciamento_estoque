@@ -151,7 +151,7 @@ class EstoqueService:
         valor_unitario:  Decimal,
         usuario_id:      int,
         data_fabricacao: date = None,
-        unidade_estoque: str="",
+        unidade_estoque: str="cx",
         centro_alocacao: str = "deposito",
     ):
         """
@@ -177,7 +177,7 @@ class EstoqueService:
             chave_acesso       = chave_acesso.strip(),
             data_vencimento    = data_vencimento,
             data_fabricacao    = data_fabricacao,
-            unidade_estoque    =unidade_estoque,
+            unidade_estoque    = unidade_estoque,
             centro_alocacao    = centro_alocacao,
             quantidade_inicial = quantidade,
             quantidade_atual   = quantidade,

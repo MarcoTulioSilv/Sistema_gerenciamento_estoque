@@ -293,20 +293,28 @@ class TelaEntradaDANFE(ctk.CTkFrame):
                                 placeholder="DD/MM/AAAA")
         self._data_venc.grid(row=0, column=1, sticky="ew")
 
-        r2 = ctk.CTkFrame(self._sec_lote, fg_color="transparent")
+        r2= ctk.CTkFrame(self._sec_lote,fg_color="transparent")
         r2.pack(fill="x", padx=14, pady=(0, 6))
-        r2.grid_columnconfigure((0, 1), weight=1)
-        self._data_fab  = Campo(r2, "Data de fabricação", placeholder="DD/MM/AAAA")
+        r2.grid_columnconfigure((0,1), weight=0)
+        self._und_lote= Campo(r2, "Unidade de estoque", tipo="select", opcoes=UNIDADES, largura=80)
+        self._und_lote.grid(row=0, column=0, padx=(10,8), sticky= "w")
+        self._centro= Campo(r2, "Centro de alocação", tipo="select", opcoes=CENTROS, largura= 160)
+        self._centro.grid(row=0, column=1, sticky="ew")
+
+        r3 = ctk.CTkFrame(self._sec_lote, fg_color="transparent")
+        r3.pack(fill="x", padx=14, pady=(0, 6))
+        r3.grid_columnconfigure((0, 1), weight=1)
+        self._data_fab  = Campo(r3, "Data de fabricação", placeholder="DD/MM/AAAA")
         self._data_fab.grid(row=0, column=0, padx=(0,8), sticky="ew")
-        self._quantidade= Campo(r2, "Quantidade *", obrigatorio=True,
+        self._quantidade= Campo(r3, "Quantidade *", obrigatorio=True,
                                 tipo="number", placeholder="0")
         self._quantidade.grid(row=0, column=1, sticky="ew")
         self._quantidade._widget.bind("<KeyRelease>", lambda e: self._atualizar_total())
 
-        r3 = ctk.CTkFrame(self._sec_lote, fg_color="transparent")
-        r3.pack(fill="x", padx=14, pady=(0, 6))
-        r3.grid_columnconfigure(0, weight=1)
-        self._valor_unit = Campo(r3, "Valor unitário (R$) *", obrigatorio=True,
+        r4 = ctk.CTkFrame(self._sec_lote, fg_color="transparent")
+        r4.pack(fill="x", padx=14, pady=(0, 6))
+        r4.grid_columnconfigure(0, weight=1)
+        self._valor_unit = Campo(r4, "Valor unitário (R$) *", obrigatorio=True,
                                  tipo="number", placeholder="0,00")
         self._valor_unit.grid(row=0, column=0, padx=(0,8), sticky="ew")
         self._valor_unit._widget.bind("<KeyRelease>", lambda e: self._atualizar_total())
@@ -444,7 +452,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
 
         self._emitente_atual = dados.nome_emitente
         self._itens_pendentes = []
-        self._resumo_danfe = []  # <-- NOVO: Histórico para montar a tabela no final
+        self._resumo_danfe = []  # Histórico para montar a tabela no final
         itens_sucesso = 0
         itens_ignorados = 0
 
@@ -491,6 +499,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
                         data_vencimento = _parse_date(item["validade"]),
                         data_fabricacao = dt_fab,
                         centro_alocacao ="deposito",
+                        unidade_estoque = item["unidade_estoque"],
                         quantidade      = int(item["quantidade"]),
                         valor_unitario  = Decimal(str(item["valor_unitario"])),
                         usuario_id      = self._usuario.id,
@@ -541,6 +550,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         if item.get("validade"): self._data_venc.set(item["validade"])
         if item.get("fabricacao"): self._data_fab.set(item["fabricacao"])
         if item.get("quantidade"): self._quantidade.set(str(item["quantidade"]))
+        if item.get("unidade_estoque"): self._und_lote.set(str(item["unidade_estoque"]))
         if item.get("valor_unitario"): self._valor_unit.set(str(item["valor_unitario"]).replace(".", ","))
         
         self._atualizar_total()

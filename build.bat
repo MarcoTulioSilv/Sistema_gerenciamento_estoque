@@ -3,7 +3,7 @@ setlocal
 
 :: ── Configuração ──────────────────────────────────────────────
 set VERSION=1.0.1
-set SHARE=\\192.168.1.100\SCE_Updates
+set SHARE=\\192.168.0.150\SCE_Updates
 set INSTALLER=SCE_Setup_%VERSION%.exe
 :: ──────────────────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ if exist build\SCE_Uro_v1  rmdir /s /q build\SCE_Uro_v1
 
 :: 2. PyInstaller via .spec
 echo [2/4] Empacotando com PyInstaller...
-pyinstaller SCE.spec --clean
+pyinstaller SCE_Uro_v1.spec --clean
 if errorlevel 1 (
     echo ERRO no PyInstaller. Build abortado.
     pause & exit /b 1

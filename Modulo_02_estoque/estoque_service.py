@@ -61,10 +61,11 @@ class EstoqueService:
             raise ValueError(f"EAN '{ean}' já cadastrado para outro produto.")
         if estoque_minimo < 0:
             raise ValueError("Estoque mínimo não pode ser negativo.")
+        ean_salv= ean if ean and ean!="SEM GTIN" else None
  
         dados = dict(
             nome            = nome.strip(),
-            ean             = ean.strip(),
+            ean             = ean_salv,
             estoque_minimo  = estoque_minimo,
             descricao       = descricao.strip() if descricao else None,
             marca           = marca.strip() if marca else None,

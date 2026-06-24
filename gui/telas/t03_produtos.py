@@ -172,8 +172,11 @@ class TelaProdutos(ctk.CTkFrame):
 
         filtrados = []
         for p, saldo, status in self._dados_completos:
+            nome_seguro = p.nome.lower() if p.nome else ""
+            ean_seguro  = p.ean.lower() if p.ean else ""
+            fornecedor_seguro = p.fornecedor.lower() if p.fornecedor else ""
             # 1. Filtro de Texto
-            nome_ok = busca in p.nome.lower() or busca in p.ean.lower() or  busca in p.fornecedor.lower()
+            nome_ok = busca in nome_seguro or busca in ean_seguro or  busca in fornecedor_seguro
     
             # 2. Filtro de Situação 
             status_ok = True
@@ -233,7 +236,7 @@ class TelaProdutos(ctk.CTkFrame):
 
             valores = [
                 p.nome[:28],
-                p.ean,
+                p.ean or "-",
                 p.marca or "—",
                 p.fornecedor or "-",
                 str(p.estoque_minimo),

@@ -43,6 +43,33 @@ UNIDADES = ["caixa", "pacote", "unidade", "ampola", "galao",
             "fardo", "litro", "rolo", "kit", "dose"]
 CENTROS  = ["deposito", "almoxarifado", "farmacia"]
 
+_unidade_MAP = {
+    "CX":  "caixa",  "CXA": "caixa","C":"caixa","CAIXA":"caixa",
+
+    "PCT": "pacote", "PC":  "pacote", "PACOTE": "pacote",
+
+    "UN":  "unidade", "UND": "unidade" ,"UNID": "unidade","UNIDADE": "unidade", "CDA":"unidade", "CD":"unidade", "CADA": "unidade",
+
+    "AMP": "ampola","APL":"ampola", "AMPOLA":"ampola", "APL": "ampola",
+
+    "GL":"galao", "GALÃO":"galao","GALAO":"galao", "GLA":"galao",
+
+    "FRD":"fardo", "FAR":"fardo", "FARDO":"fardo",
+
+    "LTR": "litro", "LIT":"litro","LITRO":"litro",
+
+    "RL":"rolo", "RO":"rolo","ROLO":"rolo", "RLO": "rolo",
+
+    "KIT":"kit",
+
+    "DOSE":"dose", "DS":"dose", "DO":"dose", "DSE": "dose"
+}  
+
+def _mapear_unidade(unidade_nfe:str)-> str:
+    """ Converte unidade da NF-e para valor do ENUM UnidadeEstoqueEnum
+    """
+    return _unidade_MAP.get(unidade_nfe.upper().strip())
+
 
 class TelaEntradaDANFE(ctk.CTkFrame):
 
@@ -232,7 +259,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         g1 = ctk.CTkFrame(self._frame_rap, fg_color="transparent")
         g1.pack(fill="x", padx=14, pady=(0, 4))
         g1.grid_columnconfigure((0, 1, 2), weight=1)
-        self._rap_nome    = Campo(g1, "Nome *", obrigatorio=True)
+        self._rap_nome    = Campo(g1, "Nome", obrigatorio=True)
         self._rap_nome.grid(row=0, column=0, padx=(0,8), sticky="ew", columnspan=2)
 
         g2 = ctk.CTkFrame(self._frame_rap, fg_color="transparent")
@@ -423,22 +450,18 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         else:
             logger.warning("Scraping falhou: %s", resultado.erro)
             self._banner.aviso(
-                f"Preenchimento automático não disponível: {resultado.erro}\n"
-                "Preencha os campos manualmente."
-            )
-            self._ativar_modo_manual()
+                f"Preenchimento automático não disponível: {resultado.erro}\n")
 
     def _cancelar_scraping(self):
         # A thread do servidor morrerá sozinha no timeout de 5 minutos,
         # apenas fechamos a UI de progresso.
         self._progress.stop()
         self._sec_scraping.pack_forget()
-        self._ativar_modo_manual()
 
     # ── Preenchimento automático ──────────────────────────────────────────────
 
     def _preencher_campos_automaticamente(self, dados):
-        """Processa a lista da SEFAZ, auto-cadastra os possíveis e enfileira os pendentes."""
+        """Processa a lista da SEFAZ, auto-completa os possíveis e enfileira os pendentes."""
         self._sec_produto.pack(fill="x", pady=(0, 8))
         self._sec_lote.pack(fill="x", pady=(0, 8))
         self._row_btns.pack(anchor="e", pady=(0, 8))
@@ -456,14 +479,20 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         itens_sucesso = 0
         itens_ignorados = 0
 
+        
         # Loop de processamento em lote
         for item in dados.itens:
-            prod = None
-            if item.get("ean"):
-                try:
-                    prod = EstoqueService.buscar_produto_por_ean(item["ean"])
-                except Exception:
-                    pass
+            ean_item = str(item.get("ean", "")).strip().upper()
+            nome_item= str(item.get("descricao","")).strip()
+            prod= None
+            try: 
+                if ean_item and ean_item!= "SEM GTIN":
+                    prod= EstoqueService.buscar_produto_por_ean(ean_item)
+                elif nome_item:
+                    prod= EstoqueService.buscar_produto_por_nome(nome_item)
+            except Exception:
+                pass
+
             
             # Verificação de duplicidade para pular a inserção
             if prod and item.get("lote"):
@@ -486,58 +515,25 @@ class TelaEntradaDANFE(ctk.CTkFrame):
                 except Exception:
                     pass
 
-            # Cadastra Automático!
-            if prod and item.get("lote") and item.get("validade") and item.get("quantidade") and item.get("valor_unitario"):
-                try:
-                    dt_fab = _parse_date(item["fabricacao"]) if item.get("fabricacao") else dados.data_emissao
-                    
-                    EstoqueService.registrar_entrada_danfe(
-                        produto_id      = prod.id,
-                        num_lote        = item["lote"],
-                        nota_fiscal     = dados.numero_nf,
-                        chave_acesso    = self._dados_chave["chave"],
-                        data_vencimento = _parse_date(item["validade"]),
-                        data_fabricacao = dt_fab,
-                        centro_alocacao ="deposito",
-                        unidade_estoque = item["unidade_estoque"],
-                        quantidade      = int(item["quantidade"]),
-                        valor_unitario  = Decimal(str(item["valor_unitario"])),
-                        usuario_id      = self._usuario.id,
-                    )
-                    itens_sucesso += 1
-                    self._resumo_danfe.append({
-                        "descricao": prod.nome,
-                        "lote": item["lote"],
-                        "qtd": item["quantidade"],
-                        "status": "Cadastrado Automático"
-                    })
-                except Exception as exc:
-                    logger.warning(f"Erro ao auto-cadastrar lote {item.get('lote')}: {exc}")
-                    self._itens_pendentes.append(item)
-            else:
-                self._itens_pendentes.append(item)
+            self._itens_pendentes.append(item)
 
-        if itens_sucesso > 0 or itens_ignorados > 0:
-            msg = []
-            if itens_sucesso > 0: msg.append(f"✓ {itens_sucesso} itens cadastrados.")
-            if itens_ignorados > 0: msg.append(f"✓ {itens_ignorados} itens ignorados.")
-            self._banner.sucesso(" ".join(msg))
+        if itens_sucesso > 0:
+           self._banner.sucesso(f"{itens_ignorados} itens ignorados pois já estavam registrados.")
             
         if self._itens_pendentes:
-            if itens_sucesso > 0 or itens_ignorados > 0:
-                self._banner.aviso(f"Existem {len(self._itens_pendentes)} itens pendentes (produto novo ou dados incompletos).")
-            self._carregar_proximo_pendente()
+                self._banner.aviso(f"Existem {len(self._itens_pendentes)} itens aguardando revisão  e confirmação.")
+                self._carregar_proximo_pendente()
         else:
             self._exibir_resumo_danfe()
             
     def _carregar_proximo_pendente(self):
-        """Carrega o próximo item que o robô não conseguiu salvar sozinho na tela."""
+        """Carrega o próximo item"""
         if not hasattr(self, '_itens_pendentes') or not self._itens_pendentes:
             return
             
         item = self._itens_pendentes.pop(0)
         
-        # --- CORREÇÃO DO TRAVAMENTO: Limpa a seleção do produto anterior ---
+       
         self._produto_sel = None
         self._card_produto.pack_forget()
         self._frame_rap.pack_forget()
@@ -545,34 +541,55 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         self._nome.limpar()
         # -------------------------------------------------------------------
         
-        # Preenche os inputs com o que o robô conseguiu raspar
+        # Preenche os inputs raspados
         if item.get("lote"): self._num_lote.set(item["lote"])
         if item.get("validade"): self._data_venc.set(item["validade"])
         if item.get("fabricacao"): self._data_fab.set(item["fabricacao"])
         if item.get("quantidade"): self._quantidade.set(str(item["quantidade"]))
-        if item.get("unidade_estoque"): self._und_lote.set(str(item["unidade_estoque"]))
         if item.get("valor_unitario"): self._valor_unit.set(str(item["valor_unitario"]).replace(".", ","))
         
+        if item.get("unidade_estoque"): 
+            unidade_tratada = _mapear_unidade(str(item["unidade_estoque"]))
+            self._und_lote.set(unidade_tratada)
+
         self._atualizar_total()
         
-        if item.get("ean"):
-            self._ean.set(item["ean"])
-            self._on_leitura_ean(item["ean"])
-            try:
-                if getattr(self, "_emitente_atual", None):
-                    self._rap_fornecedor.set(self._emitente_atual)
-            except Exception: pass
-        else:
-            self._banner.aviso("Este item não possui EAN. Busque pelo nome ou faça o cadastro rápido.")
-            self._nome.focus()
+        ean_item= str(item.get("ean", "")).strip().upper()
+        nome_item= str(item.get("descricao","")).strip()
 
-    def _ativar_modo_manual(self):
-        """Fallback: revela as seções com campos desbloqueados para preenchimento manual."""
-        self._modo_manual = True
-        self._sec_produto.pack(fill="x", pady=(0, 8))
-        self._sec_lote.pack(fill="x", pady=(0, 8))
-        self._row_btns.pack(anchor="e", pady=(0, 8))
-        self._ean.focus()
+        if ean_item and ean_item != "SEM GTIN":
+            self._ean.set(ean_item)
+            self._on_leitura_ean(ean_item)
+
+            if self._produto_sel is None and nome_item:
+                self._rap_nome.set(nome_item)
+                try:
+                    if getattr(self, "_emitente_atual", None):
+                        self._rap_fornecedor.set(self._emitente_atual)
+                except Exception: pass
+
+        else:
+            if nome_item:
+                self._nome.set(nome_item)
+                self._on_leitura_nome(nome_item)
+
+                if self._produto_sel is None:
+                    self._banner.aviso(f"Produto não encontrado. Realizar cadastro rápido", 10000)
+
+                    self._ean_pendente= None
+                    self._lbl_ean_rap.configure(text="Produto sem código de barras")
+                    self._rap_nome.set(nome_item)
+                    self._frame_rap.pack(fill="x", padx=14, pady=(0,8))
+                    
+                    try:
+                        if getattr(self, "_emitente_atual", None):
+                            self._rap_fornecedor.set(self._emitente_atual)
+                    except Exception: pass
+
+                    self._rap_nome.focus()
+            else:
+                self._banner.aviso("Item sem EAN e sem Nome. Identifique manualmente")
+                self._nome.focus()
 
     # ── Produto ───────────────────────────────────────────────────────────────
 
@@ -634,7 +651,6 @@ class TelaEntradaDANFE(ctk.CTkFrame):
             produto = EstoqueService.criar_produto(
                 nome            = self._rap_nome.get().strip(),
                 ean             = self._ean_pendente,
-
                 fornecedor      = self._rap_fornecedor.get().strip() or None,
                 marca           = self._rap_marca.get().strip() or None,
             )
@@ -667,9 +683,6 @@ class TelaEntradaDANFE(ctk.CTkFrame):
     def _salvar(self):
         if not self._dados_chave:
             self._banner.erro("Leia e valide a chave de acesso primeiro.")
-            return
-        if not self._produto_sel:
-            self._banner.erro("Identifique o produto pelo código de barras.")
             return
 
         if not all([
@@ -733,6 +746,8 @@ class TelaEntradaDANFE(ctk.CTkFrame):
                 num_lote        = self._num_lote.get(),
                 nota_fiscal     = self._dados_chave["numero_nf"],
                 chave_acesso    = self._dados_chave["chave"],
+                unidade_estoque = self._und_lote.get(), 
+                centro_alocacao = self._centro.get(),
                 data_vencimento = data_venc,
                 data_fabricacao = data_fab,
                 quantidade      = qtd,
@@ -770,7 +785,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
             "descricao": self._produto_sel.nome,
             "lote": self._num_lote.get(),
             "qtd": qtd,
-            "status": "Cadastrado Manualmente"
+            "status": "Cadastrado Automaciamente"
         })
 
         # 2. Limpa os campos após salvar
@@ -853,8 +868,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
             campo.limpar()
         self._lbl_total.configure(text="Valor total: —")
         
-        # Correção do método de limpar do banner (sem underline)
-        self._banner.limpar() 
+        self._banner._limpar() 
         
         for w in self._scroll.winfo_children():
             if getattr(w, "_prox_bar", False):

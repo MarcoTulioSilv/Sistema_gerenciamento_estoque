@@ -38,12 +38,15 @@ function extrairDadosSefaz() {
             
             let qtdNode = tr.querySelector(".fixo-prod-serv-qtd span");
             let qtd = qtdNode ? parseFloat(qtdNode.innerText.replace(/\./g, '').replace(',', '.')) : 0;
+
+            let nomeNode = tr.querySelector(".fixo-prod-serv-descricao span");
+            let descricaoProduto = nomeNode ? nomeNode.innerText.trim() : "Item sem descrição";
             
             let eanNode = document.evaluate(".//label[contains(text(), 'Código EAN Comercial')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let unidadeNode = document.evaluate(".//label[contains(text(), 'Unidade Comercial')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let vUnNode = document.evaluate(".//label[contains(text(), 'Valor unitário de comercialização')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let vUn = vUnNode ? parseFloat(vUnNode.innerText.replace(/\./g, '').replace(',', '.')) : 0;
-            
+           
             let valNode = document.evaluate(".//label[contains(text(), 'Data de validade')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let fabNode = document.evaluate(".//label[contains(text(), 'Data de fabricação')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             
@@ -81,6 +84,7 @@ function extrairDadosSefaz() {
 
             if (eanNode && eanNode.innerText.trim() !== "") {
                 itens.push({
+                    descricao: descricaoProduto,
                     ean: eanNode.innerText.trim(),
                     quantidade: qtd,
                     valor_unitario: vUn,

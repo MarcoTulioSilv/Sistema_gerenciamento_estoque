@@ -42,7 +42,20 @@ function extrairDadosSefaz() {
             let nomeNode = tr.querySelector(".fixo-prod-serv-descricao span");
             let descricaoProduto = nomeNode ? nomeNode.innerText.trim() : "Item sem descrição";
             
+            //extrai o codigo do produto
+            let codProdNode= document.evaluate(".//label[contains(text(), 'Código do Produto')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+            let codigoProduto = codProdNode ? codProdNode.innerText.trim() : "";
+            
+
             let eanNode = document.evaluate(".//label[contains(text(), 'Código EAN Comercial')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+            let eanOriginal= eanNode? eanNode.innerText.trim() : "";
+
+            let eanFinal= eanOriginal;
+            if(eanFinal==="" || eanFinal.toUpperCase() ==="SEM GTIN"){
+                eanFinal= codigoProduto;
+                console.log(`SCE: Produto sem EAN. Substituindo pelo Código Interno: ${eanFinal}`);
+            }
+
             let unidadeNode = document.evaluate(".//label[contains(text(), 'Unidade Comercial')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let vUnNode = document.evaluate(".//label[contains(text(), 'Valor unitário de comercialização')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let vUn = vUnNode ? parseFloat(vUnNode.innerText.replace(/\./g, '').replace(',', '.')) : 0;
@@ -62,12 +75,11 @@ function extrairDadosSefaz() {
                 fabricacao = `${p[2]}/${p[1]}/${p[0]}`;
             }
             
-            // --- NOVA LÓGICA CORRIGIDA PARA EXTRAÇÃO DE LOTE ---
+            
             let loteNode = document.evaluate(".//label[contains(text(), 'Número do Lote do produto')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let loteValor = loteNode ? loteNode.innerText.trim() : "";
 
             if (!loteValor) {
-                // Busca especificamente na tabela de "Informações adicionais do produto" (ignora o nome do produto no topo)
                 let infoAdicionalNode = document.evaluate(".//fieldset[contains(@class, 'fieldset-internal')]//label[contains(text(), 'Descrição')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
                 
                 if (infoAdicionalNode) {
@@ -85,7 +97,7 @@ function extrairDadosSefaz() {
             if (eanNode && eanNode.innerText.trim() !== "") {
                 itens.push({
                     descricao: descricaoProduto,
-                    ean: eanNode.innerText.trim(),
+                    ean: eanFinal,
                     quantidade: qtd,
                     valor_unitario: vUn,
                     lote: loteValor, 

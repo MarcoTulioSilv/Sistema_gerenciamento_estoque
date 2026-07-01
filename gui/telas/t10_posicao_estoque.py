@@ -27,6 +27,7 @@ _SITUACAO_COR = {
     "Vence em 15d":   ("#FAEEDA", "#854F0B"),
     "Vence em 30d":  ("#FAEEDA", "#854F0B"),
     "Normal":        ("#EAF3DE", "#27500A"),
+    "Uso Contínuo":   ("#EAF3DE", "#27500A"),
 }
 
 _COLUNAS = [
@@ -43,6 +44,9 @@ _COLUNAS = [
 
 
 def _calcular_situacao(lote, hoje:date)->str:
+    if lote.data_vencimento is None:
+        return "Uso Contínuo"
+    
     if lote.data_vencimento<hoje:
         return "Vencido"
     diff=(lote.data_vencimento-hoje).days
@@ -285,15 +289,19 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
             row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
             row.pack(fill="x")
             row.grid_columnconfigure(7, weight=1)
+
+            lote_str= lote.num_lote if lote.num_lote else"S/L"
+            venc_str = lote.data_vencimento.strftime("%d/%m/%Y") if lote.data_vencimento else "—"
+
             
             valores = [
                 produto.nome[:28], 
-                lote.num_lote,
-                lote.nota_fiscal,
+                lote_str,
+                lote.nota_fiscal or "S/N",
                 lote.centro_alocacao.value.capitalize(),
                 lote.unidade_estoque.value.capitalize(),
                 str(lote.quantidade_atual),
-                lote.data_vencimento.strftime("%d/%m/%Y")
+                venc_str
             ]
             
             for col, val in enumerate(valores):

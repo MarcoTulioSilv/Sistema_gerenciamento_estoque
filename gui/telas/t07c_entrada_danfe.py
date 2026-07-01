@@ -23,7 +23,6 @@ from gui.componentes.form_widgets import (
 )
 from Modulo_02_estoque import EstoqueService, ProdutoRepo, LoteRepo, DanfeEntryAssistant
 from Modulo_02_estoque.sefaz_receiver import DadosSefaz  
-
 logger = logging.getLogger(__name__)
 
 COR_AZUL     = "#1F4E79"
@@ -46,29 +45,30 @@ CENTROS  = ["deposito", "almoxarifado", "farmacia"]
 _unidade_MAP = {
     "CX":  "caixa",  "CXA": "caixa","C":"caixa","CAIXA":"caixa",
 
-    "PCT": "pacote", "PC":  "pacote", "PACOTE": "pacote",
+    "PCT": "pacote", "PC":  "pacote", "PACOTE": "pacote", "PT": "pacote",
 
     "UN":  "unidade", "UND": "unidade" ,"UNID": "unidade","UNIDADE": "unidade", "CDA":"unidade", "CD":"unidade", "CADA": "unidade",
 
-    "AMP": "ampola","APL":"ampola", "AMPOLA":"ampola", "APL": "ampola",
+    "AMP": "ampola","APL":"ampola", "AMPOLA":"ampola", "APL": "ampola", "AM": "ampola", "AP": "ampola",
 
     "GL":"galao", "GALÃO":"galao","GALAO":"galao", "GLA":"galao",
 
-    "FRD":"fardo", "FAR":"fardo", "FARDO":"fardo",
+    "FRD":"fardo", "FAR":"fardo", "FARDO":"fardo", "FD": "fardo",
 
-    "LTR": "litro", "LIT":"litro","LITRO":"litro",
+    "LTR": "litro", "LIT":"litro","LITRO":"litro", "LT": "litro",
 
     "RL":"rolo", "RO":"rolo","ROLO":"rolo", "RLO": "rolo",
 
-    "KIT":"kit",
+    "KIT":"kit", "KT":"kit",
 
     "DOSE":"dose", "DS":"dose", "DO":"dose", "DSE": "dose"
 }  
 
 def _mapear_unidade(unidade_nfe:str)-> str:
-    """ Converte unidade da NF-e para valor do ENUM UnidadeEstoqueEnum
-    """
-    return _unidade_MAP.get(unidade_nfe.upper().strip())
+    if not unidade_nfe:
+        return "caixa"
+    sigla = str(unidade_nfe).upper().strip()
+    return _unidade_MAP.get(sigla, "caixa")
 
 
 class TelaEntradaDANFE(ctk.CTkFrame):
@@ -268,7 +268,14 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         self._rap_fornecedor= Campo(g2, "Fornecedor", placeholder="Opcional")
         self._rap_fornecedor.grid(row=0, column=1, padx=(0,8), sticky="ew")
         self._rap_marca     = Campo(g2, "Marca", placeholder="Opcional")
-        self._rap_marca.grid(row=0, column=2, sticky="ew")
+        self._rap_marca.grid(row=0, column=1, sticky="ew")
+
+        self._rap_ctl_val= ctk.CTkCheckBox(
+            g2, text= "Possui validade/Lote", text_color=COR_AZUL,
+            font= ctk.CTkFont(size= 11, weight="bold")
+        )
+        self._rap_ctl_val.grid(row=0, column= 2, sticky= "e", padx= (0,8))
+        self._rap_ctl_val.select()
 
         row_rap = ctk.CTkFrame(self._frame_rap, fg_color="transparent")
         row_rap.pack(anchor="e", padx=14, pady=(4, 12))
@@ -281,7 +288,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
                       fg_color=COR_AZUL_M, hover_color="#1a5276",
                       command=self._executar_cadastro_rapido
                       ).pack(side="left")
-
+        
     def _construir_sec_lote(self):
         self._sec_lote = SecaoFormulario(self._scroll, "3. Dados do lote")
 
@@ -313,7 +320,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         r1 = ctk.CTkFrame(self._sec_lote, fg_color="transparent")
         r1.pack(fill="x", padx=14, pady=(0, 6))
         r1.grid_columnconfigure((0, 1), weight=1)
-        self._num_lote  = Campo(r1, "Número do lote *", obrigatorio=True,
+        self._num_lote  = Campo(r1, "Número do lote ", obrigatorio=True,
                                 placeholder="Ex: L2024-0512")
         self._num_lote.grid(row=0, column=0, padx=(0,8), sticky="ew")
         self._data_venc = Campo(r1, "Data de vencimento *", obrigatorio=True,
@@ -333,7 +340,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         r3.grid_columnconfigure((0, 1), weight=1)
         self._data_fab  = Campo(r3, "Data de fabricação", placeholder="DD/MM/AAAA")
         self._data_fab.grid(row=0, column=0, padx=(0,8), sticky="ew")
-        self._quantidade= Campo(r3, "Quantidade *", obrigatorio=True,
+        self._quantidade= Campo(r3, "Quantidade ", obrigatorio=True,
                                 tipo="number", placeholder="0")
         self._quantidade.grid(row=0, column=1, sticky="ew")
         self._quantidade._widget.bind("<KeyRelease>", lambda e: self._atualizar_total())
@@ -362,6 +369,10 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         ctk.CTkButton(self._row_btns, text="Registrar entrada", width=160, height=34,
                       fg_color=COR_AZUL_M, hover_color="#1a5276",
                       command=self._salvar
+                      ).pack(side="left")
+        ctk.CTkButton(self._row_btns, text="pular produto", width=160, height=34,
+                      fg_color="#353535", hover_color=COR_CINZA_E,
+                      command=self._carregar_proximo_pendente
                       ).pack(side="left")
 
     # ── Lógica da chave ───────────────────────────────────────────────────────
@@ -628,16 +639,31 @@ class TelaEntradaDANFE(ctk.CTkFrame):
 
     def _mostrar_produto(self, produto):
         self._produto_sel = produto
+        controla_val= getattr(produto, 'controla_validade', True)
+        status_val= "Sim" if controla_val else "Não"
+
         self._lbl_produto.configure(
             text=(f"  {produto.nome}\n"
                  "·  Fornecedor: {produto.fornecedor or '—'}  ·  "
-                  f"Estoque mín.: {produto.estoque_minimo}")
+                  f"Estoque mín.: {produto.estoque_minimo} . Rastreabilidade: {status_val}")
         )
         self._card_produto.pack(fill="x", padx=14, pady=(0, 8))
         self._banner._limpar()
-        if not self._num_lote.get():
-            self._num_lote.focus()
+        
+        if not controla_val:
+            self._num_lote.limpar()
+            self._data_venc.limpar()
+            self._data_fab.limpar()
 
+            for widget in[self._num_lote, self._data_venc, self._data_fab]:
+                widget._widget.configure(state="disabled", fg_color=COR_CINZA_E)
+            self._quantidade.focus
+        else:
+            for widget in [self._num_lote, self._data_venc, self._data_fab]:
+                widget._widget.configure(state="normal", fg_color=COR_CINZA_E)
+                
+            if not self._num_lote.get():
+                self._num_lote.focus()
     def _buscar_produto_por_id(self, id_: int):
         p = ProdutoRepo.buscar_por_id(id_)
         if p:
@@ -653,6 +679,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
                 ean             = self._ean_pendente,
                 fornecedor      = self._rap_fornecedor.get().strip() or None,
                 marca           = self._rap_marca.get().strip() or None,
+                controla_validade= bool(self._rap_ctl_val.get())
             )
             self._ean_pendente = None
             self._frame_rap.pack_forget()
@@ -684,26 +711,38 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         if not self._dados_chave:
             self._banner.erro("Leia e valide a chave de acesso primeiro.")
             return
-
-        if not all([
-            self._num_lote.validar(),
-            self._data_venc.validar(),
-            self._quantidade.validar(),
-            self._valor_unit.validar(),
-        ]):
+        if not self._produto_sel:
+            self._banner.erro("Identifique o produto pelo código de barras")
             return
 
-        data_venc = _parse_date(self._data_venc.get())
-        if not data_venc:
-            self._data_venc.erro("Data inválida. Use DD/MM/AAAA.")
-            return
+        controla_val= getattr(self._produto_sel, 'controla_validade', True)
 
-        data_fab = None
-        if self._data_fab.get():
-            data_fab = _parse_date(self._data_fab.get())
+        campos_gerais= [self._quantidade.validar(), self._valor_unit.validar()]
+        if controla_val:
+            if not all( campos_gerais+ [self._num_lote.validar(), self._data_venc.validar()]):
+                return
+        else:
+            if not all(campos_gerais):
+                return
+
+        data_venc = None
+        data_fab= None
+        num_lote_final= None
+
+        if controla_val:
+            data_venc= _parse_date(self._data_venc.get())
+            if not data_venc:
+                self._data_venc.erro("Data inválida. Use DD/MM/AAAA.")
+                return
+            num_lote_final= self._num_lote.get()
+            
+            if self._data_fab.get():
+                data_fab = _parse_date(self._data_fab.get())
             if not data_fab:
                 self._data_fab.erro("Data inválida. Use DD/MM/AAAA.")
                 return
+
+        
         try:
             vunt = Decimal(self._valor_unit.get().replace(",", "."))
             if vunt <= 0:
@@ -713,17 +752,19 @@ class TelaEntradaDANFE(ctk.CTkFrame):
             return
 
         # Prevenir erro de banco verificando duplicidade manual 
-        try:
-            lotes_existentes = EstoqueService.listar_lotes(self._produto_sel.id, apenas_com_saldo=False)
-            ja_cadastrado = any(
-                l.num_lote == self._num_lote.get() and l.nota_fiscal == self._dados_chave["numero_nf"]
-                for l in lotes_existentes
-            )
-            if ja_cadastrado:
-                self._banner.erro("Ops! Este lote já foi cadastrado para esta Nota Fiscal.")
-                return
-        except Exception:
-            pass
+        if controla_val:
+            try:
+                lotes_existentes = EstoqueService.listar_lotes(self._produto_sel.id, apenas_com_saldo=False)
+                ja_cadastrado = any(
+                    l.num_lote == self._num_lote.get() and l.nota_fiscal == self._dados_chave["numero_nf"]
+                    for l in lotes_existentes
+                )
+                if ja_cadastrado:
+                    self._banner.erro("Ops! Este lote já foi cadastrado para esta Nota Fiscal.")
+                    return
+            except Exception:
+                pass
+
         try:
             qtd = int(self._quantidade.get())
             if qtd <= 0:
@@ -756,6 +797,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
             )
         except ValueError as exc:
             self._banner.erro(str(exc))
+            self._carregar_proximo_pendente()
             return
         except Exception as exc:
             logger.error("Erro ao registrar entrada DANFE: %s", exc)
@@ -770,11 +812,12 @@ class TelaEntradaDANFE(ctk.CTkFrame):
                 aviso = f" · Atenção: saldo ({saldo}) ≤ mínimo ({minimo})."
         except Exception:
             pass
-
+        
+        lote_msg= f"Lote:{num_lote_final}" if controla_val else "Item de consumo(Sem lote)"
         nf = self._dados_chave["numero_nf"]
         self._banner.sucesso(
             f"Entrada DANFE registrada: {qtd} unid. de '{self._produto_sel.nome}' · "
-            f"Lote: {self._num_lote.get()} · NF: {nf}.{aviso}"
+            f"Lote: {lote_msg} · NF: {nf}.{aviso}"
         )
 
         # 1. Adiciona o item recém processado ao Resumo Final

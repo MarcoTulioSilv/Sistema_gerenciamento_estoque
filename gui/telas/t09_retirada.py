@@ -341,7 +341,7 @@ class TelaRetirada(ctk.CTkFrame):
         self._opt_centro_dest.set("— sem transferência —")
         
         # Limpar produto selecionado caso tenha trocado de centro
-        self._limpar_produto
+        self._limpar_produto()
     
     def _mostrar_sec_produto(self):
         self._sec_produto.pack(fill="x", padx=16, pady=(10,0))
@@ -386,7 +386,7 @@ class TelaRetirada(ctk.CTkFrame):
         else:
             lotes_vis = [l for l in lotes
                          if l.quantidade_atual > 0
-                         and l.data_vencimento >= hoje
+                         and  (l.data_vencimento is None or l.data_vencimento >= hoje)
                          and l.centro_alocacao.value == self._centro_origem]
  
         saldo   = sum(l.quantidade_atual for l in lotes_vis)
@@ -527,11 +527,15 @@ class TelaRetirada(ctk.CTkFrame):
                                  corner_radius=6, border_width=1,
                                  border_color=COR_CINZA_B)
             linha.pack(fill="x",padx=10,pady=3)
+                
+            nun_lote_str= item.num_lote if item.num_lote else"S/L"
+            venc_str = item.data_vencimento.strftime('%d/%m/%Y') if item.data_vencimento else "Uso Contínuo"
+            nf_str= item.nota_fiscal if item.nota_fiscal else "S/N"
 
             dados = [
-                (f" Lote {item.num_lote}",                              160, COR_AZUL,   True),
-                (f"Vence: {item.data_vencimento.strftime('%d/%m/%Y')}", 150, "#888780",  False),
-                (f"NF: {item.nota_fiscal}",                             120, "#888780",  False),
+                (f" Lote {nun_lote_str}",                              160, COR_AZUL,   True),
+                (f"Vence: {venc_str}", 150, "#888780",  False),
+                (f"NF: {nf_str}",                             120, "#888780",  False),
                 (f"{item.unidade_estoque.capitalize()}",                 90, "#3d3d3a",  False),
                 (f"Atual: {item.saldo_atual}",                          100, "#3d3d3a",  False),
                 (f"Retirar: {item.qtd_a_retirar}",                      110, COR_AZUL_M, True),

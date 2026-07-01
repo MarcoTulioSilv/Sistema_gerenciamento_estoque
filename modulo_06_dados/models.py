@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Integer, String, Enum, Boolean, DateTime, Date,
-    Numeric, Time, ForeignKey, Text, func
+    Numeric, Time, ForeignKey, Text, func, Index
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -97,7 +97,7 @@ class Produto(Base):
     """Tabela: produto — MOD-02"""
     __tablename__ = "produto"
 
-    id:               Mapped[int]                  = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id:               Mapped[int]                   = mapped_column(Integer, primary_key=True, autoincrement=True)
     fornecedor:       Mapped[str | None]            = mapped_column(String(150), nullable=True)
     nome:             Mapped[str]                   = mapped_column(String(120), nullable=False)
     descricao:        Mapped[str | None]            = mapped_column(String(255), nullable=True)
@@ -106,8 +106,8 @@ class Produto(Base):
     estoque_minimo:   Mapped[int]                   = mapped_column(Integer, nullable=False, default=0)
     ativo:            Mapped[bool]                  = mapped_column(Boolean, nullable=False, default=True)
     criado_em:        Mapped[datetime]              = mapped_column(DateTime, nullable=False, default=func.now())
-
-    lotes:      Mapped[list["Lote"]]         = relationship(back_populates="produto", order_by="Lote.data_vencimento")
+    lotes:            Mapped[list["Lote"]]          = relationship(back_populates="produto", order_by="Lote.data_vencimento")
+    controla_validade: Mapped[bool]                 = mapped_column(Boolean, default= True, nullable=False)
 
     def __repr__(self):
         return f"<Produto {self.id}: {self.nome} [{self.ean}]>"
@@ -117,23 +117,28 @@ class Lote(Base):
     """Tabela: lote — MOD-02"""
     __tablename__ = "lote"
 
-    id:                  Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
-    produto_id:          Mapped[int]      = mapped_column(Integer, ForeignKey("produto.id"), nullable=False)
-    num_lote:            Mapped[str]      = mapped_column(String(60), nullable=False)
-    nota_fiscal:         Mapped[str | None]      = mapped_column(String(60), nullable=False)
-    chave_acesso:        Mapped[str | None] = mapped_column(String(44), nullable=True)
-    data_fabricacao:     Mapped[date | None] = mapped_column(Date, nullable=True)
-    data_vencimento:     Mapped[date]     = mapped_column(Date, nullable=False)
-    quantidade_inicial:  Mapped[int]      = mapped_column(Integer, nullable=False)
-    quantidade_atual:    Mapped[int]      = mapped_column(Integer, nullable=False)
-    valor_unitario:      Mapped[Decimal]  = mapped_column(Numeric(10, 2), nullable=False)
-    valor_total:         Mapped[Decimal]  = mapped_column(Numeric(10, 2), nullable=False)
-    criado_em:           Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
-    centro_alocacao:  Mapped[CentroAlocacaoEnum]   = mapped_column(Enum(CentroAlocacaoEnum), nullable=False, default=CentroAlocacaoEnum.deposito)
-    produto:       Mapped["Produto"]           = relationship(back_populates="lotes")
-    movimentacoes: Mapped[list["Movimentacao"]] = relationship(back_populates="lote")
-    notificacoes:  Mapped[list["NotificacaoLog"]] = relationship(back_populates="lote")
-    unidade_estoque:  Mapped[UnidadeEstoqueEnum]    = mapped_column(Enum(UnidadeEstoqueEnum), nullable=False)
+    id:                  Mapped[int]                    = mapped_column(Integer, primary_key=True, autoincrement=True)
+    produto_id:          Mapped[int]                    = mapped_column(Integer, ForeignKey("produto.id"), nullable=False)
+    num_lote:            Mapped[str]                    = mapped_column(String(60), nullable=True)
+    nota_fiscal:         Mapped[str | None]             = mapped_column(String(60), nullable=False)
+    chave_acesso:        Mapped[str | None]             = mapped_column(String(44), nullable=True)
+    data_fabricacao:     Mapped[date | None]            = mapped_column(Date, nullable=True)
+    data_vencimento:     Mapped[date]                   = mapped_column(Date, nullable=True)
+    quantidade_inicial:  Mapped[int]                    = mapped_column(Integer, nullable=False)
+    quantidade_atual:    Mapped[int]                    = mapped_column(Integer, nullable=False)
+    valor_unitario:      Mapped[Decimal]                = mapped_column(Numeric(10, 2), nullable=False)
+    valor_total:         Mapped[Decimal]                = mapped_column(Numeric(10, 2), nullable=False)
+    criado_em:           Mapped[datetime]               = mapped_column(DateTime, nullable=False, default=func.now())
+    centro_alocacao:     Mapped[CentroAlocacaoEnum]     = mapped_column(Enum(CentroAlocacaoEnum), nullable=False, default=CentroAlocacaoEnum.deposito)
+    produto:             Mapped["Produto"]              = relationship(back_populates="lotes")
+    movimentacoes:       Mapped[list["Movimentacao"]]   = relationship(back_populates="lote")
+    notificacoes:        Mapped[list["NotificacaoLog"]] = relationship(back_populates="lote")
+    unidade_estoque:     Mapped[UnidadeEstoqueEnum]     = mapped_column(Enum(UnidadeEstoqueEnum), nullable=False)
+
+    __table_args__ = (
+        Index('idx_saida_estoque', 'produto_id', 'data_vencimento', 'criado_em'),
+    )
+
     @property
     def ativo(self) -> bool:
         return self.quantidade_atual > 0

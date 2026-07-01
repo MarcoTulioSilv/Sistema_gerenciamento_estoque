@@ -303,7 +303,8 @@ class XlsxBuilder:
 
             # --- 3. LINHA 3 EM DIANTE: DADOS ---
             for i, mov in enumerate(movs, 3):
-                vencido = mov.lote.data_vencimento < hoje
+
+                vencido = False if mov.lote.data_vencimento is None else mov.lote.data_vencimento < hoje
                 fill = st["vf"] if vencido else None
                 font = st["vft"] if vencido else None
                 
@@ -375,21 +376,25 @@ class XlsxBuilder:
             # --- 2. LINHA 2: TÍTULOS DAS COLUNAS ---
             _aplicar_header(ws, colunas, st, row_idx=2)
             for i, l in enumerate(lotes, 3):
-                diff  = (l.data_vencimento - hoje).days
-                vencido = l.data_vencimento < hoje
- 
-                if vencido:
-                    situacao = "VENCIDO"
-                    fill, font = st["vf"], st["vft"]
-                elif diff <= 7:
-                    situacao = f"Vence em {diff}d"
-                    fill, font = st["af"], st["aft"]
-                elif diff <= 15:
-                    situacao = f"Vence em {diff}d"
-                    fill, font = st["af"], st["aft"]
-                else:
+
+                diff  = None if l.data_vencimento is None else (l.data_vencimento - hoje).days
+                vencido = False if l.data_vencimento is None else l.data_vencimento < hoje
+                if diff is None:
                     situacao = "Normal"
                     fill, font = None, None
+                else:
+                    if vencido:
+                        situacao = "VENCIDO"
+                        fill, font = st["vf"], st["vft"]
+                    elif diff <= 7:
+                        situacao = f"Vence em {diff}d"
+                        fill, font = st["af"], st["aft"]
+                    elif diff <= 15:
+                        situacao = f"Vence em {diff}d"
+                        fill, font = st["af"], st["aft"]
+                    else:
+                        situacao = "Normal"
+                        fill, font = None, None
  
                 _aplicar_linha(ws, i, [
                     l.produto.nome,
@@ -397,7 +402,7 @@ class XlsxBuilder:
                     l.num_lote,
                     l.nota_fiscal,
                     l.data_fabricacao.strftime("%d/%m/%Y") if l.data_fabricacao else "—",
-                    l.data_vencimento.strftime("%d/%m/%Y"),
+                    l.data_vencimento.strftime("%d/%m/%Y") if l.data_vencimento else "—",
                     l.quantidade_inicial,
                     l.quantidade_atual,
                     float(l.valor_unitario),
@@ -446,6 +451,7 @@ class XlsxBuilder:
                     Lote.quantidade_atual > 0,
                     Lote.data_vencimento >= hoje,
                     Lote.data_vencimento <= limite,
+                    Lote.data_vencimento.isnot(None),
                 )
                 .order_by(Lote.data_vencimento)
                 .all()
@@ -514,6 +520,7 @@ class XlsxBuilder:
                     Produto.ativo == True,
                     Lote.quantidade_atual > 0,
                     Lote.data_vencimento < hoje,
+                    Lote.data_vencimento.isnot(None),
                 )
                 .order_by(Lote.data_vencimento)
                 .all()

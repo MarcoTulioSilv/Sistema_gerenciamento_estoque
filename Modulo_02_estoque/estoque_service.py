@@ -47,10 +47,11 @@ class EstoqueService:
     def criar_produto(
         nome: str,
         ean: str,
-        estoque_minimo: int   = 0,
-        descricao: str        = None,
-        marca: str            = None,
-        fornecedor: str    = None,
+        estoque_minimo: int     = 0,
+        descricao: str          = None,
+        marca: str              = None,
+        fornecedor: str         = None,
+        controla_validade: bool = True
     ):
         # Validações
         if not nome or not nome.strip():
@@ -71,6 +72,7 @@ class EstoqueService:
             marca           = marca.strip() if marca else None,
             fornecedor   = fornecedor,
             ativo           = True,
+            controla_validade= controla_validade
         )
         produto = ProdutoRepo.criar(dados)
         logger.info("Produto criado: %s [EAN %s]", produto.nome, produto.ean)
@@ -214,8 +216,8 @@ class EstoqueService:
             unidade_estoque: filtra lotes pela unidade de estoque (valor do enum).
         """
         return FEFOSelector.calcular_plano(
-            produto_id,
-            quantidade,
+            produto_id= produto_id,
+            quantidade= quantidade,
             apenas_vencidos  = apenas_vencidos,
             centro_origem    = centro_origem,
             unidade_estoque  = unidade_estoque,

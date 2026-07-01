@@ -24,6 +24,16 @@ class LoteRepo:
             s.expunge_all()
             return itens
     
+    def listar_por_produto_consumo(produto_id: int, apenas_com_saldo: bool= True)-> list[Lote]:
+        with get_read_session() as s:
+            q= (s.query(Lote)
+                .filter(Lote.produto_id==produto_id)
+                .order_by(Lote.centro_alocacao))
+            if apenas_com_saldo:
+                q= q.filter(Lote.quantidade_atual>0)
+            itens= q.all()
+            s.expunge_all()
+            return itens
     @staticmethod
     def buscar_por_id(id_: int)-> Lote | None:
         with get_read_session() as s:

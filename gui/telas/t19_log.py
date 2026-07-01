@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 import customtkinter as ctk
 from sqlalchemy.orm import joinedload
 
+from zoneinfo import ZoneInfo
 from gui.componentes.form_widgets import FeedbackBanner
 from Modulo_06_dados import get_read_session, Movimentacao, NotificacaoLog, JobLog, Usuario, Lote
 
@@ -44,6 +45,41 @@ _COLUNAS_MOV = [
     ("Resultado",     80),
 ]
 
+from zoneinfo import ZoneInfo
+from datetime import datetime
+
+def formatar_data_utc_para_local(data_banco):
+        if not data_banco:
+            return "—"
+        # 1. Se o dado chegar como texto, forçamos a limpeza e conversão
+        if isinstance(data_banco, str):
+            # Removemos os milissegundos cortando tudo o que vier a seguir ao ponto
+            data_str = data_banco.split('.')[0]
+            
+            # Verificamos o formato da string para a converter num objeto datetime
+            if "-" in data_str:
+                # Formato ISO (MySQL): 2026-06-19 19:24:00
+                data_banco = datetime.strptime(data_str, "%Y-%m-%d %H:%M:%S")
+            elif data_str.count(":") == 1: 
+                # Formato PT/BR sem segundos: 19/06/2026 19:24
+                data_banco = datetime.strptime(data_str, "%d/%m/%Y %H:%M")
+            else:
+                # Formato PT/BR com segundos: 19/06/2026 19:24:00
+                data_banco = datetime.strptime(data_str, "%d/%m/%Y %H:%M:%S")
+
+        # 2. Tendo garantidamente um objeto datetime, aplicamos a conversão de fuso horário
+        if isinstance(data_banco, datetime):
+            # Carimbamos a data como pertencente ao fuso UTC, caso seja ingénua (naive)
+            if data_banco.tzinfo is None:
+                data_utc_aware = data_banco.replace(tzinfo=ZoneInfo("UTC"))
+            else:
+                data_utc_aware = data_banco
+                
+            # Convertêmo-la para a hora local
+            data_local = data_utc_aware.astimezone(ZoneInfo("America/Sao_Paulo"))
+            return data_local.strftime("%d/%m/%Y %H:%M:%S")
+            
+        return str(data_banco)
 
 class TelaLog(ctk.CTkFrame):
     """T-19 — Log de operações do sistema (somente leitura)."""
@@ -53,8 +89,15 @@ class TelaLog(ctk.CTkFrame):
         self._usuario     = usuario
         self._on_navigate = on_navigate
         self._linhas: list[dict] = []
+        self._timer_busca= None
+        self._pagina_atual = 0          
+        self._itens_por_pagina = 30 
+        self._lista_filtrada_atual = [] 
+        self._carregando_pagina = False 
+        self._timer_scroll = None
         self._construir()
         self._carregar()
+        self._monitorar_scroll()
 
     # ── Construção ────────────────────────────────────────────────────────────
 
@@ -197,7 +240,7 @@ class TelaLog(ctk.CTkFrame):
                                 f"Lote {m.lote.num_lote}"
                             )
                         linhas.append({
-                            "data_hora":  m.data_hora.strftime("%d/%m %H:%M:%S"),
+                            "data_hora":  m.data_hora.strftime("%d/%m/%Y %H:%M:%S"),
                             "usuario":    m.usuario.nome[:14] if m.usuario else "Sistema",
                             "operacao":   _TIPO_LABEL.get(m.tipo.value, m.tipo.value),
                             "detalhe":    produto_lote,
@@ -225,7 +268,7 @@ class TelaLog(ctk.CTkFrame):
                                 f"{a.lote.produto.nome[:18]} | Lote {a.lote.num_lote}"
                             )
                         linhas.append({
-                            "data_hora":  a.enviado_em.strftime("%d/%m %H:%M:%S"),
+                            "data_hora":  a.enviado_em.strftime("%d/%m/%Y %H:%M:%S"),
                             "usuario":    "Sistema",
                             "operacao":   f"Alerta {a.tipo_alerta.value}",
                             "detalhe":    produto_lote,
@@ -247,7 +290,7 @@ class TelaLog(ctk.CTkFrame):
                     )
                     for j in jobs:
                         linhas.append({
-                            "data_hora":  j.executado_em.strftime("%d/%m %H:%M:%S"),
+                            "data_hora":  j.executado_em.strftime("%d/%m/Y %H:%M:%S"),
                             "usuario":    "Scheduler",
                             "operacao":   j.job_nome[:20],
                             "detalhe":    (j.detalhe or "")[:30],
@@ -277,15 +320,49 @@ class TelaLog(ctk.CTkFrame):
             or busca in l["detalhe"].lower()
             or busca in l["operacao"].lower()
         ]
-        self._renderizar(filtrados)
+        self._lista_filtrada_atual= filtrados
+        self._pagina_atual= 0
+
+        for w in self._scroll.winfo_children():
+            w.destroy()
+            
+        self._renderizar_proxima_pagina()
+
+
+    def _renderizar_proxima_pagina(self):
+        self._carregando_pagina = True 
+        
+        inicio = self._pagina_atual * self._itens_por_pagina
+        fim = inicio + self._itens_por_pagina
+        
+        lote_linhas = self._lista_filtrada_atual[inicio:fim]
+        self._renderizar(lote_linhas, limpar_tela=False)
+        
+        self._pagina_atual += 1
+        self.after(100, lambda: setattr(self, '_carregando_pagina', False))
+
+    def _monitorar_scroll(self):
+        inicio_proxima = self._pagina_atual * self._itens_por_pagina
+        
+        if not self._carregando_pagina and inicio_proxima < len(self._lista_filtrada_atual):
+            try:
+                _, bottom = self._scroll._parent_canvas.yview()
+                if bottom >= 0.95:
+                    self._renderizar_proxima_pagina()
+            except Exception:
+                pass
+            
+        self._timer_scroll = self.after(200, self._monitorar_scroll)
+
 
     # ── Renderização ──────────────────────────────────────────────────────────
 
-    def _renderizar(self, linhas: list[dict]):
-        for w in self._scroll.winfo_children():
-            w.destroy()
+    def _renderizar(self, linhas: list[dict], limpar_tela=True):
+        if limpar_tela:
+            for w in self._scroll.winfo_children():
+                w.destroy()
 
-        if not linhas:
+        if not linhas and self._pagina_atual==0:
             ctk.CTkLabel(self._scroll, text="Nenhum registro encontrado.",
                          text_color="#888780").pack(pady=24)
             self._lbl_rodape.configure(text="")
@@ -299,8 +376,9 @@ class TelaLog(ctk.CTkFrame):
             row.pack(fill="x")
             row.grid_columnconfigure(3, weight=1)  # Detalhe é a coluna que expande
 
+            data_formatada = formatar_data_utc_para_local(d["data_hora"])
             valores = [
-                d["data_hora"], d["usuario"], d["operacao"],
+                data_formatada, d["usuario"], d["operacao"],
                 d["detalhe"],   d["qtd"],     d["nf"], d["obs"],
             ]
             for col, (val, larg) in enumerate(zip(valores, col_widths)):
@@ -325,3 +403,4 @@ class TelaLog(ctk.CTkFrame):
             self._linhas.clear()
             self._linhas = None
     
+   

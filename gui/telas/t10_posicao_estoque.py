@@ -26,15 +26,16 @@ _SITUACAO_COR = {
     "Vence em 7d":   ("#FCEBEB", "#A32D2D"),
     "Vence em 15d":   ("#FAEEDA", "#854F0B"),
     "Vence em 30d":  ("#FAEEDA", "#854F0B"),
-    "Estoque baixo": ("#FAEEDA", "#854F0B"),
     "Normal":        ("#EAF3DE", "#27500A"),
+    "Uso Contínuo":   ("#EAF3DE", "#27500A"),
 }
 
 _COLUNAS = [
     ("Produto",     200),
-    ("Lote",         100),
+    ("Lote",         150),
     ("Nota Fiscal",  100),
     ("Centro",       100),
+    ("Unidade de estoque", 100),
     ("Qtd atual",    80),
     ("Vencimento",  100),
     ("Situação",    120),
@@ -42,7 +43,10 @@ _COLUNAS = [
 ]
 
 
-def _calcular_situacao(lote, estoque_minimo:int, hoje:date)->str:
+def _calcular_situacao(lote, hoje:date)->str:
+    if lote.data_vencimento is None:
+        return "Uso Contínuo"
+    
     if lote.data_vencimento<hoje:
         return "Vencido"
     diff=(lote.data_vencimento-hoje).days
@@ -52,8 +56,6 @@ def _calcular_situacao(lote, estoque_minimo:int, hoje:date)->str:
         return "Vence em 15d"
     if diff<= 30 and diff>15:
         return"Vence em 30d"
-    if lote.quantidade_atual<= estoque_minimo:
-        return"Estoque baixo"
     return"Normal"
 
 class TelaPosicaoEstoque(ctk.CTkFrame):
@@ -64,10 +66,16 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         self._on_navigate= on_navigate
         self._produto_id= produto_id
         self._linhas= [] #(lote, produto, situacao)
-        self.permissao= usuario.perfil.value=="tecnico", "admin"
+        self.permissao= usuario.perfil.value in ("tecnico", "admin", "ti")
         self._timer_busca= None
+        self._pagina_atual = 0          
+        self._itens_por_pagina = 30 # Lotes ocupam menos espaço visual, podemos renderizar 30 por vez
+        self._lista_filtrada_atual = [] 
+        self._carregando_pagina = False 
+        self._timer_scroll = None
         self._construir()
         self._carregar()
+        self._monitorar_scroll()
 
     #___ Construçãp_________________________________________________________________________________________
     def _construir(self):
@@ -103,7 +111,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
 
         self._opt_situacao= ctk.CTkOptionMenu(
             filt,
-            values=["Todas as situações", "Normal", "Estoque baixo", 
+            values=["Todas as situações", "Normal", 
                     "Vence em 30d", "Vence em 15d", "Vence em 7d", "Vencido"],
                     width=170, height=32, corner_radius=6,
                     fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#161614",
@@ -123,14 +131,19 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         hdr=ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=0,
                          border_width=1, border_color=COR_CINZA_B)
         hdr.pack(fill="x", padx=16, pady=(10,0))
-        hdr.grid_columnconfigure(6, weight=1)
+        hdr.grid_columnconfigure(7, weight=1)
 
         for col,(txt, largura) in enumerate(_COLUNAS):
-            ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
+            if col== 7:
+                ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
+                         font=ctk.CTkFont(size=9, weight="bold"),
+                         width=largura, anchor="center"
+                         ).grid(row=0, column=col, padx=6, pady=5)
+            else:
+                ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
                          font=ctk.CTkFont(size=9, weight="bold"),
                          width=largura, anchor="w"
                          ).grid(row=0, column=col, padx=6, pady=5, sticky="w")
-        
         ctk.CTkFrame(hdr, width=20, height=0, fg_color="transparent").grid(row=0, column=8)
 
         self._scroll=ctk.CTkScrollableFrame(
@@ -153,7 +166,6 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                     s.query(Lote)
                     .join(Produto)
                     .options(joinedload(Lote.produto))
-                    .filter(Produto.ativo==True)
                 )
                 if self._produto_id:
                     query=query.filter(Lote.produto_id==self._produto_id)
@@ -163,24 +175,11 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
 
                 lotes= query.order_by(Produto.nome, Lote.data_vencimento).all()
 
-                #Calcular situação e saldo por produto
-                saldo_por_produto: dict[int,int]={}
-                for l in lotes:
-                    if l.quantidade_atual>0 and l.data_vencimento>= hoje:
-                        saldo_por_produto[l.produto_id]=(
-                            saldo_por_produto.get(l.produto_id,0)+ l.quantidade_atual)
-                
                 self._linhas=[]
                 for l in lotes:
-                    if l.quantidade_atual==0 and l.data_vencimento< hoje:
-                        continue #pular lotes esgotados e vencidos
-                    sit= _calcular_situacao(l, l.produto.estoque_minimo, hoje)
-                    # Sobrepor com estoque baixo se aplicavel
-                    if sit=="Normal":
-                        saldo_total= saldo_por_produto.get(l.produto_id, 0)
-                        if(l.produto.estoque_minimo>0
-                           and saldo_total<= l.produto.estoque_minimo):
-                            sit="Estoque baixo"
+                    if l.quantidade_atual==0:
+                        continue #pular lotes esgotados
+                    sit= _calcular_situacao(l, hoje)
                     self._linhas.append((l, l.produto,sit))
                 
                 s.expunge_all()
@@ -194,45 +193,90 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
             self._entry_busca.delete(0, "end")
             self._entry_busca.insert(0, nome_produto_filtro)
 
-        self._renderizar(self._linhas)
+        self._filtrar()
     
     def _filtrar(self):
-        busca = self._entry_busca.get().lower()
-        centro= self._opt_centro.get()
-        situacao= self._opt_situacao.get()
+        busca = self._entry_busca.get().lower().strip()
+        centro = self._opt_centro.get()
+        situacao = self._opt_situacao.get()
 
-        filtrados=[
-            (l,p,s) for l, p, s in self._linhas
-            if (busca in p.nome.lower() or busca in l.num_lote.lower() or busca in l.nota_fiscal.lower())
-            and(centro=="Todos os centros" or l.centro_alocacao.value.lower() in centro.lower())
-            and (situacao== "Todas as situações" or s == situacao)
-        ]
-        self._renderizar(filtrados)
+        filtrados = []
+        for l, p, s in self._linhas:
+            try:
+               
+                nome_prod = p.nome.lower() if getattr(p, 'nome', None) else ""
+                num_lote = l.num_lote.lower() if getattr(l, 'num_lote', None) else ""
+                nf_segura = l.nota_fiscal.lower() if getattr(l, 'nota_fiscal', None) else ""
+                
+
+                centro_val = ""
+                if getattr(l, 'centro_alocacao', None):
+                    centro_val = str(getattr(l.centro_alocacao, 'value', l.centro_alocacao)).lower()
+                
+                nome_ok = (busca in nome_prod or busca in num_lote or busca in nf_segura)
+                centro_ok = (centro == "Todos os centros" or centro_val in centro.lower())
+                situacao_ok = (situacao == "Todas as situações" or s == situacao)
+                
+                if nome_ok and centro_ok and situacao_ok:
+                    filtrados.append((l, p, s))
+                    
+            except Exception as e:
+                logger.error(f"Falha ao filtrar o lote {getattr(l, 'id', 'Desconhecido')}: {e}")
+                continue
+                
+        # --- ATIVA A PAGINAÇÃO ---
+        self._lista_filtrada_atual = filtrados
+        self._pagina_atual = 0
+
+        for w in self._scroll.winfo_children():
+            w.destroy()
+            
+        self._renderizar_proxima_pagina()
     
+    def _renderizar_proxima_pagina(self):
+        self._carregando_pagina = True 
+        
+        inicio = self._pagina_atual * self._itens_por_pagina
+        fim = inicio + self._itens_por_pagina
+        
+        lote_linhas = self._lista_filtrada_atual[inicio:fim]
+        self._renderizar(lote_linhas, limpar_tela=False)
+        
+        self._pagina_atual += 1
+        self.after(100, lambda: setattr(self, '_carregando_pagina', False))
+
+    def _monitorar_scroll(self):
+        inicio_proxima = self._pagina_atual * self._itens_por_pagina
+        
+        if not self._carregando_pagina and inicio_proxima < len(self._lista_filtrada_atual):
+            try:
+                _, bottom = self._scroll._parent_canvas.yview()
+                if bottom >= 0.95:
+                    self._renderizar_proxima_pagina()
+            except Exception:
+                pass
+            
+        self._timer_scroll = self.after(200, self._monitorar_scroll)
 
     def _limpar_filtros(self):
         busca = self._entry_busca.get().strip()
         centro = self._opt_centro.get()
         situacao = self._opt_situacao.get()
 
-        # 1. VALIDAÇÃO DE ESTADO: Se já está tudo limpo, aborta a função silenciosamente!
         if not busca and centro == "Todos os centros" and situacao == "Todas as situações":
             return
 
         self._entry_busca.delete(0, "end")
         self._opt_centro.set("Todos os centros")
-        self._opt_situacao.set("Todas as situações") # Corrigido a letra maiúscula aqui para coincidir com a lista
-        
-        self._renderizar(self._linhas)
+        self._opt_situacao.set("Todas as situações")
+        self._filtrar()
 
-    
-    #_______Renderização______________________________________________________
-
-    def _renderizar(self, linhas):
-        for w in self._scroll.winfo_children():
-            w.destroy()
+    def _renderizar(self, linhas, limpar_tela=True):
+        if limpar_tela:
+            for w in self._scroll.winfo_children():
+                w.destroy()
         
-        if not linhas:
+        if not linhas and self._pagina_atual == 0:
             ctk.CTkLabel(self._scroll, text="Nenhum lote encontrado.",
                         text_color=COR_VERM,
                         font= ctk.CTkFont(size=12)).pack(pady=24)
@@ -240,65 +284,79 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
             return
         
         for i, (lote, produto, situacao) in enumerate(linhas):
-            bg=COR_BRANCO if i%2 ==0 else "#A1C3E4"
-            row= ctk.CTkFrame(self._scroll,fg_color=bg, corner_radius=0)
+            bg = COR_BRANCO if i % 2 == 0 else COR_CINZA_E
+            
+            row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
             row.pack(fill="x")
-            row.grid_columnconfigure(6, weight=1)
-            valores=[
-                (produto.nome[:22],),
-                (lote.num_lote,     ),
-                (lote.nota_fiscal,   ),
-                (lote.centro_alocacao.value.capitalize(), ),
-                (str(lote.quantidade_atual), ),
-                (lote.data_vencimento.strftime("%d/%m/%Y"), ),
+            row.grid_columnconfigure(7, weight=1)
+
+            lote_str= lote.num_lote if lote.num_lote else"S/L"
+            venc_str = lote.data_vencimento.strftime("%d/%m/%Y") if lote.data_vencimento else "—"
+
+            
+            valores = [
+                produto.nome[:28], 
+                lote_str,
+                lote.nota_fiscal or "S/N",
+                lote.centro_alocacao.value.capitalize(),
+                lote.unidade_estoque.value.capitalize(),
+                str(lote.quantidade_atual),
+                venc_str
             ]
-            for col,val in enumerate(valores):
-                largura = _COLUNAS[col][1] # Puxa a largura exata definida no topo do arquivo
-                ctk.CTkLabel(row, text=val, text_color="#3d3d3a",
+            
+            for col, val in enumerate(valores):
+                largura = _COLUNAS[col][1]
+                if col<=3:
+                    ctk.CTkLabel(row, text=val, text_color="#3d3d3a",
                              font=ctk.CTkFont(size=11), width=largura,
-                             anchor="w").grid(
-                    row=0, column=col, padx=6, pady=6, sticky="w")
+                             anchor="w").grid(row=0, column=col, padx=6, pady=4, sticky="w")
+                else:   
+                    ctk.CTkLabel(row, text=val, text_color="#3d3d3a",
+                             font=ctk.CTkFont(size=11), width=largura, anchor="center"    
+                             ).grid(row=0, column=col, padx=6, pady=4, sticky="w")
             
             # Badge situação
-            fg_s, tc_s= _SITUACAO_COR.get(situacao,("#F1EFE8", "#5F5E5A"))
+            fg_s, tc_s = _SITUACAO_COR.get(situacao, ("#F1EFE8", "#5F5E5A"))
             ctk.CTkLabel(row, text=situacao,
                          fg_color=fg_s, text_color=tc_s,
                          font=ctk.CTkFont(size=9, weight="bold"),
-                         corner_radius=6,padx=6,pady=2, width=120
-                         ).grid(row=0, column=6, padx=6, pady=6, sticky="w")
+                         corner_radius=6, padx=6, pady=2, width=120, height=24
+                         ).grid(row=0, column=7, padx=6, pady=6)
             
-            #Ações- 
-            acoes= ctk.CTkFrame(row, fg_color="transparent")
-            acoes.grid(row=0,column=7, padx=6, pady=4, sticky="w")
+           #Ações- 
+            acoes = ctk.CTkFrame(row, fg_color="transparent", width=150, height=30)
+            acoes.grid(row=0, column=8, padx=6, pady=4, sticky="e")
+            acoes.grid_propagate(False) 
+            acoes.pack_propagate(False)
             
             if self.permissao:
-                pid= produto.id
+                pid = produto.id
                 ctk.CTkButton(
-                    acoes, text="Entrada", width= 64, height=26, 
+                    acoes, text="Entrada", width=64, height=26, 
                     fg_color=COR_BRANCO, text_color="#3d3d3a",
-                    border_width= 1, border_color=COR_CINZA_B,
+                    border_width=1, border_color=COR_CINZA_B,
                     hover_color=COR_CINZA_E, font=ctk.CTkFont(size=11), 
-                    command=lambda p=pid: self._on_navigate("entrada_manual",extra=p)
+                    command=lambda p=pid: self._on_navigate("entrada_manual", extra=p)
                 ).pack(side="left", padx=(0,4))
 
-
-                #Retirada bloqueada para lotes vencidos
-                pode_retirar= situacao!= "Vencido"
-                centro_val= lote.centro_alocacao.value
+                  #Retirada bloqueada para lotes vencidos
+                pode_retirar = situacao != "Vencido"
+                centro_val = lote.centro_alocacao.value
                 ctk.CTkButton(
                     acoes, text="Retirada", width=64, height=26,
                     fg_color=COR_BRANCO, text_color="#3d3d3a" if pode_retirar else "#AAAAAA",
                     border_width=1, border_color=COR_CINZA_B,
                     hover_color=COR_CINZA_E if pode_retirar else COR_BRANCO,
-                    font= ctk.CTkFont(size=11),
+                    font=ctk.CTkFont(size=11),
                     state="normal" if pode_retirar else "disabled",
                     command=(lambda p=pid, c=centro_val: self._on_navigate("retirada", extra={"produto_id": p, "centro_origem": c}))
                     if pode_retirar else None,
                 ).pack(side="left")
-        
-        vencidos=  sum(1 for _,_,s in linhas if s=="Vencido")
+
+        total_encontrado = len(self._lista_filtrada_atual)
+        vencidos = sum(1 for _, _, s in self._lista_filtrada_atual if s == "Vencido")
         self._lbl_rodape.configure(
-            text=f"{len(linhas)} lotes(s) exibidos"+ (f". {vencidos} vencidos" if vencidos else"")
+            text=f"{total_encontrado} lote(s) exibidos" + (f". {vencidos} vencidos" if vencidos else "")
         )
 
     def _erro_na_tela(self, detalhe:str):
@@ -311,14 +369,17 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
     
     def limpar_memoria(self):
         """Método chamado pelo app.py ao sair da tela para esvaziar a RAM."""
-        self._linhas.clear()
-        self._linhas = None
+        if hasattr(self, '_linhas') and self._linhas is not None:
+            self._linhas.clear()
+            self._linhas = None
+            
+        if self._timer_scroll is not None:
+            self.after_cancel(self._timer_scroll)
+            self._timer_scroll = None
 
     def _agendar_filtro(self, event=None):
-        """Espera o usuário parar de digitar por 400ms antes de travar a tela renderizando."""
-        # Se já existe uma contagem rodando (o usuário ainda está digitando), cancela!
+        #timer para usuario digitar 
         if self._timer_busca is not None:
             self.after_cancel(self._timer_busca)
-            
-        # Inicia um novo cronômetro de 400 milissegundos para disparar o filtro real
+
         self._timer_busca = self.after(400, self._filtrar)

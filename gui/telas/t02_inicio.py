@@ -54,6 +54,7 @@ def _consultar_kpis()->dict:
             lotes=(session.query(Lote)
                     .options(joinedload(Lote.produto)) # Carrega o nome do produto junto
                     .filter(Lote.quantidade_atual > 0)
+                    .filter(Lote.data_vencimento.isnot(None))
                     .all())
             
             # Percorre lotes e identifica vencidos e prestes a vencer
@@ -75,7 +76,7 @@ def _consultar_kpis()->dict:
             for prod in todos_produtos:
                 saldo=sum(
                     l.quantidade_atual for l in prod.lotes
-                    if l.quantidade_atual>0 and l.data_vencimento>=hoje
+                    if l.quantidade_atual>0 and (l.data_vencimento is None or l.data_vencimento >=hoje)
                 )
                 if saldo<= prod.estoque_minimo:
                     kpis["estoque_baixo"]+=1

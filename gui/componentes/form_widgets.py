@@ -168,6 +168,7 @@ class CampoBarras(ctk.CTkFrame):
     def _disparar(self, _event=None):
         if self._on_leitura and self.get():
             self._on_leitura(self.get())
+            
 class CampoNome(ctk.CTkFrame):
     """
     Campo com Autocompletar Real (Inline Expansion).
@@ -295,7 +296,6 @@ class CampoNome(ctk.CTkFrame):
 
     def _esconder_lista_delay(self, event):
         self.after(150, self._esconder_lista)
-
 
 class CampoFornecedor(ctk.CTkFrame):
     """

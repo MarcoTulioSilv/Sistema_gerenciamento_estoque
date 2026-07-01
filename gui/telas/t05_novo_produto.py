@@ -98,6 +98,12 @@ class TelaNovoProduto(ctk.CTkFrame):
         ctk.CTkCheckBox(sec2, text="Produto ativo",
                         variable=self._ativo_var,
                         text_color="#3d3d3a").pack(anchor="w", padx=14, pady=(0, 12))
+        
+        self._controla_val= ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(sec2,  text="Possui lote e validade", 
+                        font= ctk.CTkFont(size=11, weight="bold"), text_color="#3d3d3a",
+                        variable=self._controla_val).pack(anchor="w", padx=14 , pady=(0,12))
+        
  
         btns = BotoesFormulario(scroll, texto_salvar="Salvar produto",
                                 on_salvar=self._salvar,
@@ -118,6 +124,7 @@ class TelaNovoProduto(ctk.CTkFrame):
         self._marca.set(p.marca or "")
         self._ativo_var.set(p.ativo)
         self._fornecedor.set(p.fornecedor or "")
+        self._controla_val.set(getattr(p,'controla_validadae',True))
  
     def _ao_ler_ean(self, ean: str):
         prod = EstoqueService.buscar_produto_por_ean(ean)
@@ -129,9 +136,12 @@ class TelaNovoProduto(ctk.CTkFrame):
     # ── Salvar ────────────────────────────────────────────────────────────────
  
     def _salvar(self):
-        ok = all([self._nome.validar(), self._ean.validar(), self._estoque_min.validar()])
-        if not ok:
-            return
+        try:
+            ok = all([self._nome.validar(), self._ean.validar(), self._estoque_min.validar()])
+            if not ok:
+                return
+        except Exception as Exc:
+            logger.error("erro ao validar parametros de salvamento: %s", Exc)
  
         try:
             estoque_min = int(self._estoque_min.get() or 0)
@@ -154,6 +164,7 @@ class TelaNovoProduto(ctk.CTkFrame):
                     marca           = self._marca.get() or None,
                     fornecedor      = fornecedor,
                     ativo           = self._ativo_var.get(),
+                    controla_validade= self._controla_val.get()
                 )
                 self._banner.sucesso("Produto atualizado com sucesso.")
                 
@@ -165,6 +176,7 @@ class TelaNovoProduto(ctk.CTkFrame):
                     estoque_minimo  = estoque_min,
                     marca           = self._marca.get() or None,
                     fornecedor      = fornecedor,
+                    controla_validade= self._controla_val.get()
                 )
                 self._banner.sucesso("Produto criado com sucesso.")
                 self._limpar()
@@ -185,5 +197,6 @@ class TelaNovoProduto(ctk.CTkFrame):
         self._estoque_min.set("0")
         self._fornecedor.limpar()
         self._ativo_var.set(True)
+        self._controla_val.set(True)
         self._nome.focus()
  

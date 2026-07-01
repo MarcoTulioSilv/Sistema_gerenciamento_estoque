@@ -18,6 +18,7 @@ from gui.componentes.form_widgets import (
     CampoNome, CampoBarras, BotoesFormulario, SecaoFormulario, FeedbackBanner, Campo
 )
 from Modulo_02_estoque import EstoqueService, ProdutoRepo, LoteRepo
+from gui.telas.t07c_entrada_danfe import TelaEntradaDANFE
  
 logger = logging.getLogger(__name__)
  
@@ -181,6 +182,14 @@ class TelaEntradaManual(ctk.CTkFrame):
         self._unidade = Campo(row2, "Unidade *", tipo="select",
                                   opcoes=UNIDADES, largura=160)
         self._unidade.grid(row=0, column=1, sticky="e")
+
+        #check box para validade
+        self._rap_controla_val= ctk.CTkCheckBox(
+            row2, text="Possui validade/lote?",
+            text_color= COR_AZUL, font= ctk.CTkFont(size=11, weight="bold")
+        )
+        self._rap_controla_val.grid(row=0, column=2, sticky="e", padx=(0,8) )
+        self._rap_controla_val.select()
  
         row3 = ctk.CTkFrame(self._sec2, fg_color="transparent")
         row3.pack(fill="x", padx=14, pady=(0, 6))
@@ -291,11 +300,43 @@ class TelaEntradaManual(ctk.CTkFrame):
             )
             self._card_produto.pack(fill="x", padx=14, pady=(0, 8))
             self._banner._limpar()
+
     def _buscar_produto_por_id(self, id_: int):
         p = ProdutoRepo.buscar_por_id(id_)
         if p:
             self._ean.set(p.ean)
             self._on_leitura_ean(p.ean)
+
+    def _mostrar_produto(self, produto):
+        """Prepara o card verde e desabilita os campos se for item de consumo."""
+        self._produto_sel = produto
+        controla_val = getattr(produto, 'controla_validade', True)
+        status_val = "Sim" if controla_val else "Não (Uso Contínuo)"
+        
+        self._lbl_produto.configure(
+            text=(f"  {produto.nome}\n"
+                  f"  ·  Fornecedor: {produto.fornecedor or '—'}  ·  "
+                  f"Estoque mín.: {produto.estoque_minimo}  ·  Rastreabilidade: {status_val}")
+        )
+        self._card_produto.pack(fill="x", padx=14, pady=(0, 8))
+        self._banner._limpar()
+        
+        
+        if not controla_val:
+            self._num_lote.limpar()
+            self._data_venc.limpar()
+            self._data_fab.limpar()
+            
+            for widget in [self._num_lote, self._data_venc, self._data_fab]:
+                widget._widget.configure(state="disabled", fg_color=COR_CINZA_B)
+                
+            self._quantidade.focus() 
+        else:
+            for widget in [self._num_lote, self._data_venc, self._data_fab]:
+                widget._widget.configure(state="normal", fg_color=COR_CINZA_E)
+                
+            if not self._num_lote.get():
+                self._num_lote.focus()
     
 
  
@@ -318,6 +359,7 @@ class TelaEntradaManual(ctk.CTkFrame):
                 estoque_minimo  = 0,
                 fornecedor      = fornecedor,
                 marca           = marca,
+                controla_validade= bool(self._rap_controla_val.get())
             )
             self._produto_sel  = produto
             self._ean_pendente = None
@@ -365,29 +407,34 @@ class TelaEntradaManual(ctk.CTkFrame):
         if not self._produto_sel:
             self._banner.erro("Identifique o produto pelo código de barras antes de registrar.")
             return
- 
-        valido = all([
-            self._num_lote.validar(),
-            self._data_venc.validar(),
-            self._quantidade.validar(),
-            self._valor_unit.validar(),
-            self._centro.validar(),
-            self._unidade.validar(),
-        ])
-        if not valido:
-            return
- 
-        data_venc = _parse_date(self._data_venc.get())
-        if not data_venc:
-            self._data_venc.erro("Data inválida. Use DD/MM/AAAA.")
-            return
- 
-        data_fab = None
-        if self._data_fab.get():
-            data_fab = _parse_date(self._data_fab.get())
-            if not data_fab:
-                self._data_fab.erro("Data inválida. Use DD/MM/AAAA.")
+        controla_val= getattr(self._produto_sel, 'controla_validade', True)
+
+        campos_gerais=[self._quantidade.validar(), self._valor_unit.validar()]
+        if controla_val:
+            if not all(campos_gerais+ [self._num_lote.validar(), self._data_venc.validar()]):
                 return
+        else:
+            if not all(campos_gerais):
+                return
+ 
+        data_venc=None
+        data_fab= None
+
+        num_lote_final= ""
+
+        if controla_val:
+            data_venc = _parse_date(self._data_venc.get())
+            if not data_venc:
+                self._data_venc.erro("Data inválida. Use DD/MM/AAAA.")
+                return
+            num_lote_final=self._num_lote.get()
+ 
+        
+            if self._data_fab.get():
+                data_fab = _parse_date(self._data_fab.get())
+                if not data_fab:
+                    self._data_fab.erro("Data inválida. Use DD/MM/AAAA.")
+                    return
  
         try:
             qtd = int(self._quantidade.get())
@@ -404,18 +451,21 @@ class TelaEntradaManual(ctk.CTkFrame):
         except (InvalidOperation, ValueError):
             self._valor_unit.erro("Informe um valor unitário positivo.")
             return
- 
+
+        nf_segura= self._nota_fiscal.get().strip() if self._nota_fiscal.get() else ""
+        centro_seguro = self._centro.get().strip() if self._centro.get() else ""
+        unidade_segura = self._unidade.get().strip() if self._unidade.get() else ""
         try:
             EstoqueService.registrar_entrada_manual(
-                produto_id      = self._produto_sel.id,
-                num_lote        = self._num_lote.get(),
-                nota_fiscal     = self._nota_fiscal.get() or None,
-                data_vencimento = data_venc,
-                data_fabricacao = data_fab,
-                quantidade      = qtd,
-                valor_unitario  = vunt,
-                usuario_id      = self._usuario.id,
-                centro_alocacao          = self._centro.get(),
+                produto_id              = self._produto_sel.id,
+                num_lote                = num_lote_final,
+                nota_fiscal             = self._nota_fiscal.get() or None,
+                data_vencimento         = data_venc,
+                data_fabricacao         = data_fab,
+                quantidade              = qtd,
+                valor_unitario          = vunt,
+                usuario_id              = self._usuario.id,
+                centro_alocacao         = self._centro.get(),
                 unidade_estoque         = self._unidade.get()
             )
         except ValueError as exc:
@@ -435,13 +485,14 @@ class TelaEntradaManual(ctk.CTkFrame):
                 aviso = f" · Atenção: saldo ({saldo}) ainda abaixo do mínimo ({minimo})."
         except Exception:
             pass
- 
+        
+        lote_msg= f"Lote:{num_lote_final}" if controla_val else "Item de Consumo"
         nome_prod = self._produto_sel.nome
         nf        = self._nota_fiscal.get()
         nf_text   = f".NF{nf}" if nf else""
         self._banner.sucesso(
             f"Entrada registrada: {qtd} unid. de '{nome_prod}' · "
-            f"Lote: {self._num_lote.get()} · NF: {nf_text}.{aviso}"
+            f"Lote: {lote_msg} · NF: {nf_text}.{aviso}"
         )
  
         # ── Modo lote em lote: oferecer próxima ação ──────────────────────────
@@ -506,6 +557,10 @@ class TelaEntradaManual(ctk.CTkFrame):
             self._produto_sel = None
             self._card_produto.pack_forget()
             self._ean.limpar()
+            
+            for widget in[self._num_lote, self._data_venc, self._data_fab]:
+                widget._widget.configure(state= "normal", fg_color= COR_CINZA_E)
+            
             self._ean.focus()
  
     def _limpar(self):
@@ -531,6 +586,9 @@ class TelaEntradaManual(ctk.CTkFrame):
 # ── Utilitário ────────────────────────────────────────────────────────────────
  
 def _parse_date(texto: str) -> date | None:
+    if not texto:
+        return None
+    
     texto = texto.strip()
     for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
         try:

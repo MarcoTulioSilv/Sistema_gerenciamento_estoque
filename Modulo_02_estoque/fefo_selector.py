@@ -97,14 +97,16 @@ class FEFOSelector:
         if apenas_vencidos:
             lotes_ativos=[
                 l for l in lotes
-                if l.quantidade_atual> 0 and l.data_vencimento<hoje
+                if l.quantidade_atual> 0 
+                and l.data_vencimento is not None
+                and l.data_vencimento<hoje
             ]
         else:
             lotes_ativos=[
                 l for l in lotes
-                if l.quantidade_atual> 0 and l.data_vencimento>=hoje
+                if l.quantidade_atual> 0 and (l.data_vencimento is None or l.data_vencimento>=hoje)
             ]
-        #filtro: unidade de estoque ________________________________________________
+        #filtro: centro de alocação ________________________________________________
         if centro_origem:
             lotes_ativos=[
                 l for l in lotes_ativos
@@ -119,7 +121,7 @@ class FEFOSelector:
             ]
         # Ordenção FEFO_______________________________________________________________
 
-        lotes_ativos.sort(key=lambda l: l.data_vencimento)
+        lotes_ativos.sort(key=lambda l: (l.data_vencimento is None, l.data_vencimento or date.max, getattr(l, 'criado_em', l.id)))
         saldo_total= sum(l.quantidade_atual for l in lotes_ativos)
         itens_plano:list[ItemPlano]=[]
         restante = quantidade
@@ -127,7 +129,7 @@ class FEFOSelector:
         for lote in lotes_ativos:
             if restante<=0:
                 break
-            retirar= min(restante,lote.quantidade_atual)
+            retirar= min(restante, lote.quantidade_atual)
             saldo_resultante= lote.quantidade_atual-retirar
 
             itens_plano.append(ItemPlano(
@@ -156,7 +158,7 @@ class FEFOSelector:
         )
 
         logger.info(
-            "Plano FEFO calculado: produto_id=%s qtd=%s lotes=%s atendido=%s centro=%s unidade=%s",  
+            "Plano FEFO/FIFO calculado: produto_id=%s qtd=%s lotes=%s atendido=%s centro=%s unidade=%s",  
             produto_id, quantidade, len(itens_plano), plano.atendido_completo, centro_plano, unidade_plano,
         )
         return plano

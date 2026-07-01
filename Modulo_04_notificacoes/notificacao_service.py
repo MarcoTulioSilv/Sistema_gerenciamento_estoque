@@ -64,6 +64,7 @@ class NotificacaoService:
                         Lote.quantidade_atual > 0,
                         Lote.data_vencimento >= hoje,
                         Produto.ativo == True,
+                        Lote.data_vencimento.isnot(None)
                     )
                     .all()
                 )
@@ -130,6 +131,7 @@ class NotificacaoService:
                         Lote.quantidade_atual > 0,
                         Lote.data_vencimento < hoje,
                         Produto.ativo == True,
+                        Lote.data_vencimento.isnot(None)
                     )
                     .order_by(Lote.data_vencimento.asc())
                     .all()
@@ -258,7 +260,7 @@ class NotificacaoService:
 
     @staticmethod
     def _enviar_alerta_vencimento(
-        dados: dict, dias_marco: int, tipo_alerta: TipoAlertaEnum
+        dados: dict, dias_marco: int
     ) -> tuple[bool, str | None]:
         """Monta e envia e-mail de alerta de vencimento próximo."""
         venc_str = dados["data_vencimento"].strftime("%d/%m/%Y")

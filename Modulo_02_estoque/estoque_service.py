@@ -7,9 +7,9 @@ import logging
 import threading
 from datetime import date, datetime as _dt, datetime
 from decimal import Decimal
-
+from sqlalchemy import select
 from Modulo_04_notificacoes.notificacao_service import NotificacaoService
-from Modulo_06_dados import TipoMovimentacaoEnum, CentroAlocacaoEnum,UnidadeEstoqueEnum, get_session, Lote, Movimentacao, get_read_session, Produto
+from Modulo_06_dados import TipoMovimentacaoEnum, CentroAlocacaoEnum,UnidadeEstoqueEnum, get_session, Lote, Movimentacao, get_read_session, Produto, VwSaldoProduto
 from .produto_repo import ProdutoRepo
 from .lote_repo import LoteRepo
 from .fefo_selector import FEFOSelector
@@ -47,10 +47,11 @@ class EstoqueService:
     def criar_produto(
         nome: str,
         ean: str,
-        estoque_minimo: int   = 0,
-        descricao: str        = None,
-        marca: str            = None,
-        fornecedor: str    = None,
+        estoque_minimo: int     = 0,
+        descricao: str          = None,
+        marca: str              = None,
+        fornecedor: str         = None,
+        controla_validade: bool = True
     ):
         # Validações
         if not nome or not nome.strip():
@@ -61,15 +62,17 @@ class EstoqueService:
             raise ValueError(f"EAN '{ean}' já cadastrado para outro produto.")
         if estoque_minimo < 0:
             raise ValueError("Estoque mínimo não pode ser negativo.")
+        ean_salv= ean if ean and ean!="SEM GTIN" else None
  
         dados = dict(
             nome            = nome.strip(),
-            ean             = ean.strip(),
+            ean             = ean_salv,
             estoque_minimo  = estoque_minimo,
             descricao       = descricao.strip() if descricao else None,
             marca           = marca.strip() if marca else None,
             fornecedor   = fornecedor,
             ativo           = True,
+            controla_validade= controla_validade
         )
         produto = ProdutoRepo.criar(dados)
         logger.info("Produto criado: %s [EAN %s]", produto.nome, produto.ean)
@@ -151,7 +154,7 @@ class EstoqueService:
         valor_unitario:  Decimal,
         usuario_id:      int,
         data_fabricacao: date = None,
-        unidade_estoque: str="",
+        unidade_estoque: str="cx",
         centro_alocacao: str = "deposito",
     ):
         """
@@ -177,7 +180,7 @@ class EstoqueService:
             chave_acesso       = chave_acesso.strip(),
             data_vencimento    = data_vencimento,
             data_fabricacao    = data_fabricacao,
-            unidade_estoque    =unidade_estoque,
+            unidade_estoque    = unidade_estoque,
             centro_alocacao    = centro_alocacao,
             quantidade_inicial = quantidade,
             quantidade_atual   = quantidade,
@@ -213,8 +216,8 @@ class EstoqueService:
             unidade_estoque: filtra lotes pela unidade de estoque (valor do enum).
         """
         return FEFOSelector.calcular_plano(
-            produto_id,
-            quantidade,
+            produto_id= produto_id,
+            quantidade= quantidade,
             apenas_vencidos  = apenas_vencidos,
             centro_origem    = centro_origem,
             unidade_estoque  = unidade_estoque,
@@ -491,6 +494,20 @@ class EstoqueService:
         )
 
         return lotes_criados
+    
+    @classmethod
+    def listar_view_produtos(cls):
+        """Busca os produtos e seus saldos totais consumindo o Modelo ORM da View."""
+        try:
+            # Usando a sessão read-only do seu database.py
+            with get_read_session() as session:
+                query = select(VwSaldoProduto)
+                # scalars().all() desembrulha o resultado e devolve uma lista limpa de objetos VwSaldoProduto
+                resultados = session.execute(query).scalars().all()
+                return resultados
+        except Exception as e:
+            logger.error("Erro ao buscar view de saldos via ORM: %s", e)
+            return []
     
     # ── Helper fora da classe para uso em thread separada ────────────────────────
  

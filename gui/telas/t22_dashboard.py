@@ -51,7 +51,7 @@ def _buscar_dados_dashboard()->dict:
             #saldo por produto para calcular estoque baixo
             saldo_prod: dict[int, int]={}
             for l in lotes:
-                if l.data_vencimento>=hoje:
+                if l.data_vencimento is None or l.data_vencimento>=hoje:
                     saldo_prod[l.produto_id]=(
                     saldo_prod.get(l.produto_id,0)+ l.quantidade_atual)
             
@@ -59,21 +59,23 @@ def _buscar_dados_dashboard()->dict:
 
             for l in lotes:
                 nome= f"{l.produto.nome[:24]} | Lote: {l.num_lote}"
-                diff=(l.data_vencimento-hoje).days
-
-                if l.data_vencimento<hoje:
-                    resultado["vencidos"].append(nome)
-                elif diff<=7:
-                    resultado["vence_7d"].append(
-                        f"{nome} ({diff}d)")
-                elif diff<=15:
-                    resultado["vence_15d"].append(
-                        f"{nome} ({diff}d)")
-                elif diff<=30:
-                    resultado["vence_30d"].append(
-                        f"{nome} ({diff}d)")
+                diff=None if l.data_vencimento is None else (l.data_vencimento - hoje).days
+                if diff is None:
+                    continue
                 else:
-                    resultado["normais"]+=1
+                    if l.data_vencimento<hoje:
+                        resultado["vencidos"].append(nome)
+                    elif diff<=7:
+                        resultado["vence_7d"].append(
+                            f"{nome} ({diff}d)")
+                    elif diff<=15:
+                        resultado["vence_15d"].append(
+                            f"{nome} ({diff}d)")
+                    elif diff<=30:
+                        resultado["vence_30d"].append(
+                            f"{nome} ({diff}d)")
+                    else:
+                        resultado["normais"]+=1
 
             #estoque baixo(por produto, não por lote)
             vistos:set[int]=set()

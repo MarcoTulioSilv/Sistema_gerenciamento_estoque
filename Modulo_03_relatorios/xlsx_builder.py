@@ -525,6 +525,9 @@ class XlsxBuilder:
                 .order_by(Lote.data_vencimento)
                 .all()
             )
+            if not lotes:
+                logger.info("Nenhum lote vencido em estoque encontrado.")
+                return None
 
             # 2. Configura a Top Bar (Linha 1) - Título com a data do dia
             ws.row_dimensions[1].height = 30

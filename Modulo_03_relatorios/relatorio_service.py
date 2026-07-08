@@ -73,6 +73,8 @@ class RelatorioService:
         """RF-22: gera relatório de lotes vencidos e envia por e-mail."""
  
         caminho = XlsxBuilder.lotes_vencidos()
+        if caminho is None:
+            return None
         assunto = f"SCE — ⚠ Lotes Vencidos em Estoque — {date.today().strftime('%d/%m/%Y')}"
         corpo   = _html_corpo(
             titulo    = "⚠ Lotes Vencidos em Estoque",

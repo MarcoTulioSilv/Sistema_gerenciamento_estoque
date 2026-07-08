@@ -162,10 +162,10 @@ class TelaEntradaManual(ctk.CTkFrame):
         row1 = ctk.CTkFrame(self._sec2, fg_color="transparent")
         row1.pack(fill="x", padx=14, pady=(0, 6))
         row1.grid_columnconfigure((0, 1), weight=1)
-        self._num_lote = Campo(row1, "Número do lote *", obrigatorio=True,
+        self._num_lote = Campo(row1, "Número do lote",
                                placeholder="Ex: L2024-0512")
         self._num_lote.grid(row=0, column=0, padx=(0, 8), sticky="ew")
-        self._nota_fiscal = Campo(row1, "Nota fiscal (NF)", obrigatorio=True,
+        self._nota_fiscal = Campo(row1, "Nota fiscal (NF)", obrigatorio=False,
                                   placeholder="Número da NF física")
         self._nota_fiscal.grid(row=0, column=1, sticky="ew")
         
@@ -184,19 +184,21 @@ class TelaEntradaManual(ctk.CTkFrame):
         self._unidade.grid(row=0, column=1, sticky="e")
 
         #check box para validade
+        self.controla_val= ctk.BooleanVar(value=True)
         self._rap_controla_val= ctk.CTkCheckBox(
-            row2, text="Possui validade/lote?",
-            text_color= COR_AZUL, font= ctk.CTkFont(size=11, weight="bold")
+            row2, text="Possui validade/lote",
+            text_color= COR_AZUL, font= ctk.CTkFont(size=11, weight="bold"),
+            variable= self.controla_val
         )
         self._rap_controla_val.grid(row=0, column=2, sticky="e", padx=(0,8) )
-        self._rap_controla_val.select()
+        
  
         row3 = ctk.CTkFrame(self._sec2, fg_color="transparent")
         row3.pack(fill="x", padx=14, pady=(0, 6))
         row3.grid_columnconfigure((0, 1), weight=1)
         self._data_fab = Campo(row3, "Data de fabricação", placeholder="DD/MM/AAAA")
         self._data_fab.grid(row=0, column=0, padx=(0, 8), sticky="ew")
-        self._data_venc = Campo(row3, "Data de vencimento *", obrigatorio=True,
+        self._data_venc = Campo(row3, "Data de vencimento",
                                 placeholder="DD/MM/AAAA")
         self._data_venc.grid(row=0, column=1, sticky="ew")
  
@@ -263,6 +265,12 @@ class TelaEntradaManual(ctk.CTkFrame):
                       f"  ·  Estoque mín.: {produto.estoque_minimo}")
             )
             self._card_produto.pack(fill="x", padx=14, pady=(0, 8))
+            self._rap_controla_val.configure(state="normal")
+            if getattr(produto, 'controla_validade', True):
+                self.controla_val.set(True)
+            else:
+                self.controla_val.set(False)
+            self._rap_controla_val.configure(state="disabled")
             self._banner._limpar()
         else:
             # Produto não encontrado — abre mini-form inline
@@ -299,6 +307,11 @@ class TelaEntradaManual(ctk.CTkFrame):
                       f"  ·  Estoque mín.: {produto.estoque_minimo}")
             )
             self._card_produto.pack(fill="x", padx=14, pady=(0, 8))
+            if getattr(produto, 'controla_validade', True):
+                self.controla_val.set(True)
+            else:
+                self.controla_val.set(False)
+            self._rap_controla_val.configure(state="disabled")
             self._banner._limpar()
 
     def _buscar_produto_por_id(self, id_: int):
@@ -359,7 +372,7 @@ class TelaEntradaManual(ctk.CTkFrame):
                 estoque_minimo  = 0,
                 fornecedor      = fornecedor,
                 marca           = marca,
-                controla_validade= bool(self._rap_controla_val.get())
+                controla_validade= self.controla_val.get()
             )
             self._produto_sel  = produto
             self._ean_pendente = None
@@ -430,7 +443,7 @@ class TelaEntradaManual(ctk.CTkFrame):
             num_lote_final=self._num_lote.get()
  
         
-            if self._data_fab.get():
+        if self._data_fab.get():
                 data_fab = _parse_date(self._data_fab.get())
                 if not data_fab:
                     self._data_fab.erro("Data inválida. Use DD/MM/AAAA.")
@@ -452,9 +465,6 @@ class TelaEntradaManual(ctk.CTkFrame):
             self._valor_unit.erro("Informe um valor unitário positivo.")
             return
 
-        nf_segura= self._nota_fiscal.get().strip() if self._nota_fiscal.get() else ""
-        centro_seguro = self._centro.get().strip() if self._centro.get() else ""
-        unidade_segura = self._unidade.get().strip() if self._unidade.get() else ""
         try:
             EstoqueService.registrar_entrada_manual(
                 produto_id              = self._produto_sel.id,

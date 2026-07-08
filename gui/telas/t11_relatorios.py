@@ -194,11 +194,15 @@ class TelaCentralRelatorios(ctk.CTkFrame):
  
         def _run():
             try:
-                fn()
+                ret= fn()
+                if ret is None:
+                    self.after(0, lambda: self._banner.sucesso(
+                        f"Relatório '{tipo.replace('_',' ')}' não gerado: nenhum lote vencido em estoque."))
+                else:
                 # Atualiza GUI na thread principal
-                self.after(0, lambda: self._banner.sucesso(
-                    f"Relatório '{tipo.replace('_',' ')}' gerado e enviado por e-mail."))
-                self.after(0, self._carregar_ultimo_envio)
+                    self.after(0, lambda: self._banner.sucesso(
+                        f"Relatório '{tipo.replace('_',' ')}' gerado e enviado por e-mail."))
+                    self.after(0, self._carregar_ultimo_envio)
             except Exception as exc:
                 logger.error("Erro ao gerar relatório '%s': %s", tipo, exc)
                 self.after(0, lambda: self._banner.erro(f"Erro: {exc}"))

@@ -83,7 +83,6 @@ class NotificacaoScheduler:
                     hora = ag.horario.hour
                     minuto = ag.horario.minute
                     
-                    # MÁGICA DA EFICIÊNCIA: Configura o CronTrigger para a periodicidade exata!
                     if ag.periodicidade.value == "diario":
                         # Acorda todo dia no horário marcado
                         trigger = CronTrigger(hour=hora, minute=minuto)

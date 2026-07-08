@@ -63,7 +63,7 @@ class TelaNovoProduto(ctk.CTkFrame):
         self._nome = Campo(sec1, "Nome do produto", obrigatorio=True, largura=500)
         self._nome.pack(fill="x", padx=14, pady=(0, 8))
  
-        self._ean = CampoBarras(sec1, "Código de barras (EAN)", obrigatorio=True,
+        self._ean = CampoBarras(sec1, "Código de barras (EAN)", obrigatorio= False,
                                 largura=300, on_leitura=self._ao_ler_ean)
         self._ean.pack(fill="x", padx=14, pady=(0, 8))
  
@@ -167,6 +167,7 @@ class TelaNovoProduto(ctk.CTkFrame):
                     controla_validade= self._controla_val.get()
                 )
                 self._banner.sucesso("Produto atualizado com sucesso.")
+                
                 
             else:
                 EstoqueService.criar_produto(

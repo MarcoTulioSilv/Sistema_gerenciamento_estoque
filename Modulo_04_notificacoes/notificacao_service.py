@@ -153,17 +153,19 @@ class NotificacaoService:
             return resumo
 
         resumo["lotes_vencidos"] = len(dados_lotes)
-        if not dados_lotes:
+        if resumo["lotes_vencidos"] == 0:
             logger.info("alertar_lotes_vencidos: nenhum lote vencido em estoque.")
             NotificacaoService._registrar_job_log(
                 "alertar_lotes_vencidos", sucesso=True,
                 detalhe="Nenhum lote vencido.")
+            
             return resumo
 
         # Verifica duplicidade: já enviou alerta de 'vencido' hoje?
         # Usa lote_id do primeiro lote como referência (controle por dia, não por lote)
-        tipo = TipoAlertaEnum.vencido
-        ok, erro = NotificacaoService._enviar_consolidado_vencidos(dados_lotes)
+        if resumo["lotes_vencidos"] > 0:
+            tipo = TipoAlertaEnum.vencido
+            ok, erro = NotificacaoService._enviar_consolidado_vencidos(dados_lotes)
         # Registra um log por lote
         for d in dados_lotes:
             NotificacaoService._registrar_notificacao(

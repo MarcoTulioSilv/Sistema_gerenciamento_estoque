@@ -117,11 +117,11 @@ class TelaRetirada(ctk.CTkFrame):
         self._banner.pack(fill="x", padx=16)
         
         #label scrollavel 
-        scroll= ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=0)
-        scroll.pack(fill="both",expand=True)
+        self.scroll= ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=0)
+        self.scroll.pack(fill="both",expand=True)
 
         #----Passo 1: escolha do centro de retirada (só no modo normal)--------------------------------------
-        self._sec_centro= SecaoFormulario(scroll, titulo="Centro de retirada")
+        self._sec_centro= SecaoFormulario(self.scroll, titulo="Centro de retirada")
         self._sec_centro.pack(fill="x", padx=16, pady=(12,0))
 
         row_c= ctk.CTkFrame(self._sec_centro, fg_color="transparent")
@@ -147,7 +147,7 @@ class TelaRetirada(ctk.CTkFrame):
             self._sec_centro.pack_forget()
 
         #-----Passo 2: identificação do produto (oculto até escolha do centro)--------------------------------------
-        self._sec_produto= SecaoFormulario(scroll, titulo="Identificar produto")
+        self._sec_produto= SecaoFormulario(self.scroll, titulo="Identificar produto")
 
         row_id= ctk.CTkFrame(self._sec_produto, fg_color="transparent")
         row_id.pack(fill="x", padx=14, pady=(4,8))
@@ -177,7 +177,7 @@ class TelaRetirada(ctk.CTkFrame):
         self._lbl_produto.pack(fill="x", padx=12, pady=8)
 
         #------Passo 3: Quantidade+ toggle de transferência-------------------------------------------
-        self._sec_qtd = SecaoFormulario(scroll, titulo="3. Quantidade e destino")
+        self._sec_qtd = SecaoFormulario(self.scroll, titulo="3. Quantidade e destino")
  
         grid_q = ctk.CTkFrame(self._sec_qtd, fg_color="transparent")
         grid_q.pack(fill="x", padx=14, pady=(4, 8))
@@ -262,7 +262,7 @@ class TelaRetirada(ctk.CTkFrame):
         ).pack(anchor="w", padx=14, pady=(8, 12))
 
         #-----Passp 4: Plano de consumo-----------------------------------------------------------
-        self._sec_plano = SecaoFormulario(scroll, titulo="4. Plano de consumo")
+        self._sec_plano = SecaoFormulario(self.scroll, titulo="4. Plano de consumo")
  
         self._frame_plano = ctk.CTkFrame(
             self._sec_plano, fg_color=COR_CINZA_E, corner_radius=6)
@@ -277,7 +277,7 @@ class TelaRetirada(ctk.CTkFrame):
         self._lbl_insuf.pack(fill="x", padx=12, pady=8)
 
         #----- Observações---------------------------------------------------------------------------
-        self._sec_obs = SecaoFormulario(scroll, titulo="Observações")
+        self._sec_obs = SecaoFormulario(self.scroll, titulo="Observações")
         self._campo_obs = ctk.CTkEntry(
             self._sec_obs,
             placeholder_text="Ex: Retirada para enfermaria 2 — Dr. Silva",
@@ -289,7 +289,7 @@ class TelaRetirada(ctk.CTkFrame):
             anchor="w", pady=(0, 12))
         
         #----- Botões---------------------------------------------------------------------------
-        self._row_btns = ctk.CTkFrame(scroll, fg_color="transparent")
+        self._row_btns = ctk.CTkFrame(self.scroll, fg_color="transparent")
  
         label_cancelar   = "Voltar"   if self._baixa_vencido else "Cancelar"
         destino_cancelar = "inicio"   if self._baixa_vencido else "produtos"
@@ -707,6 +707,7 @@ class TelaRetirada(ctk.CTkFrame):
         self._frame_produto.pack_forget()
         self._sec_qtd.pack_forget()
         self._limpar_plano()
+        self._resetar_scroll()
  
     def _limpar_plano(self):
         """Oculta plano, observações e botões."""
@@ -740,3 +741,12 @@ class TelaRetirada(ctk.CTkFrame):
             
         if hasattr(self, '_lotes_vencidos'):
             self._lotes_vencidos = None
+
+    def _resetar_scroll(self):
+        """Força o redesenho da tela e joga o scroll para o topo."""
+        # 1. Força a interface a recalcular o tamanho e layout dos widgets após pack_forget()
+        self.update_idletasks()
+        
+        # 2. Acessa o Canvas interno do CustomTkinter e joga o scroll para o topo (posição 0.0)
+        if hasattr(self, "_scroll") and hasattr(self._scroll, "_parent_canvas"):
+            self._scroll._parent_canvas.yview_moveto(0.0)

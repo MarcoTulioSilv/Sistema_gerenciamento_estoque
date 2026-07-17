@@ -290,7 +290,7 @@ class TelaLog(ctk.CTkFrame):
                     )
                     for j in jobs:
                         linhas.append({
-                            "data_hora":  j.executado_em.strftime("%d/%m/Y %H:%M:%S"),
+                            "data_hora":  j.executado_em.strftime("%d/%m/%Y %H:%M:%S"),
                             "usuario":    "Scheduler",
                             "operacao":   j.job_nome[:20],
                             "detalhe":    (j.detalhe or "")[:30],

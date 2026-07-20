@@ -181,6 +181,7 @@ class CampoNome(ctk.CTkFrame):
         self._obrigatorio = obrigatorio
         self._on_leitura = on_leitura
         self._todas_sugestoes = []
+        self._sugestoes_atuais=[]
 
         ctk.CTkLabel(self, text=f"{label}*", text_color="#5F5E5A",
                      font=ctk.CTkFont(size=11, weight="bold"),
@@ -211,9 +212,13 @@ class CampoNome(ctk.CTkFrame):
 
         # 3. Eventos que controlam o autocompletar
         self._entry.bind("<KeyRelease>", self._filtrar_sugestoes)
-        self._entry.bind("<Return>", self._disparar)
+        self._entry.bind("<Return>", self._ao_pressionar_enter)
+        self._entry.bind("<Down>", self._navegar_baixo)
+        self._entry.bind("<Up>", self._navegar_cima)
+        self._entry.bind("<Escape>", lambda e: self._esconder_lista())
         self._entry.bind("<FocusOut>", self._esconder_lista_delay)
         self._listbox.bind("<<ListboxSelect>>", self._selecionar_item)
+        self._listbox.bind("<ButtonRelease-1>", self._selecionar_item)
 
         self._carregar_sugestoes_nome()
 
@@ -255,9 +260,9 @@ class CampoNome(ctk.CTkFrame):
 
     # ── Lógica do Autocompletar ──────────────────────────────────────────────
 
-    def _filtrar_sugestoes(self, event):
+    def _filtrar_sugestoes(self, event=None):
         # Ignora teclas de navegação para não bugar a digitação
-        if event.keysym in ("Return", "Down", "Up", "Tab", "Escape"):
+        if event and event.keysym in ("Down", "Up", "Return", "Escape", "Left", "Right"):
             return
 
         texto_digitado = self.get().lower()
@@ -267,35 +272,88 @@ class CampoNome(ctk.CTkFrame):
             self._esconder_lista()
             return
 
-        filtrados = [s for s in self._todas_sugestoes if texto_digitado in s.lower()]
+        self._sugestoes_atuais = [s for s in self._todas_sugestoes if texto_digitado in s.lower()]
 
-        if filtrados:
+        if self._sugestoes_atuais:
             self._listbox.delete(0, tk.END)
-            for item in filtrados:
-                self._listbox.insert(tk.END, item)
-
-            # Limita o tamanho da lista para não tomar a tela toda (máx 5 itens)
-            altura = min(len(filtrados), 5)
-            self._listbox.config(height=altura)
-            
+            for item in self._sugestoes_atuais[:8]:
+                self._listbox.insert(tk.END, item)     
             # Insere a lista VISUALMENTE logo abaixo do entry (antes da msg de erro)
             self._listbox.pack(fill="x", after=self._row, pady=(2, 0))
         else:
             self._esconder_lista()
-
-    def _selecionar_item(self, event):
-        if not self._listbox.curselection():
-            return
-        item = self._listbox.get(self._listbox.curselection())
-        self.set(item)
-        self._esconder_lista()
+        
+    def _navegar_baixo(self, event=None):
+        """Move a seleção da lista para o item de baixo."""
+        if not self._listbox.winfo_ismapped() or not self._sugestoes_atuais:
+            return "break" # Evita que a seta mova o cursor de texto na Entry
+        
+        selecionados = self._listbox.curselection()
+        if not selecionados:
+            proximo_idx = 0
+        else:
+            proximo_idx = min(selecionados[0] + 1, self._listbox.size() - 1)
+            self._listbox.selection_clear(0, tk.END)
+        
+        self._listbox.selection_set(proximo_idx)
+        self._listbox.activate(proximo_idx)
+        self._listbox.see(proximo_idx)
+        return "break"
+    
+    def _navegar_cima(self, event=None):
+        """Move a seleção da lista para o item de cima."""
+        if not self._listbox.winfo_ismapped() or not self._sugestoes_atuais:
+            return "break"
+        
+        selecionados = self._listbox.curselection()
+        if not selecionados or selecionados[0] == 0:
+            # Se já está no topo ou sem seleção, remove a seleção
+            self._listbox.selection_clear(0, tk.END)
+            return "break"
+        
+        anterior_idx = selecionados[0] - 1
+        self._listbox.selection_clear(0, tk.END)
+        self._listbox.selection_set(anterior_idx)
+        self._listbox.activate(anterior_idx)
+        self._listbox.see(anterior_idx)
+        return "break"
+    
+    def _ao_pressionar_enter(self, event=None):
+        """
+        Confirma a sugestão selecionada (se a lista estiver visível e com foco em um item),
+        ou dispara a busca final caso nenhuma sugestão esteja selecionada.
+        """
+        if self._listbox.winfo_ismapped():
+            selecionados = self._listbox.curselection()
+            if selecionados:
+                # Se tem sugestão selecionada, completa o texto!
+                texto_escolhido = self._listbox.get(selecionados[0])
+                self.set(texto_escolhido)
+                self._esconder_lista()
+                # Posiciona o cursor de texto no final do nome inserido
+                self._entry.icursor(tk.END)
+                return "break"
+        
+        # Se não escolheu nada na lista ou já escondeu, dispara a busca (on_leitura)
         self._disparar()
 
-    def _esconder_lista(self):
-        self._listbox.pack_forget()
+    def _selecionar_item(self, event=None):
+        selecionados = self._listbox.curselection()
+        if selecionados:
+            texto_escolhido = self._listbox.get(selecionados[0])
+            self.set(texto_escolhido)
+            self._esconder_lista()
+            self._entry.focus()
+            self._entry.icursor(tk.END)
+            self._disparar()
 
-    def _esconder_lista_delay(self, event):
-        self.after(150, self._esconder_lista)
+    def _esconder_lista(self):
+        if self._listbox.winfo_ismapped():
+            self._listbox.pack_forget()
+            self._listbox.selection_clear(0, tk.END)
+
+    def _esconder_lista_delay(self, event=None):
+        self.after(200, self._esconder_lista)
 
 class CampoFornecedor(ctk.CTkFrame):
     """

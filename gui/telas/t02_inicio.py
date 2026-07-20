@@ -1,15 +1,15 @@
 """
-gui . telas . t02_inicio.py
-Tela T-02- Tela inical/ Dashboard de situação
-Sprint 1: KPIs reais com consultados do banco via MOD-06
+gui.telas.t09_retirada.py
+Tela T-09 - Registro de Retirada e Transferência (Seleção Manual por Lote)
+Mantém o fluxo FEFO automático exclusivo para a Baixa de Vencidos.
 """
 
 import logging
 from datetime import date, datetime, timedelta
-
-from sqlalchemy.orm import joinedload
 import customtkinter as ctk
-from tkinter import messagebox
+from sqlalchemy.orm import joinedload
+
+
 from sqlalchemy import func
 from Modulo_06_dados import Movimentacao, get_read_session, Produto, Lote
 

@@ -406,7 +406,8 @@ class TelaRetirada(ctk.CTkFrame):
         ctk.CTkLabel(self._frame_plano, text="Marque os lotes que deseja retirar e informe a quantidade:", font=ctk.CTkFont(size=12, weight="bold"), text_color=COR_AZUL, anchor="w").pack(fill="x", padx=10, pady=(8,6))
         
         for lote in lotes_disponiveis:
-            linha = ctk.CTkFrame(self._frame_plano, fg_color=COR_BRANCO, corner_radius=6, border_width=1, border_color=COR_CINZA_B)
+            linha = ctk.CTkFrame(self._frame_plano, fg_color=COR_BRANCO, corner_radius=6, 
+                                 border_width=1, border_color=COR_CINZA_B, cursor="hand2")
             linha.pack(fill="x", padx=10, pady=3)
             
             var_check = ctk.BooleanVar(value=False)
@@ -415,15 +416,30 @@ class TelaRetirada(ctk.CTkFrame):
 
             venc_str = lote.data_vencimento.strftime('%d/%m/%Y') if lote.data_vencimento else "Uso Contínuo"
             dados = [
-                (f"Lote: {lote.num_lote or 'S/L'}", 160, COR_AZUL, True),
-                (f"Validade: {venc_str}", 130, "#888780", False),
-                (f"Saldo Atual: {lote.quantidade_atual}", 120, "#3d3d3a", True)
+                (f"Lote: {lote.num_lote or 'S/L'}", 100, COR_AZUL, True),
+                (f"Validade: {venc_str}", 150, "#4B4A47", True),
+                (f"Saldo Atual: {lote.quantidade_atual}", 120, "#3d3d3a", False)
             ]
-            for col, (txt, w, cor, bold) in enumerate(dados, start=1):
-                ctk.CTkLabel(linha, text=txt, width=w, anchor="w", font=ctk.CTkFont(size=11, weight="bold" if bold else "normal"), text_color=cor).grid(row=0, column=col, padx=6, pady=10, sticky="w")
 
-            ctk.CTkLabel(linha, text="Qtd:", font=ctk.CTkFont(size=11, weight="bold"), text_color="#3d3d3a").grid(row=0, column=4, padx=(10,2), pady=10, sticky="e")
-            entry_qtd = ctk.CTkEntry(linha, width=70, height=28, corner_radius=6, justify="center", state="disabled", fg_color="transparent")
+            acao_clique= lambda e, c=chk: c.toggle()  # Alterna o checkbox ao clicar na linha
+
+            linha.bind("<Button-1>", acao_clique)
+
+            for col, (txt, w, cor, bold) in enumerate(dados, start=1):
+                lbl=ctk.CTkLabel(linha, text=txt, width=w, anchor="w", 
+                             font=ctk.CTkFont(size=11, weight="bold" if bold else "normal"), text_color=cor)
+                lbl.grid(row=0, column=col, padx=6, pady=10, sticky="w")
+
+                lbl.bind("<Button-1>", acao_clique)  # Propaga clique para alternar checkbox
+
+            
+            lbl_qtd= ctk.CTkLabel(linha, text="Quantidade a Retirar:", font=ctk.CTkFont(size=11, weight="bold"), 
+                                  text_color="#3d3d3a")
+            lbl_qtd.grid(row=0, column=4, padx=(10,2), pady=10, sticky="e")
+            lbl_qtd.bind("<Button-1>", acao_clique)  # Propaga clique para alternar checkbox
+
+            entry_qtd = ctk.CTkEntry(linha, width=70, height=28, corner_radius=6, 
+                                     justify="center", state="disabled", fg_color=COR_CINZA_E)
             entry_qtd.grid(row=0, column=5, padx=(0,10), pady=8, sticky="w")
 
             # Handler do Checkbox para Ativar/Desativar o campo de digitação
@@ -444,7 +460,7 @@ class TelaRetirada(ctk.CTkFrame):
             entry_widget.focus()
         else:
             entry_widget.delete(0, "end")
-            entry_widget.configure(state="disabled", fg_color="transparent", border_color=COR_CINZA_B)
+            entry_widget.configure(state="disabled", fg_color=COR_CINZA_E, border_color=COR_CINZA_B)
 
    
     # ══════════════════════════════════════════════════════════════════════════
@@ -585,10 +601,10 @@ class TelaRetirada(ctk.CTkFrame):
                     if qtd_digitada <=0:
                         raise ValueError()
                     if qtd_digitada > lote.quantidade_atual:
-                        raise ValueError(f"Quantidade digitada ({qtd_digitada}) "
-                                         f"maior que saldo atual ({lote.quantidade_atual}).")
+                        raise ValueError()
                 except ValueError as exc:
-                    self._banner.erro(f"Erro no lote {lote.num_lote or 'S/L'}: {exc}")
+                    logger.error("Erro na quantidade digitada: %s", exc)
+                    self._banner.erro(f"Erro no lote {lote.num_lote or 'S/L'}: Número inválido ou maior que o saldo atual.",15000)
                     return
                 itens_manuais.append(ItemPlanoManual(lote.id, lote.num_lote, qtd_digitada, lote.quantidade_atual, lote.unidade_estoque.value))
 
@@ -693,6 +709,7 @@ class TelaRetirada(ctk.CTkFrame):
             self._sec_produto.pack_forget()
             self._opt_centro.set(list(_CENTROS.values())[0])
             self._centro_origem = None
+            self._resetar_scroll()
             
     def limpar_memoria(self):
         # Quebra o vínculo com objetos instanciados do banco de dados

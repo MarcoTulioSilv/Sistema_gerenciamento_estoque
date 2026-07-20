@@ -20,6 +20,15 @@ function criarBotaoFlutuante() {
     document.body.appendChild(btn);
 }
 
+function extrairFatorEmbalagem(descricao) {
+    const padrao = /(?:C\/|CX\s*\/?|CT\s*\/?|C\s+)\s*(\d+)/i;
+    const match = descricao.match(padrao);
+    if (match && match[1]) {
+        return parseInt(match[1], 10);
+    }
+    return 1; // Retorna 1 se não encontrar fracionamento
+}
+
 function extrairDadosSefaz() {
     try {
         let numNfNode = document.querySelector(".fixo-nro-serie span");
@@ -36,17 +45,21 @@ function extrairDadosSefaz() {
             let detalhe = tbDetalhes[i];
             if (!tr || !detalhe) continue;
             
+            // 1. Quantidade, Descrição e Valor Total (Nomes corrigidos!)
             let qtdNode = tr.querySelector(".fixo-prod-serv-qtd span");
-            let qtd = qtdNode ? parseFloat(qtdNode.innerText.replace(/\./g, '').replace(',', '.')) : 0;
+            let qtdComercial = qtdNode ? parseFloat(qtdNode.innerText.replace(/\./g, '').replace(',', '.')) : 0;
 
             let nomeNode = tr.querySelector(".fixo-prod-serv-descricao span");
             let descricaoProduto = nomeNode ? nomeNode.innerText.trim() : "Item sem descrição";
             
-            //extrai o codigo do produto
+            // CORREÇÃO: A classe certa do HTML da Sefaz é .fixo-prod-serv-vb
+            let vTotalNode = tr.querySelector(".fixo-prod-serv-vb span");
+            let valorTotal = vTotalNode ? parseFloat(vTotalNode.innerText.replace(/\./g, '').replace(',', '.')) : 0;
+
+            // 2. Extração do código e EAN
             let codProdNode= document.evaluate(".//label[contains(text(), 'Código do Produto')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let codigoProduto = codProdNode ? codProdNode.innerText.trim() : "";
             
-
             let eanNode = document.evaluate(".//label[contains(text(), 'Código EAN Comercial')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let eanOriginal= eanNode? eanNode.innerText.trim() : "";
 
@@ -56,10 +69,14 @@ function extrairDadosSefaz() {
                 console.log(`SCE: Produto sem EAN. Substituindo pelo Código Interno: ${eanFinal}`);
             }
 
+            // 3. Unidade e Valor Unitário (Nomes corrigidos!)
             let unidadeNode = document.evaluate(".//label[contains(text(), 'Unidade Comercial')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+            let uComercial = unidadeNode ? unidadeNode.innerText.trim() : "CX";
+
             let vUnNode = document.evaluate(".//label[contains(text(), 'Valor unitário de comercialização')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-            let vUn = vUnNode ? parseFloat(vUnNode.innerText.replace(/\./g, '').replace(',', '.')) : 0;
+            let vUnComercial = vUnNode ? parseFloat(vUnNode.innerText.replace(/\./g, '').replace(',', '.')) : 0;
            
+            // 4. Validade e Fabricação
             let valNode = document.evaluate(".//label[contains(text(), 'Data de validade')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let fabNode = document.evaluate(".//label[contains(text(), 'Data de fabricação')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             
@@ -75,7 +92,7 @@ function extrairDadosSefaz() {
                 fabricacao = `${p[2]}/${p[1]}/${p[0]}`;
             }
             
-            
+            // 5. Lote
             let loteNode = document.evaluate(".//label[contains(text(), 'Número do Lote do produto')]/following-sibling::span", detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
             let loteValor = loteNode ? loteNode.innerText.trim() : "";
 
@@ -84,7 +101,6 @@ function extrairDadosSefaz() {
                 
                 if (infoAdicionalNode) {
                     let descText = infoAdicionalNode.innerText;
-                    // Procura o padrão "Lote:" ou "LOTE " seguido de letras/números
                     let matchLote = descText.match(/Lote\s*[:\-]?\s*([A-Za-z0-9_\-]+)/i);
                     if (matchLote && matchLote[1]) {
                         loteValor = matchLote[1].trim();
@@ -92,18 +108,30 @@ function extrairDadosSefaz() {
                     }
                 }
             }
-            // ----------------------------------------------------
+
+            // 6. Cálculos de Fracionamento
+            let fator = extrairFatorEmbalagem(descricaoProduto);
+
+            if (valorTotal === 0) valorTotal = qtdComercial * vUnComercial;
+
+            let qtdRealUnidades = Math.round(qtdComercial * fator);
+            let vUnReal = qtdRealUnidades > 0 ? Number((valorTotal / qtdRealUnidades).toFixed(4)) : 0;
+            let uEstoque = fator > 1 ? "UNID" : uComercial;
 
             if (eanNode && eanNode.innerText.trim() !== "") {
                 itens.push({
                     descricao: descricaoProduto,
                     ean: eanFinal,
-                    quantidade: qtd,
-                    valor_unitario: vUn,
+                    quantidade: qtdRealUnidades,
+                    valor_unitario: vUnReal,
+                    unidade_estoque: uEstoque,
+                    valor_total: valorTotal,
+                    fator_fracionamento: fator,
+                    quantidade_comercial: qtdComercial,
+                    unidade_comercial: uComercial,
                     lote: loteValor, 
                     validade: validade,
                     fabricacao: fabricacao,
-                    unidade_estoque: unidadeNode ? unidadeNode.innerText.trim() : ""
                 });
             }
         }

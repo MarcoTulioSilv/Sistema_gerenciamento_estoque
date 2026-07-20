@@ -33,7 +33,7 @@ COR_AMBER_BG= "#FAEEDA"
 COR_AMBER_T = "#854F0B"
 COR_VERM    = "#A32D2D"
  
-UNIDADES = ["caixa","pacote","unidade","ampola","galao","fardo","litro","rolo","kit","dose"]
+UNIDADES = ["unidade","pacote","ampola","galao","fardo","litro","rolo","kit","dose","caixa"]
 CENTROS  = ["deposito","almoxarifado", "farmacia"]
  
  

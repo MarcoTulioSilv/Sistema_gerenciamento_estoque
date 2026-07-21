@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # Versão atual do executável.
 # Manter sincronizado com #define AppVersion no SCE_Setup.iss
 # e com o campo "version" em version.json gerado pelo build.bat.
-LOCAL_VERSION = "1.0.1"
+LOCAL_VERSION = "1.0.2"
 
 # Caminho UNC do share no servidor MySQL.
 # Formato: \\IP_SERVIDOR\NOME_DO_SHARE

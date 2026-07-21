@@ -120,9 +120,16 @@ class EstoqueService:
         valor_total = Decimal(str(valor_unitario)) * quantidade
         nf_limpa= nota_fiscal.strip() if nota_fiscal and nota_fiscal.strip() else None
 
+        lote_limpo= num_lote.strip() if num_lote and num_lote.strip() else ""
+
+        if not lote_limpo:
+            agora_str= datetime.now().strftime("%Y%m%d-%H%M%S")
+            lote_limpo= f"SL-{agora_str}"
+            logger.info("produto de consumo sem lote detectado. Lote criado: %s", lote_limpo)
+
         dados = dict(
             produto_id         = produto_id,
-            num_lote           = num_lote.strip(),
+            num_lote           = lote_limpo,
             nota_fiscal        = nf_limpa,
             chave_acesso       = None,
             data_vencimento    = data_vencimento,

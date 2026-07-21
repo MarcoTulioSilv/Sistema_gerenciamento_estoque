@@ -466,7 +466,7 @@ class TelaEntradaManual(ctk.CTkFrame):
             return
 
         try:
-            EstoqueService.registrar_entrada_manual(
+            lote_salvo=EstoqueService.registrar_entrada_manual(
                 produto_id              = self._produto_sel.id,
                 num_lote                = num_lote_final,
                 nota_fiscal             = self._nota_fiscal.get() or None,
@@ -496,13 +496,13 @@ class TelaEntradaManual(ctk.CTkFrame):
         except Exception:
             pass
         
-        lote_msg= f"Lote:{num_lote_final}" if controla_val else "Item de Consumo"
+        lote_msg= f"Lote:{num_lote_final}" if controla_val else f"Item de Consumo salvo como lote: {lote_salvo.num_lote}  com controle interno criado data e hora exata de criaçaõ"
         nome_prod = self._produto_sel.nome
         nf        = self._nota_fiscal.get()
         nf_text   = f".NF{nf}" if nf else""
         self._banner.sucesso(
             f"Entrada registrada: {qtd} unid. de '{nome_prod}' · "
-            f"Lote: {lote_msg} · NF: {nf_text}.{aviso}"
+            f"Lote: {lote_msg} · NF: {nf_text}.{aviso}", 15000
         )
  
         # ── Modo lote em lote: oferecer próxima ação ──────────────────────────

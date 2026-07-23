@@ -5,7 +5,7 @@
 ; ================================================================
 
 #define AppName      "SCE - Controle de Estoque Uronefrologia"
-#define AppVersion   "1.0.2"
+#define AppVersion   "1.0.3"
 #define AppPublisher "Centro Uronefrologia"
 
 ; 1. CORREÇÃO: Nomes dinâmicos baseados no AppVersion acima!

@@ -368,7 +368,7 @@ class EstoqueService:
                     qtd_dest = item.qtd_a_retirar * fator_fracionamento
                     val_unit_dest = lote_origem.valor_unitario / fator_fracionamento
                     unidade_dest_enum = UnidadeEstoqueEnum(unidade_destino)
-                    num_lote_dest = f"{lote_origem.num_lote}-F{fator_fracionamento}{destino_centro[:3].upper()}"
+                    num_lote_dest = lote_origem.num_lote
                     obs_entrada = (
                         f"{obs_mov} | "
                         f"{item.qtd_a_retirar} {lote_origem.unidade_estoque.value}"
@@ -384,7 +384,7 @@ class EstoqueService:
                         qtd_dest = item.qtd_a_retirar
                         val_unit_dest = lote_origem.valor_unitario
                         unidade_dest_enum = lote_origem.unidade_estoque
-                        num_lote_dest = f"{lote_origem.num_lote}-T{destino_centro[:3].upper()}"
+                        num_lote_dest = lote_origem.num_lote
                         obs_entrada = obs_mov
 
                 # 4. Criação ou Incremento no Destino

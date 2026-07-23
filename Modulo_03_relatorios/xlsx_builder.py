@@ -4,6 +4,8 @@ Sprint 4 — XlsxBuilder: gera arquivos .xlsx para os 4 tipos de relatório.
 Lotes vencidos destacados em vermelho (RF-22).
 """
 import logging
+import sys
+import tempfile
 from datetime import date, datetime, timedelta
 from pathlib  import Path
 from decimal  import Decimal
@@ -27,7 +29,13 @@ COR_AMBER_FILL   = "FAEEDA"   # âmbar claro
 COR_AMBER_FONT   = "854F0B"   # âmbar escuro
  
 # imagem de fundo
-LOGO_BG_PATH= Path("assets")/ "logo_Centro_Uro_Nefrologia_sem_fundo.png"
+if getattr(sys, 'frozen', False):
+    # Se estiver rodando como um executável empacotado (.exe)
+    _BASE_DIR = Path(sys.executable).parent
+else:
+    # Se estiver rodando no código-fonte (.py em desenvolvimento)
+    _BASE_DIR = Path(__file__).resolve().parent.parent
+LOGO_BG_PATH= _BASE_DIR / "assets" / "logo_Centro_Uro_Nefrologia_sem_fundo.png"
  
 
 MIME_MAP = {
@@ -223,8 +231,8 @@ class XlsxBuilder:
  
     @staticmethod
     def _dir_temp() -> Path:
-        d = Path("relatorios_temp")
-        d.mkdir(exist_ok=True)
+        d = Path(tempfile.gettempdir())/"SCU-Uronefrologia" / "relatorios"
+        d.mkdir(exist_ok=True,parents=True)
         return d
  
     @staticmethod

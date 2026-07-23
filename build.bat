@@ -2,7 +2,7 @@
 setlocal
 
 :: ── Configuração ──────────────────────────────────────────────
-set VERSION=1.0.2
+set VERSION=1.0.3
 set SHARE=\\192.168.0.150\SCE_Updates
 set INSTALLER=SCE_Setup_%VERSION%.exe
 :: ──────────────────────────────────────────────────────────────

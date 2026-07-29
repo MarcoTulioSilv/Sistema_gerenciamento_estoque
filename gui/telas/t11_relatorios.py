@@ -13,13 +13,9 @@ from Modulo_03_relatorios import RelatorioService
 logger = logging.getLogger(__name__)
 
 # Paleta de Cores do Projeto
-COR_AZUL    = "#1F4E79"
-COR_AZUL_M  = "#2E75B6"
-COR_CINZA_E = "#F2F1ED"
-COR_CINZA_B = "#E8E6DE"
-COR_BRANCO  = "#FFFFFF"
-COR_VERM    = "#A32D2D"
-COR_VERDE   = "#1D9E75"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_BRANCO, COR_VERM, COR_VERDE,
+)
 
 
 class TelaCentralRelatorios(ctk.CTkFrame):

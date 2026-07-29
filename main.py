@@ -91,7 +91,7 @@ def _checar_e_perguntar() -> None:
 def main():
     logger.info("Iniciando SCE V1.0.0")
     _checar_e_perguntar()
-    print ("%s",pasta_log)
+    logger.info("Pasta de log: %s", pasta_log)
 
     #1. Inicializar banco de dados
     try:
@@ -114,7 +114,7 @@ def main():
     #iniciar GUI
     app= SCEApp()
     app.mainloop()
-    app.pararScheduler()
+    app.parar_scheduler()
     logger.info("SCE encerrado")
 
 

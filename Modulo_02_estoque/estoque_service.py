@@ -5,16 +5,53 @@ Orquestra ProdutoRepo, FornecedoresRepo  e LoteRepo.
 """
 import logging
 import threading
+from dataclasses import dataclass
 from datetime import date, datetime as _dt, datetime
 from decimal import Decimal
 from sqlalchemy import select
 from Modulo_04_notificacoes.notificacao_service import NotificacaoService
 from Modulo_06_dados import TipoMovimentacaoEnum, CentroAlocacaoEnum,UnidadeEstoqueEnum, get_session, Lote, Movimentacao, get_read_session, Produto, VwSaldoProduto
 from .produto_repo import ProdutoRepo
-from .lote_repo import LoteRepo
+from .lote_repo import LoteRepo, MovimentacaoRepo
 from .fefo_selector import FEFOSelector
 
 logger= logging.getLogger(__name__)
+
+
+def classificar_situacao(data_vencimento: date | None, hoje: date | None = None) -> str:
+    """
+    Código canônico de situação de vencimento de um lote (sem formatação de UI):
+    "uso_continuo", "vencido", "vence_7d", "vence_15d", "vence_30d" ou "normal".
+    """
+    if data_vencimento is None:
+        return "uso_continuo"
+    hoje = hoje or date.today()
+    if data_vencimento < hoje:
+        return "vencido"
+    diff = (data_vencimento - hoje).days
+    if diff <= 7:
+        return "vence_7d"
+    if diff <= 15:
+        return "vence_15d"
+    if diff <= 30:
+        return "vence_30d"
+    return "normal"
+
+
+@dataclass
+class SituacaoLoteDTO:
+    lote_id: int
+    produto_id: int
+    produto_nome: str
+    produto_ean: str | None
+    produto_estoque_minimo: int
+    num_lote: str
+    nota_fiscal: str | None
+    centro_alocacao: CentroAlocacaoEnum
+    unidade_estoque: UnidadeEstoqueEnum
+    quantidade_atual: int
+    data_vencimento: date | None
+    situacao: str
 
 class EstoqueService:
     #__________ Fornecedores __________________________________________________________________
@@ -515,9 +552,49 @@ class EstoqueService:
         except Exception as e:
             logger.error("Erro ao buscar view de saldos via ORM: %s", e)
             return []
-    
+
+    #__________ Situação de lotes / movimentações (leitura para telas de painel) _______________
+    @staticmethod
+    def buscar_produto_por_id(id_: int):
+        return ProdutoRepo.buscar_por_id(id_)
+
+    @classmethod
+    def listar_situacao_lotes(
+        cls, produto_id: int | None = None, apenas_produtos_ativos: bool = False
+    ) -> list[SituacaoLoteDTO]:
+        """Lotes ativos com produto e situação de vencimento já classificada, desacoplados do ORM."""
+        hoje = date.today()
+        lotes = LoteRepo.listar_todos_ativos(
+            produto_id=produto_id, apenas_produtos_ativos=apenas_produtos_ativos
+        )
+        return [
+            SituacaoLoteDTO(
+                lote_id=l.id,
+                produto_id=l.produto_id,
+                produto_nome=l.produto.nome,
+                produto_ean=l.produto.ean,
+                produto_estoque_minimo=l.produto.estoque_minimo,
+                num_lote=l.num_lote,
+                nota_fiscal=l.nota_fiscal,
+                centro_alocacao=l.centro_alocacao,
+                unidade_estoque=l.unidade_estoque,
+                quantidade_atual=l.quantidade_atual,
+                data_vencimento=l.data_vencimento,
+                situacao=classificar_situacao(l.data_vencimento, hoje),
+            )
+            for l in lotes
+        ]
+
+    @staticmethod
+    def contar_movimentacoes_desde(momento: datetime) -> int:
+        return MovimentacaoRepo.contar_desde(momento)
+
+    @staticmethod
+    def listar_movimentacoes_no_periodo(inicio: datetime, fim: datetime, limite: int = 500):
+        return MovimentacaoRepo.listar_no_periodo(inicio, fim, limite)
+
     # ── Helper fora da classe para uso em thread separada ────────────────────────
- 
+
 def _disparar_alerta_estoque_baixo(produto_id: int) -> None:
     """
     Chamado em thread daemon após retirada que aciona estoque mínimo.

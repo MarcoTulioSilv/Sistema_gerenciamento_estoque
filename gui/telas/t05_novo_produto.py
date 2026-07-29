@@ -16,11 +16,9 @@ from Modulo_02_estoque import EstoqueService, ProdutoRepo
  
 logger = logging.getLogger(__name__)
  
-COR_AZUL   = "#1F4E79"
-COR_AZUL_M = "#2E75B6"
-COR_CINZA_E= "#F2F1ED"
-COR_CINZA_B= "#E8E6DE"
-COR_BRANCO = "#FFFFFF"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_BRANCO,
+)
  
  
  
@@ -113,7 +111,12 @@ class TelaNovoProduto(ctk.CTkFrame):
     # ── Dados ─────────────────────────────────────────────────────────────────
  
     def _preencher_produto(self, produto_id: int):
-        p = ProdutoRepo.buscar_por_id(produto_id)
+        try:
+            p = ProdutoRepo.buscar_por_id(produto_id)
+        except Exception as exc:
+            logger.error("Erro ao carregar produto %s: %s", produto_id, exc)
+            self._banner.erro(f"Erro ao carregar produto: {exc}")
+            return
         if not p:
             self._banner.erro(f"Produto {produto_id} não encontrado.")
             return
@@ -127,7 +130,12 @@ class TelaNovoProduto(ctk.CTkFrame):
         self._controla_val.set(getattr(p,'controla_validadae',True))
  
     def _ao_ler_ean(self, ean: str):
-        prod = EstoqueService.buscar_produto_por_ean(ean)
+        try:
+            prod = EstoqueService.buscar_produto_por_ean(ean)
+        except Exception as exc:
+            logger.error("Erro ao verificar EAN: %s", exc)
+            self._ean.erro(f"Erro ao verificar EAN: {exc}")
+            return
         if prod and prod.id != self._produto_id:
             self._ean.erro(f"EAN já cadastrado: {prod.nome}")
         else:

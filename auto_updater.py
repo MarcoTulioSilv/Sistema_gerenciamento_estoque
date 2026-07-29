@@ -36,7 +36,10 @@ LOCAL_VERSION = "1.0.4"
 # Caminho UNC do share no servidor MySQL.
 # Formato: \\IP_SERVIDOR\NOME_DO_SHARE
 # Requer que a conta Windows das estações tenha leitura no share.
-UPDATE_SHARE = r"\\192.168.0.150\SCE_Updates"
+# Configurável via UPDATE_SHARE no .env (Modulo_06_dados.database já chama
+# load_dotenv() antes deste módulo ser importado por main.py); o valor abaixo
+# é só o fallback caso a variável não esteja definida.
+UPDATE_SHARE = os.getenv("UPDATE_SHARE", r"\\192.168.0.150\SCE_Updates")
 
 # Nome fixo do manifesto de versão dentro do share.
 VERSION_FILE = "version.json"

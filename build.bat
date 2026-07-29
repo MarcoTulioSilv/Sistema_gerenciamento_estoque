@@ -4,6 +4,9 @@ setlocal
 :: ── Configuração ──────────────────────────────────────────────
 set VERSION=1.0.4
 set SHARE=\\192.168.0.150\SCE_Updates
+if exist .env (
+    for /f "tokens=2 delims==" %%s in ('findstr /b "UPDATE_SHARE=" .env') do set SHARE=%%s
+)
 set INSTALLER=SCE_Setup_%VERSION%.exe
 :: ──────────────────────────────────────────────────────────────
 
@@ -39,6 +42,7 @@ if errorlevel 1 (
 :: 4. Publica no share para auto-updater
 echo [4/4] Publicando no share de atualizacoes...
 if exist "%SHARE%" (
+    if exist "%SHARE%\SCE_Setup_*.exe" del /Q "%SHARE%\SCE_Setup_*.exe"
     copy /Y "dist\instalador\%INSTALLER%" "%SHARE%\%INSTALLER%"
     :: Atualiza version.json
     echo {"version": "%VERSION%", "file": "%INSTALLER%"} > "%SHARE%\version.json"

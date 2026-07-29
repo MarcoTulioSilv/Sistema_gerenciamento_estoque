@@ -16,6 +16,7 @@ import logging
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from Modulo_06_dados import (
     get_session, get_read_session,
@@ -23,6 +24,7 @@ from Modulo_06_dados import (
     TipoAlertaEnum,
 )
 from Modulo_04_notificacoes.gmail_client import GmailClient
+from Modulo_04_notificacoes.job_log_repo import JobLogRepo
 
 logger = logging.getLogger(__name__)
 
@@ -354,6 +356,27 @@ class NotificacaoService:
                 ))
         except Exception as exc:
             logger.error("Erro ao registrar job_log: %s", exc)
+
+    #__________ Leitura para telas (T-18/T-19) ___________________________________________
+    @staticmethod
+    def listar_notificacoes_no_periodo(inicio: datetime, fim: datetime, limite: int = 200) -> list[NotificacaoLog]:
+        with get_read_session() as s:
+            itens = (s.query(NotificacaoLog)
+                     .options(joinedload(NotificacaoLog.lote).joinedload(Lote.produto))
+                     .filter(NotificacaoLog.enviado_em.between(inicio, fim))
+                     .order_by(NotificacaoLog.enviado_em.desc())
+                     .limit(limite)
+                     .all())
+            s.expunge_all()
+            return itens
+
+    @staticmethod
+    def listar_job_logs_no_periodo(inicio: datetime, fim: datetime, limite: int = 100) -> list[JobLog]:
+        return JobLogRepo.listar_no_periodo(inicio, fim, limite)
+
+    @staticmethod
+    def listar_job_logs_por_nome(job_nome: str, limite: int = 10) -> list[JobLog]:
+        return JobLogRepo.listar_por_job(job_nome, limite)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

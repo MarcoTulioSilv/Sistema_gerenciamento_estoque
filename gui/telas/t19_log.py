@@ -7,22 +7,18 @@ import logging
 from datetime import date, datetime, timedelta
 
 import customtkinter as ctk
-from sqlalchemy.orm import joinedload
 
 from zoneinfo import ZoneInfo
 from gui.componentes.form_widgets import FeedbackBanner
-from Modulo_06_dados import get_read_session, Movimentacao, NotificacaoLog, JobLog, Usuario, Lote
+from Modulo_02_estoque import EstoqueService
+from Modulo_04_notificacoes import NotificacaoService
 
 logger = logging.getLogger(__name__)
 
-COR_AZUL    = "#1F4E79"
-COR_AZUL_M  = "#2E75B6"
-COR_CINZA_E = "#F2F1ED"
-COR_CINZA_B = "#E8E6DE"
-COR_BRANCO  = "#FFFFFF"
-COR_VERM    = "#A32D2D"
-COR_VERDE   = "#1D9E75"
-COR_AMBER   = "#BA7517"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_BRANCO,
+    COR_VERM, COR_VERDE, COR_AMBER,
+)
 
 _TIPOS_FILTRO = [
     "Todas as operações",
@@ -199,115 +195,94 @@ class TelaLog(ctk.CTkFrame):
             ini_dt = datetime.combine(dt_ini, datetime.min.time())
             fim_dt = datetime.combine(dt_fim, datetime.max.time())
 
-            with get_read_session() as s:
-                # Movimentações
-                if tipo_sel in ("Todas as operações", "Entradas", "Saídas",
-                                "Transferências", "Baixas (vencido)"):
-                    movs = (
-                        s.query(Movimentacao)
-                        .options(
-                            joinedload(Movimentacao.usuario),
-                            joinedload(Movimentacao.lote).joinedload(Lote.produto),
+            # Movimentações
+            if tipo_sel in ("Todas as operações", "Entradas", "Saídas",
+                            "Transferências", "Baixas (vencido)"):
+                movs = EstoqueService.listar_movimentacoes_no_periodo(ini_dt, fim_dt, limite=500)
+                _TIPO_LABEL = {
+                    "entrada_manual": "Entrada manual",
+                    "entrada_nfe":    "Entrada NF-e",
+                    "entrada_danfe":  "Entrada DANFE",
+                    "saida":          "Saída",
+                    "transferencia":  "Transferência",
+                    "baixa_vencido":  "Baixa (vencido)",
+                }
+                _FILTRO_TIPO = {
+                    "Entradas":          {"entrada_manual", "entrada_nfe", "entrada_danfe"},
+                    "Saídas":            {"saida"},
+                    "Transferências":    {"transferencia"},
+                    "Baixas (vencido)":  {"baixa_vencido"},
+                }
+                tipos_aceitos = _FILTRO_TIPO.get(tipo_sel)
+
+                for m in movs:
+                    if tipos_aceitos and m.tipo.value not in tipos_aceitos:
+                        continue
+                    produto_lote = "—"
+                    if m.lote and m.lote.produto:
+                        produto_lote = (
+                            f"{m.lote.produto.nome[:18]} | "
+                            f"Lote {m.lote.num_lote}"
                         )
-                        .filter(Movimentacao.data_hora.between(ini_dt, fim_dt))
-                        .order_by(Movimentacao.data_hora.desc())
-                        .limit(500)
-                        .all()
-                    )
-                    _TIPO_LABEL = {
-                        "entrada_manual": "Entrada manual",
-                        "entrada_nfe":    "Entrada NF-e",
-                        "entrada_danfe":  "Entrada DANFE",
-                        "saida":          "Saída",
-                        "transferencia":  "Transferência",
-                        "baixa_vencido":  "Baixa (vencido)",
-                    }
-                    _FILTRO_TIPO = {
-                        "Entradas":          {"entrada_manual", "entrada_nfe", "entrada_danfe"},
-                        "Saídas":            {"saida"},
-                        "Transferências":    {"transferencia"},
-                        "Baixas (vencido)":  {"baixa_vencido"},
-                    }
-                    tipos_aceitos = _FILTRO_TIPO.get(tipo_sel)
+                    linhas.append({
+                        "data_hora":  m.data_hora.strftime("%d/%m/%Y %H:%M:%S"),
+                        "_sort_dt":   m.data_hora,
+                        "usuario":    m.usuario.nome[:14] if m.usuario else "Sistema",
+                        "operacao":   _TIPO_LABEL.get(m.tipo.value, m.tipo.value),
+                        "detalhe":    produto_lote,
+                        "qtd":        str(m.quantidade),
+                        "nf":         m.numero_nf or "—",
+                        "obs":        (m.observacao or "")[:24],
+                        "resultado":  "OK",
+                        "cor_res":    COR_VERDE,
+                    })
 
-                    for m in movs:
-                        if tipos_aceitos and m.tipo.value not in tipos_aceitos:
-                            continue
-                        produto_lote = "—"
-                        if m.lote and m.lote.produto:
-                            produto_lote = (
-                                f"{m.lote.produto.nome[:18]} | "
-                                f"Lote {m.lote.num_lote}"
-                            )
-                        linhas.append({
-                            "data_hora":  m.data_hora.strftime("%d/%m/%Y %H:%M:%S"),
-                            "usuario":    m.usuario.nome[:14] if m.usuario else "Sistema",
-                            "operacao":   _TIPO_LABEL.get(m.tipo.value, m.tipo.value),
-                            "detalhe":    produto_lote,
-                            "qtd":        str(m.quantidade),
-                            "nf":         m.numero_nf or "—",
-                            "obs":        (m.observacao or "")[:24],
-                            "resultado":  "OK",
-                            "cor_res":    COR_VERDE,
-                        })
+            # Alertas
+            if tipo_sel in ("Todas as operações", "Alertas enviados"):
+                alertas = NotificacaoService.listar_notificacoes_no_periodo(ini_dt, fim_dt, limite=200)
+                for a in alertas:
+                    produto_lote = "—"
+                    if a.lote and a.lote.produto:
+                        produto_lote = (
+                            f"{a.lote.produto.nome[:18]} | Lote {a.lote.num_lote}"
+                        )
+                    linhas.append({
+                        "data_hora":  a.enviado_em.strftime("%d/%m/%Y %H:%M:%S"),
+                        "_sort_dt":   a.enviado_em,
+                        "usuario":    "Sistema",
+                        "operacao":   f"Alerta {a.tipo_alerta.value}",
+                        "detalhe":    produto_lote,
+                        "qtd":        "—",
+                        "nf":         "—",
+                        "obs":        a.erro_msg[:24] if a.erro_msg else "",
+                        "resultado":  "OK" if a.sucesso else "Falhou",
+                        "cor_res":    COR_VERDE if a.sucesso else COR_VERM,
+                    })
 
-                # Alertas
-                if tipo_sel in ("Todas as operações", "Alertas enviados"):
-                    alertas = (
-                        s.query(NotificacaoLog)
-                        .options(joinedload(NotificacaoLog.lote).joinedload(Lote.produto))
-                        .filter(NotificacaoLog.enviado_em.between(ini_dt, fim_dt))
-                        .order_by(NotificacaoLog.enviado_em.desc())
-                        .limit(200)
-                        .all()
-                    )
-                    for a in alertas:
-                        produto_lote = "—"
-                        if a.lote and a.lote.produto:
-                            produto_lote = (
-                                f"{a.lote.produto.nome[:18]} | Lote {a.lote.num_lote}"
-                            )
-                        linhas.append({
-                            "data_hora":  a.enviado_em.strftime("%d/%m/%Y %H:%M:%S"),
-                            "usuario":    "Sistema",
-                            "operacao":   f"Alerta {a.tipo_alerta.value}",
-                            "detalhe":    produto_lote,
-                            "qtd":        "—",
-                            "nf":         "—",
-                            "obs":        a.erro_msg[:24] if a.erro_msg else "",
-                            "resultado":  "OK" if a.sucesso else "Falhou",
-                            "cor_res":    COR_VERDE if a.sucesso else COR_VERM,
-                        })
-
-                # Jobs scheduler
-                if tipo_sel in ("Todas as operações", "Jobs scheduler"):
-                    jobs = (
-                        s.query(JobLog)
-                        .filter(JobLog.executado_em.between(ini_dt, fim_dt))
-                        .order_by(JobLog.executado_em.desc())
-                        .limit(100)
-                        .all()
-                    )
-                    for j in jobs:
-                        linhas.append({
-                            "data_hora":  j.executado_em.strftime("%d/%m/%Y %H:%M:%S"),
-                            "usuario":    "Scheduler",
-                            "operacao":   j.job_nome[:20],
-                            "detalhe":    (j.detalhe or "")[:30],
-                            "qtd":        "—",
-                            "nf":         "—",
-                            "obs":        "",
-                            "resultado":  "OK" if j.sucesso else "Falhou",
-                            "cor_res":    COR_VERDE if j.sucesso else COR_VERM,
-                        })
+            # Jobs scheduler
+            if tipo_sel in ("Todas as operações", "Jobs scheduler"):
+                jobs = NotificacaoService.listar_job_logs_no_periodo(ini_dt, fim_dt, limite=100)
+                for j in jobs:
+                    linhas.append({
+                        "data_hora":  j.executado_em.strftime("%d/%m/%Y %H:%M:%S"),
+                        "_sort_dt":   j.executado_em,
+                        "usuario":    "Scheduler",
+                        "operacao":   j.job_nome[:20],
+                        "detalhe":    (j.detalhe or "")[:30],
+                        "qtd":        "—",
+                        "nf":         "—",
+                        "obs":        "",
+                        "resultado":  "OK" if j.sucesso else "Falhou",
+                        "cor_res":    COR_VERDE if j.sucesso else COR_VERM,
+                    })
 
         except Exception as exc:
             logger.error("Erro ao carregar log: %s", exc)
             self._banner.erro(f"Erro ao carregar: {exc}")
             return
 
-        # Ordenar por data desc
-        linhas.sort(key=lambda x: x["data_hora"], reverse=True)
+        # Ordenar por data/hora real (não pela string já formatada)
+        linhas.sort(key=lambda x: x["_sort_dt"], reverse=True)
         self._linhas = linhas
         self._filtrar()
 

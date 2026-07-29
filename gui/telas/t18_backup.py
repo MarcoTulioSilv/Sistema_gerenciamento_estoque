@@ -12,17 +12,13 @@ import customtkinter as ctk
 
 from gui.componentes.form_widgets import FeedbackBanner, SecaoFormulario
 from Modulo_05_admin import BackupManager
-from Modulo_06_dados import get_read_session, JobLog
+from Modulo_04_notificacoes import NotificacaoService
 
 logger = logging.getLogger(__name__)
 
-COR_AZUL    = "#1F4E79"
-COR_AZUL_M  = "#2E75B6"
-COR_CINZA_E = "#F2F1ED"
-COR_CINZA_B = "#E8E6DE"
-COR_BRANCO  = "#FFFFFF"
-COR_VERM    = "#A32D2D"
-COR_VERDE   = "#1D9E75"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_BRANCO, COR_VERM, COR_VERDE,
+)
 
 _JOB_NOME_BACKUP_SERVIDOR = "backup_automatico_servidor"
 
@@ -152,17 +148,10 @@ class TelaBackup(ctk.CTkFrame):
             w.destroy()
 
         try:
-            with get_read_session() as s:
-                registros = (
-                    s.query(JobLog)
-                    .filter(JobLog.job_nome == _JOB_NOME_BACKUP_SERVIDOR)
-                    .order_by(JobLog.executado_em.desc())
-                    .limit(10)
-                    .all()
-                )
-                registros = [
-                    (r.executado_em, r.sucesso, r.detalhe) for r in registros
-                ]
+            logs = NotificacaoService.listar_job_logs_por_nome(_JOB_NOME_BACKUP_SERVIDOR, limite=10)
+            registros = [
+                (r.executado_em, r.sucesso, r.detalhe) for r in logs
+            ]
         except Exception as exc:
             logger.error("Erro ao carregar histórico de backup automático: %s", exc)
             ctk.CTkLabel(

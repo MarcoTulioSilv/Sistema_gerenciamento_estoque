@@ -9,7 +9,7 @@
 #define AppPublisher "Centro Uronefrologia"
 
 ; 1. CORREÇÃO: Nomes dinâmicos baseados no AppVersion acima!
-#define AppExeName   "SCE_Uro_v" + AppVersion + ".exe"
+#define AppExeName   "SCE_Uro.exe"
 #define SourceDir    "..\dist\SCE_Uro_v" + AppVersion
 #define AppIcon      "..\assets\Logo_Uro_sem_Nome.ico"
 

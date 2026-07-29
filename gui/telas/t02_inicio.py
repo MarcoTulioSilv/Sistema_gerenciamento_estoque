@@ -1,37 +1,27 @@
 """
-gui.telas.t09_retirada.py
-Tela T-09 - Registro de Retirada e Transferência (Seleção Manual por Lote)
-Mantém o fluxo FEFO automático exclusivo para a Baixa de Vencidos.
+gui.telas.t02_inicio.py
+Tela T-02 - Painel de situação (KPIs de estoque, lotes vencidos/a vencer).
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import customtkinter as ctk
-from sqlalchemy.orm import joinedload
 
-
-from sqlalchemy import func
-from Modulo_06_dados import Movimentacao, get_read_session, Produto, Lote
+from Modulo_02_estoque import EstoqueService
 
 logger= logging.getLogger(__name__)
 
-COR_AZUL    = "#1F4E79"
-COR_AZUL_M  = "#2E75B6"
-COR_AZUL_L  = "#D6E4F0"
-COR_CINZA_E = "#F2F1ED"
-COR_CINZA_B = "#E8E6DE"
-COR_VERDE   = "#1D9E75"
-COR_AMBER   = "#BA7517"
-COR_VERM    = "#A32D2D"
-COR_BRANCO  = "#FFFFFF"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_AZUL_L, COR_CINZA_E, COR_CINZA_B,
+    COR_VERDE, COR_AMBER, COR_VERM, COR_BRANCO,
+)
 
 def _consultar_kpis()->dict:
     """
-    Consulta os KPIs de situação de estoque no banco
+    Consulta os KPIs de situação de estoque via EstoqueService.
     Retorna dicionário com contagens para exibição nos cards.
     """
     hoje= date.today()
-    limite_15=  hoje+ timedelta(days=15)
     kpis={
         "produtos_ativos":  0,
         "lotes_vencidos":   0,
@@ -43,51 +33,35 @@ def _consultar_kpis()->dict:
     }
 
     try:
-        with get_read_session() as session:
-            #Produtos ativos
-            kpis["produtos_ativos"]=(
-                session.query(func.count(Produto.id))
-                .filter(Produto.ativo==True)
-                .scalar() or 0
-            )
+        produtos_ativos = EstoqueService.listar_produtos(apenas_ativos=True)
+        kpis["produtos_ativos"] = len(produtos_ativos)
 
-            lotes=(session.query(Lote)
-                    .options(joinedload(Lote.produto)) # Carrega o nome do produto junto
-                    .filter(Lote.quantidade_atual > 0)
-                    .filter(Lote.data_vencimento.isnot(None))
-                    .all())
-            
-            # Percorre lotes e identifica vencidos e prestes a vencer
-            for l in lotes:
-                detalhe= f"• {l.produto.nome} (Lote: {l.num_lote}) - Vence em: {l.data_vencimento.strftime('%d/%m/%Y')}"
-                if l.data_vencimento<hoje:
-                    kpis["lotes_vencidos"]+=1
-                    kpis["nomes_vencidos"].append(detalhe)
-                elif hoje<= l.data_vencimento<=limite_15:
-                    kpis["lotes_vencendo_15"]+=1
-                    kpis["nomes_vencendo_15"].append(detalhe)
+        # Estoque abaixo do mínimo (saldo de lotes não vencidos, produtos ativos)
+        for prod in produtos_ativos:
+            if prod.estoque_minimo <= 0:
+                continue
+            saldo = sum(
+                l.quantidade_atual for l in prod.lotes
+                if l.quantidade_atual > 0 and (l.data_vencimento is None or l.data_vencimento >= hoje)
+            )
+            if saldo <= prod.estoque_minimo:
+                kpis["estoque_baixo"] += 1
 
-            #Produtos com estoque abaixo do mínimo
-            todos_produtos=(
-                session.query(Produto)
-                .filter(Produto.ativo==True,Produto.estoque_minimo>0)
-                .all()
-            )
-            for prod in todos_produtos:
-                saldo=sum(
-                    l.quantidade_atual for l in prod.lotes
-                    if l.quantidade_atual>0 and (l.data_vencimento is None or l.data_vencimento >=hoje)
-                )
-                if saldo<= prod.estoque_minimo:
-                    kpis["estoque_baixo"]+=1
-            
-            #Movimentações do dia
-            inicio_hoje= datetime.combine(hoje,datetime.min.time())
-            kpis["mov_hoje"]=(
-                session.query(func.count(Movimentacao.id))
-                .filter(Movimentacao.data_hora>=inicio_hoje)
-                .scalar() or 0
-            )
+        # Lotes vencidos / vencendo em até 15 dias (cross-produto)
+        for l in EstoqueService.listar_situacao_lotes():
+            if l.data_vencimento is None:
+                continue
+            detalhe = f"• {l.produto_nome} (Lote: {l.num_lote}) - Vence em: {l.data_vencimento.strftime('%d/%m/%Y')}"
+            if l.situacao == "vencido":
+                kpis["lotes_vencidos"] += 1
+                kpis["nomes_vencidos"].append(detalhe)
+            elif l.situacao in ("vence_7d", "vence_15d"):
+                kpis["lotes_vencendo_15"] += 1
+                kpis["nomes_vencendo_15"].append(detalhe)
+
+        # Movimentações do dia
+        inicio_hoje= datetime.combine(hoje,datetime.min.time())
+        kpis["mov_hoje"] = EstoqueService.contar_movimentacoes_desde(inicio_hoje)
     except Exception as exc:
         logger.error("Erro ao consultar KPIs:%s",exc)
     return kpis
@@ -176,22 +150,20 @@ class TelaInicio(ctk.CTkFrame):
 
     def _abrir_baixa_vencidos(self):
         """Busca os lotes vencidos de forma estruturada e os envia para a tela de retirada"""
-        hoje = date.today()
         lotes_vencidos_raw = []
-        
+
         try:
-            with get_read_session() as s:
-                lotes = s.query(Lote).join(Produto).filter(Lote.data_vencimento < hoje, Lote.quantidade_atual > 0).all()
-                for l in lotes:
+            for l in EstoqueService.listar_situacao_lotes():
+                if l.situacao == "vencido":
                     lotes_vencidos_raw.append({
-                        "ean": l.produto.ean,
+                        "ean": l.produto_ean,
                         "lote": l.num_lote,
                         "quantidade": l.quantidade_atual,
-                        "nome": l.produto.nome
+                        "nome": l.produto_nome,
                     })
         except Exception as exc:
             logger.error("Erro ao buscar lotes vencidos para a fila de baixa: %s", exc)
-            
+
         # Encaminha o destino junto com a lista estruturada de lotes no argumento extra
         self._on_navigate("baixa_vencido", lotes_vencidos_raw)
     

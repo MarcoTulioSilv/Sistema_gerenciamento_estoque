@@ -23,6 +23,11 @@ dist/
 backups/
 *.sql.gz
 
+# ─── backup_script (script standalone do servidor) ───────
+# backup.env já cai em "*.env" acima; backup.env.example fica versionado.
+backup_script/Backups_SCE/
+backup_script/*.sql
+
 # ─── IDEs ────────────────────────────────────────────────
 .idea/
 .vscode/
@@ -41,3 +46,5 @@ crip.py
 dist/
 build/
 *.spec.bak
+
+claude.md

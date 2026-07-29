@@ -5,10 +5,12 @@
 ; ================================================================
 
 #define AppName      "SCE - Controle de Estoque Uronefrologia"
-#define AppVersion   "1.0.1"
+#define AppVersion   "1.0.4"
 #define AppPublisher "Centro Uronefrologia"
-#define AppExeName   "SCE_Uro_v1.0.1.exe"
-#define SourceDir    "..\dist\SCE_Uro_v1.0.1"
+
+; 1. CORREÇÃO: Nomes dinâmicos baseados no AppVersion acima!
+#define AppExeName   "SCE_Uro_v" + AppVersion + ".exe"
+#define SourceDir    "..\dist\SCE_Uro_v" + AppVersion
 #define AppIcon      "..\assets\Logo_Uro_sem_Nome.ico"
 
 [Setup]
@@ -28,9 +30,9 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 
-; Necessário para auto-updater (/SILENT /CLOSEAPPLICATIONS)
+; 2. CORREÇÃO: Filtro agora procura dinamicamente pelo AppExeName correto
 CloseApplications=yes
-CloseApplicationsFilter=SCE_Uro_v1.exe
+CloseApplicationsFilter={#AppExeName}
 RestartApplications=no
 
 ; Admin necessário para instalar em Program Files
@@ -49,6 +51,11 @@ Name: "desktopicon"; \
   GroupDescription: "Ícones adicionais:"; \
   Flags: checkedonce
 
+; 3. SOLUÇÃO PRINCIPAL: Deleta versões/executáveis antigos antes de instalar
+[InstallDelete]
+Type: files; Name: "{app}\SCE_Uro_v*.exe"
+Type: files; Name: "{commondesktop}\SCE Uronefrologia.lnk"
+
 [Files]
 ; Pasta completa gerada pelo PyInstaller --onedir
 Source: "{#SourceDir}\*"; \
@@ -61,7 +68,6 @@ Name: "{group}\Desinstalar";  Filename: "{uninstallexe}"
 Name: "{commondesktop}\SCE Uronefrologia"; \
   Filename: "{app}\{#AppExeName}"; \
   IconFilename: "{app}\{#AppExeName}"; \
-  Tasks: desktopicon
 
 [Run]
 ; Abre o SCE após instalação normal (não executa em modo /SILENT)

@@ -3,11 +3,13 @@ Modulo_03_relatorios · relatorio_service.py
 Sprint 4 — RelatorioService: gera, envia e agenda relatórios XLSX.
 """
 import logging
-from datetime import date, datetime, time
+from sqlalchemy.orm import joinedload
+from datetime import datetime as dt
+from datetime import date, datetime, time, timedelta
 from pathlib  import Path
 from .xlsx_builder import XlsxBuilder
 from Modulo_04_notificacoes.gmail_client import GmailClient 
-from Modulo_06_dados import get_read_session, RelatorioAgendamento, get_session, JobLog
+from Modulo_06_dados import get_read_session, RelatorioAgendamento, get_session, JobLog, Movimentacao, Lote, Produto, Usuario
 
 logger = logging.getLogger(__name__)
  
@@ -86,7 +88,135 @@ class RelatorioService:
         GmailClient.enviar(assunto, corpo, anexos=[caminho])
         _registrar_envio("lotes_vencidos")
         return caminho
- 
+
+    #── Busca de dados para exibição na UI ───────────────────────────────────────────────
+    def buscar_dados_movimentacao(data_ini: date, data_fim: date) -> list[list]:
+        """Retorna os dados puros de movimentação para a tabela visual da UI."""
+
+        inicio = dt.combine(data_ini, dt.min.time())
+        fim    = dt.combine(data_fim, dt.max.time())
+
+        with get_read_session() as s:
+            movs = (
+                s.query(Movimentacao)
+                .join(Lote).join(Produto).join(Usuario)
+                .options(
+                    joinedload(Movimentacao.lote).joinedload(Lote.produto),
+                    joinedload(Movimentacao.usuario),
+                )
+                .filter(Movimentacao.data_hora.between(inicio, fim))
+                .order_by(Movimentacao.data_hora.desc())
+                .all()
+            )
+            return [
+                [
+                    m.data_hora.strftime("%d/%m/%Y %H:%M"),
+                    m.lote.produto.nome,
+                    m.lote.num_lote,
+                    m.numero_nf or m.lote.nota_fiscal or "—",
+                    m.tipo.value.replace("_", " ").title(),
+                    m.quantidade,
+                    m.usuario.nome,
+                    m.observacao or ""
+                ] for m in movs
+            ]
+    @staticmethod
+    def buscar_dados_estoque_atual() -> list[list]:
+        """Retorna a posição do estoque para exibição na UI."""
+
+        hoje = date.today()
+        with get_read_session() as s:
+            lotes = (
+                s.query(Lote).join(Produto)
+                .options(joinedload(Lote.produto))
+                .filter(Produto.ativo == True, Lote.quantidade_atual > 0)
+                .order_by(Produto.nome, Lote.data_vencimento)
+                .all()
+            )
+            dados = []
+            for l in lotes:
+                vencido = False if l.data_vencimento is None else l.data_vencimento < hoje
+                diff = None if l.data_vencimento is None else (l.data_vencimento - hoje).days
+                
+                if diff is None: sit = "Normal"
+                elif vencido: sit = "VENCIDO"
+                elif diff <= 15: sit = f"Vence em {diff}d"
+                else: sit = "Normal"
+
+                dados.append([
+                    l.produto.nome,
+                    l.centro_alocacao.value.capitalize(),
+                    l.num_lote,
+                    l.nota_fiscal or "—",
+                    l.data_fabricacao.strftime("%d/%m/%Y") if l.data_fabricacao else "—",
+                    l.data_vencimento.strftime("%d/%m/%Y") if l.data_vencimento else "—",
+                    l.quantidade_inicial,
+                    l.quantidade_atual,
+                    f"R$ {float(l.valor_unitario):,.2f}",
+                    f"R$ {float(l.valor_total):,.2f}",
+                    sit
+                ])
+            return dados
+
+    @staticmethod
+    def buscar_dados_a_vencer(dias: int = 30) -> list[list]:
+        """Retorna produtos próximos ao vencimento para a UI."""
+
+        hoje = date.today()
+        limite = hoje + timedelta(days=dias)
+        with get_read_session() as s:
+            lotes = (
+                s.query(Lote).join(Produto)
+                .options(joinedload(Lote.produto))
+                .filter(
+                    Produto.ativo == True, Lote.quantidade_atual > 0,
+                    Lote.data_vencimento >= hoje, Lote.data_vencimento <= limite,
+                    Lote.data_vencimento.isnot(None),
+                )
+                .order_by(Lote.data_vencimento).all()
+            )
+            return [
+                [
+                    l.produto.nome,
+                    l.centro_alocacao.value.capitalize(),
+                    l.num_lote,
+                    l.nota_fiscal or "—",
+                    l.data_vencimento.strftime("%d/%m/%Y"),
+                    f"{(l.data_vencimento - hoje).days} dias",
+                    l.quantidade_atual,
+                    "Crítico" if (l.data_vencimento - hoje).days <= 2 else "Urgente"
+                ] for l in lotes
+            ]
+
+    @staticmethod
+    def buscar_dados_lotes_vencidos() -> list[list]:
+        """Retorna os lotes vencidos para a UI."""
+
+        hoje = date.today()
+        with get_read_session() as s:
+            lotes = (
+                s.query(Lote).join(Produto)
+                .options(joinedload(Lote.produto))
+                .filter(
+                    Produto.ativo == True, Lote.quantidade_atual > 0,
+                    Lote.data_vencimento < hoje, Lote.data_vencimento.isnot(None),
+                )
+                .order_by(Lote.data_vencimento).all()
+            )
+            return [
+                [
+                    l.produto.nome,
+                    l.centro_alocacao.value.capitalize(),
+                    l.produto.fornecedor or "—",
+                    l.num_lote,
+                    l.nota_fiscal or "—",
+                    l.data_vencimento.strftime("%d/%m/%Y"),
+                    f"{(hoje - l.data_vencimento).days} dias",
+                    l.quantidade_atual,
+                    f"R$ {float(l.valor_unitario * l.quantidade_atual):,.2f}"
+                ] for l in lotes
+            ]
+    
     # ── Agendamento (RF-21) ───────────────────────────────────────────────
  
     @staticmethod

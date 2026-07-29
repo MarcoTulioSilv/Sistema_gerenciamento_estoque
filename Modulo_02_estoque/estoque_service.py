@@ -120,9 +120,16 @@ class EstoqueService:
         valor_total = Decimal(str(valor_unitario)) * quantidade
         nf_limpa= nota_fiscal.strip() if nota_fiscal and nota_fiscal.strip() else None
 
+        lote_limpo= num_lote.strip() if num_lote and num_lote.strip() else ""
+
+        if not lote_limpo:
+            agora_str= datetime.now().strftime("%Y%m%d-%H%M%S")
+            lote_limpo= f"SL-{agora_str}"
+            logger.info("produto de consumo sem lote detectado. Lote criado: %s", lote_limpo)
+
         dados = dict(
             produto_id         = produto_id,
-            num_lote           = num_lote.strip(),
+            num_lote           = lote_limpo,
             nota_fiscal        = nf_limpa,
             chave_acesso       = None,
             data_vencimento    = data_vencimento,
@@ -361,7 +368,7 @@ class EstoqueService:
                     qtd_dest = item.qtd_a_retirar * fator_fracionamento
                     val_unit_dest = lote_origem.valor_unitario / fator_fracionamento
                     unidade_dest_enum = UnidadeEstoqueEnum(unidade_destino)
-                    num_lote_dest = f"{lote_origem.num_lote}-F{fator_fracionamento}{destino_centro[:3].upper()}"
+                    num_lote_dest = lote_origem.num_lote
                     obs_entrada = (
                         f"{obs_mov} | "
                         f"{item.qtd_a_retirar} {lote_origem.unidade_estoque.value}"
@@ -377,7 +384,7 @@ class EstoqueService:
                         qtd_dest = item.qtd_a_retirar
                         val_unit_dest = lote_origem.valor_unitario
                         unidade_dest_enum = lote_origem.unidade_estoque
-                        num_lote_dest = f"{lote_origem.num_lote}-T{destino_centro[:3].upper()}"
+                        num_lote_dest = lote_origem.num_lote
                         obs_entrada = obs_mov
 
                 # 4. Criação ou Incremento no Destino

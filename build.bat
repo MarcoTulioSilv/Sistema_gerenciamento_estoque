@@ -2,14 +2,14 @@
 setlocal
 
 :: ── Configuração ──────────────────────────────────────────────
-set VERSION=1.0.1
+set VERSION=1.0.4
 set SHARE=\\192.168.0.150\SCE_Updates
 set INSTALLER=SCE_Setup_%VERSION%.exe
 :: ──────────────────────────────────────────────────────────────
 
 echo.
 echo ╔══════════════════════════════════════════╗
-echo ║   SCE Uronefrologia — Build %VERSION%       ║
+echo ║   SCE Uronefrologia — Build %VERSION%    ║
 echo ╚══════════════════════════════════════════╝
 echo.
 

@@ -45,7 +45,7 @@ _SITUACAO_LABEL = {
     "vence_15d":    "Vence em 15d",
     "vence_30d":    "Vence em 30d",
     "normal":       "Normal",
-}
+    }
 
 class TelaPosicaoEstoque(ctk.CTkFrame):
     #posição atual do estoque por lote- somente leitura para TI, com ações para administração e Tecnico

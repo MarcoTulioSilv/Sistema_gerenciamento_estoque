@@ -104,21 +104,23 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
     # ── Dados ─────────────────────────────────────────────────────────────────
 
     def _carregar(self):
-        """Carrega produtos ativos com saldo calculado a partir dos lotes (via EstoqueService)."""
+        """Carrega produtos ativos com saldo via vw_saldo_produtos (EstoqueService).
+
+        Exclui lotes vencidos ainda não retirados do estoque; inclui lotes
+        "de consumo" sem data_vencimento.
+        """
         try:
-            produtos = EstoqueService.listar_produtos(apenas_ativos=True)
+            produtos = [p for p in EstoqueService.listar_view_produtos() if p.ativo]
             dados = [
                 {
                     "id":             p.id,
                     "nome":           p.nome,
                     "estoque_minimo": p.estoque_minimo,
-                    "saldo":          sum(
-                        l.quantidade_atual for l in p.lotes
-                        if l.quantidade_atual > 0
-                    ),
+                    "saldo":          int(p.saldo_total) if p.saldo_total is not None else 0,
                 }
                 for p in produtos
             ]
+            dados.sort(key=lambda d: d["nome"])
             self._dados = dados
             self._renderizar(dados)
         except Exception as exc:

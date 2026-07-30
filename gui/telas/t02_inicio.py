@@ -33,17 +33,16 @@ def _consultar_kpis()->dict:
     }
 
     try:
-        produtos_ativos = EstoqueService.listar_produtos(apenas_ativos=True)
+        # Saldo via vw_saldo_produtos: exclui vencidos ainda não retirados,
+        # inclui lotes "de consumo" sem data_vencimento (soma feita no banco).
+        produtos_ativos = [p for p in EstoqueService.listar_view_produtos() if p.ativo]
         kpis["produtos_ativos"] = len(produtos_ativos)
 
-        # Estoque abaixo do mínimo (saldo de lotes não vencidos, produtos ativos)
+        # Estoque abaixo do mínimo (produtos ativos)
         for prod in produtos_ativos:
             if prod.estoque_minimo <= 0:
                 continue
-            saldo = sum(
-                l.quantidade_atual for l in prod.lotes
-                if l.quantidade_atual > 0 and (l.data_vencimento is None or l.data_vencimento >= hoje)
-            )
+            saldo = int(prod.saldo_total) if prod.saldo_total is not None else 0
             if saldo <= prod.estoque_minimo:
                 kpis["estoque_baixo"] += 1
 

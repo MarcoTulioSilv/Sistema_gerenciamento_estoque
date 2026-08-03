@@ -231,6 +231,22 @@ class RelatorioAgendamento(Base):
     horario:        Mapped[str]                 = mapped_column(Time, nullable=False)
     ultimo_envio:   Mapped[datetime | None]     = mapped_column(DateTime, nullable=True)
 
+
+class GrupoConsumo(Base):
+    """
+    Tabela: grupo_consumo — MOD-03
+    Agrupa produtos "irmãos" (mesmo item, marcas/nomes diferentes) para o
+    relatório de consumo médio, via palavras-chave (todas precisam bater no
+    nome do produto, AND — não OR). Mantido pela tela de gestão em T-11.
+    """
+    __tablename__ = "grupo_consumo"
+
+    id:           Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nome:         Mapped[str]      = mapped_column(String(120), nullable=False, unique=True)
+    termos_chave: Mapped[str]      = mapped_column(String(255), nullable=False)
+    criado_em:    Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+
+
 class VwSaldoProduto(Base):
     """view de saldo total de produtos"""
     __tablename__ = "vw_saldo_produtos"

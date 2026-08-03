@@ -18,10 +18,12 @@ sce.log
 build/
 dist/
 *.spec
+sce_version.txt
 
 # ─── Backups gerados pelo sistema ────────────────────────
 backups/
 *.sql.gz
+*.sql
 
 # ─── backup_script (script standalone do servidor) ───────
 # backup.env já cai em "*.env" acima; backup.env.example fica versionado.

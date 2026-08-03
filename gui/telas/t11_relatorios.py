@@ -3,9 +3,10 @@ gui · telas · t11_relatorios.py
 Tela T-11 — Central de relatórios com Visualização, Envio e Filtros Dinâmicos (Sprint 4 / UI Refactor).
 """
 import logging
+import shutil
 import threading
 from datetime import date, datetime
-from tkinter import ttk
+from tkinter import ttk, filedialog, messagebox
 import customtkinter as ctk
 from gui.componentes.form_widgets import FeedbackBanner
 from Modulo_03_relatorios import RelatorioService
@@ -176,7 +177,52 @@ class TelaCentralRelatorios(ctk.CTkFrame):
             )
         )
 
+        # Card 5: Consumo médio por produto
+        self._card_consumo = _CardRelatorio(
+            scroll, titulo="Consumo médio por produto",
+            descricao="Total consumido (saídas) e média mensal por produto ativo,\n"
+                      "no período selecionado. Use a busca para agrupar produtos\n"
+                      "equivalentes (ex.: marcas diferentes do mesmo item).",
+            cor_btn=COR_AZUL_M, texto_btn="Visualizar Relatório",
+        )
+        self._card_consumo.grid(row=2, column=0, padx=(0, 8), pady=(0, 8), sticky="nsew")
+        self._card_consumo.label_ultimo_envio().configure(text="Relatório sob demanda")
+
+        per_frame_consumo = ctk.CTkFrame(self._card_consumo, fg_color="transparent")
+        per_frame_consumo.pack(fill="x", padx=14, pady=(0, 6))
+        ctk.CTkLabel(per_frame_consumo, text="Período:", text_color="#5F5E5A",
+                     font=ctk.CTkFont(size=11)).pack(side="left")
+        self._opt_periodo_consumo = ctk.CTkOptionMenu(
+            per_frame_consumo, values=["3 meses", "6 meses"],
+            width=130, height=28, corner_radius=6,
+            fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#161614",
+        )
+        self._opt_periodo_consumo.set("3 meses")
+        self._opt_periodo_consumo.pack(side="left", padx=(6, 0))
+
+        ctk.CTkButton(
+            per_frame_consumo, text="⚙ Gerenciar Grupos", width=150, height=28,
+            fg_color=COR_BRANCO, text_color="#161614",
+            border_width=1, border_color=COR_CINZA_B, hover_color=COR_CINZA_E,
+            font=ctk.CTkFont(size=11),
+            command=self._abrir_gerenciar_grupos,
+        ).pack(side="left", padx=(10, 0))
+
+        self._card_consumo.configurar_acao(self._iniciar_vis_consumo_medio)
+
         self._carregar_ultimo_envio()
+
+    def _iniciar_vis_consumo_medio(self):
+        meses = int(self._opt_periodo_consumo.get().split()[0])
+        rotulos_meses = RelatorioService.rotulos_meses_consumo(meses)
+        colunas = ["Produto/Grupo", *rotulos_meses, "Total Consumido", "Média Mensal"]
+        self._abrir_tabela(
+            f"Consumo Médio ({meses} meses: {rotulos_meses[0]} a {rotulos_meses[-1]})",
+            colunas,
+            lambda: RelatorioService.buscar_dados_consumo_medio(meses)[1],
+            lambda: RelatorioService.enviar_consumo_medio(meses),
+            func_gerar_arquivo=lambda: RelatorioService.gerar_consumo_medio(meses),
+        )
 
     def _iniciar_vis_movimentacao(self):
         ini = _parse_date(self._dt_ini.get())
@@ -198,7 +244,8 @@ class TelaCentralRelatorios(ctk.CTkFrame):
 
     # ── Tela 2: Visualização da Tabela com Filtros ────────────────────────────
 
-    def _abrir_tabela(self, titulo_relatorio, colunas, func_buscar_dados, func_enviar_email, filtros_config=None):
+    def _abrir_tabela(self, titulo_relatorio, colunas, func_buscar_dados, func_enviar_email,
+                       filtros_config=None, func_gerar_arquivo=None):
         self._limpar_container()
         self._lbl_titulo_topbar.configure(text=f"Central de relatórios → {titulo_relatorio}")
 
@@ -206,7 +253,7 @@ class TelaCentralRelatorios(ctk.CTkFrame):
         toolbar = ctk.CTkFrame(self._container, fg_color=COR_BRANCO, height=50, corner_radius=6)
         toolbar.pack(fill="x", pady=(0, 8))
         toolbar.bind("<Button-1>", lambda e: self._deselecionar_tabela())
-        
+
         ctk.CTkButton(
             toolbar, text="⬅ Voltar aos Relatórios", width=160, height=32,
             fg_color="#5F5E5A", hover_color="#3d3d3a", command=self._renderizar_cards
@@ -218,6 +265,14 @@ class TelaCentralRelatorios(ctk.CTkFrame):
             command=lambda: self._disparar_envio_email(func_enviar_email)
         )
         btn_enviar.pack(side="right", padx=12, pady=9)
+
+        if func_gerar_arquivo is not None:
+            btn_baixar = ctk.CTkButton(
+                toolbar, text="💾 Baixar (XLSX)", width=150, height=32,
+                fg_color=COR_AZUL, hover_color="#163a5c",
+                command=lambda: self._disparar_download(func_gerar_arquivo)
+            )
+            btn_baixar.pack(side="right", padx=(0, 6), pady=9)
 
         btn_copiar = ctk.CTkButton(
             toolbar, text="📋 Copiar Dados (Excel)", width=160, height=32,
@@ -453,6 +508,186 @@ class TelaCentralRelatorios(ctk.CTkFrame):
                 self.after(0, lambda: self._banner.erro(f"Falha ao enviar e-mail: {exc}"))
 
         threading.Thread(target=_run, daemon=True).start()
+
+    def _disparar_download(self, func_gerar_arquivo):
+        destino = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Planilha Excel", "*.xlsx")],
+            initialfile=f"consumo_medio_{date.today().strftime('%Y%m%d')}.xlsx",
+        )
+        if not destino:
+            return  # usuário cancelou o diálogo
+
+        self._banner.sucesso("Gerando arquivo XLSX... aguarde.")
+
+        def _run():
+            try:
+                caminho = func_gerar_arquivo()
+                shutil.copy2(caminho, destino)
+                self.after(0, lambda: self._banner.sucesso(f"✅ Relatório salvo em: {destino}"))
+            except Exception as exc:
+                logger.error("Erro ao baixar relatório: %s", exc)
+                self.after(0, lambda: self._banner.erro(f"Falha ao baixar relatório: {exc}"))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    # ── Popup: gerenciar grupos de consumo ────────────────────────────────────
+
+    def _abrir_gerenciar_grupos(self):
+        popup = ctk.CTkToplevel(self)
+        popup.title("Gerenciar Grupos de Consumo")
+        popup.geometry("560x540")
+        popup.transient(self)
+        popup.grab_set()
+
+        ctk.CTkLabel(
+            popup, text="Grupos de Consumo",
+            font=ctk.CTkFont(size=14, weight="bold"), text_color=COR_AZUL,
+        ).pack(pady=(16, 4), padx=20, anchor="w")
+        ctk.CTkLabel(
+            popup,
+            text="Produtos que contenham TODAS as palavras-chave de um grupo\n"
+                 "(sem diferenciar maiúsculas/minúsculas) aparecem somados nesse\n"
+                 "grupo no relatório de consumo médio.",
+            text_color="#5F5E5A", font=ctk.CTkFont(size=11), justify="left",
+        ).pack(padx=20, anchor="w")
+
+        frame_lista = ctk.CTkScrollableFrame(popup, fg_color=COR_CINZA_E, height=240)
+        frame_lista.pack(fill="both", expand=True, padx=20, pady=(10, 10))
+
+        frame_form = ctk.CTkFrame(popup, fg_color=COR_BRANCO, corner_radius=6,
+                                   border_width=1, border_color=COR_CINZA_B)
+        frame_form.pack(fill="x", padx=20, pady=(0, 10))
+
+        ctk.CTkLabel(frame_form, text="Nome do grupo:", text_color="#5F5E5A",
+                     font=ctk.CTkFont(size=11)).pack(anchor="w", padx=12, pady=(10, 0))
+        entry_nome = ctk.CTkEntry(frame_form, height=30, corner_radius=6)
+        entry_nome.pack(fill="x", padx=12, pady=(2, 8))
+
+        ctk.CTkLabel(frame_form, text="Palavras-chave (separadas por vírgula):",
+                     text_color="#5F5E5A", font=ctk.CTkFont(size=11)).pack(anchor="w", padx=12)
+        entry_termos = ctk.CTkEntry(frame_form, height=30, corner_radius=6,
+                                     placeholder_text="ex.: dip, 500mg")
+        entry_termos.pack(fill="x", padx=12, pady=(2, 6))
+
+        lbl_erro = ctk.CTkLabel(frame_form, text="", text_color=COR_VERM, font=ctk.CTkFont(size=11))
+        lbl_erro.pack(anchor="w", padx=12)
+
+        frame_botoes_form = ctk.CTkFrame(frame_form, fg_color="transparent")
+        frame_botoes_form.pack(fill="x", padx=12, pady=(4, 10))
+
+        estado = {"editando_id": None}
+
+        btn_salvar = ctk.CTkButton(frame_botoes_form, text="+ Adicionar", width=120, height=30,
+                                    fg_color=COR_AZUL_M, hover_color="#1a5276")
+        btn_salvar.pack(side="left")
+
+        btn_cancelar_edicao = ctk.CTkButton(
+            frame_botoes_form, text="Cancelar edição", width=120, height=30,
+            fg_color="#5F5E5A", hover_color="#3d3d3a",
+        )
+
+        def _limpar_form():
+            estado["editando_id"] = None
+            entry_nome.delete(0, "end")
+            entry_termos.delete(0, "end")
+            lbl_erro.configure(text="")
+            btn_salvar.configure(text="+ Adicionar")
+            btn_cancelar_edicao.pack_forget()
+
+        def _recarregar_lista():
+            for w in frame_lista.winfo_children():
+                w.destroy()
+            try:
+                grupos = RelatorioService.listar_grupos_consumo()
+            except Exception as exc:
+                logger.error("Erro ao carregar grupos de consumo: %s", exc)
+                ctk.CTkLabel(frame_lista, text=f"Erro ao carregar grupos: {exc}",
+                             text_color=COR_VERM).pack(pady=10)
+                return
+
+            if not grupos:
+                ctk.CTkLabel(frame_lista, text="Nenhum grupo cadastrado ainda.",
+                             text_color="#888780").pack(pady=10)
+                return
+
+            for g in grupos:
+                row = ctk.CTkFrame(frame_lista, fg_color=COR_BRANCO, corner_radius=6)
+                row.pack(fill="x", pady=4, padx=2)
+                info = ctk.CTkFrame(row, fg_color="transparent")
+                info.pack(side="left", fill="x", expand=True, padx=10, pady=8)
+                ctk.CTkLabel(info, text=g.nome, font=ctk.CTkFont(size=12, weight="bold"),
+                             text_color="#161614", anchor="w").pack(anchor="w")
+                ctk.CTkLabel(info, text=g.termos_chave, font=ctk.CTkFont(size=10),
+                             text_color="#888780", anchor="w").pack(anchor="w")
+
+                ctk.CTkButton(
+                    row, text="Editar", width=64, height=26,
+                    fg_color=COR_BRANCO, text_color="#161614", border_width=1,
+                    border_color=COR_CINZA_B, hover_color=COR_CINZA_E,
+                    font=ctk.CTkFont(size=11),
+                    command=lambda g=g: _carregar_para_edicao(g),
+                ).pack(side="right", padx=(0, 8), pady=8)
+                ctk.CTkButton(
+                    row, text="Remover", width=70, height=26,
+                    fg_color=COR_BRANCO, text_color=COR_VERM, border_width=1,
+                    border_color=COR_CINZA_B, hover_color="#FCEBEB",
+                    font=ctk.CTkFont(size=11),
+                    command=lambda g=g: _remover(g),
+                ).pack(side="right", padx=(0, 4), pady=8)
+
+        def _carregar_para_edicao(grupo):
+            estado["editando_id"] = grupo.id
+            entry_nome.delete(0, "end")
+            entry_nome.insert(0, grupo.nome)
+            entry_termos.delete(0, "end")
+            entry_termos.insert(0, grupo.termos_chave)
+            lbl_erro.configure(text="")
+            btn_salvar.configure(text="Salvar edição")
+            btn_cancelar_edicao.pack(side="left", padx=(8, 0))
+
+        def _remover(grupo):
+            if not messagebox.askyesno(
+                "Remover grupo",
+                f"Remover o grupo \"{grupo.nome}\"?\n"
+                "Os produtos voltam a aparecer individualmente no relatório."
+            ):
+                return
+            try:
+                RelatorioService.remover_grupo_consumo(grupo.id)
+                if estado["editando_id"] == grupo.id:
+                    _limpar_form()
+                _recarregar_lista()
+            except Exception as exc:
+                logger.error("Erro ao remover grupo de consumo: %s", exc)
+                messagebox.showerror("Erro", f"Falha ao remover grupo: {exc}")
+
+        def _salvar():
+            nome = entry_nome.get().strip()
+            termos = entry_termos.get().split(",")
+            try:
+                if estado["editando_id"] is None:
+                    RelatorioService.criar_grupo_consumo(nome, termos)
+                else:
+                    RelatorioService.editar_grupo_consumo(estado["editando_id"], nome, termos)
+                _limpar_form()
+                _recarregar_lista()
+            except ValueError as exc:
+                lbl_erro.configure(text=str(exc))
+            except Exception as exc:
+                logger.error("Erro ao salvar grupo de consumo: %s", exc)
+                lbl_erro.configure(text=f"Erro ao salvar: {exc}")
+
+        btn_salvar.configure(command=_salvar)
+        btn_cancelar_edicao.configure(command=_limpar_form)
+
+        ctk.CTkButton(
+            popup, text="Fechar", width=100, height=32,
+            fg_color="transparent", border_width=1, text_color="#3d3d3a",
+            command=popup.destroy,
+        ).pack(pady=(0, 16))
+
+        _recarregar_lista()
 
     def _carregar_ultimo_envio(self):
         try:

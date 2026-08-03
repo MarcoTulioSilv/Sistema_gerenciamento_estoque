@@ -230,7 +230,7 @@ class TelaProdutos(ctk.CTkFrame):
             row.grid_columnconfigure(6, weight=1)
 
             valores = [
-                p.nome[:28],
+                p.nome,
                 p.ean or "-",
                 p.marca or "—",
                 p.fornecedor or "-",

@@ -7,16 +7,13 @@ import logging
 import customtkinter as ctk
 from tkinter import messagebox
 from Modulo_01_autenticacao import AuthService
-from Modulo_06_dados import get_session, Usuario
+from Modulo_05_admin import UsuarioService
 
 logger= logging.getLogger(__name__)
 
-COR_AZUL   = "#1F4E79"
-COR_AZUL_M = "#2E75B6"
-COR_CINZA_E= "#F2F1ED"
-COR_CINZA_B= "#E8E6DE"
-COR_ERRO   = "#A32D2D"
-COR_BRANCO = "#FFFFFF"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_ERRO, COR_BRANCO,
+)
 
 class TelaTrocaSenha(ctk.CTkFrame):
     """ Tela de troca de senha- UC-09 parcial(qualquer perfil popde trocar a própria senha)."""
@@ -104,14 +101,10 @@ class TelaTrocaSenha(ctk.CTkFrame):
                 self._msg("Senha atual incorreta.", erro=True)
                 return
             
-            #grava nova senha 
-            novo_hash= AuthService.hash_senha(nova)
-            with get_session() as session:
-                usuario_db= session.get(Usuario, self._usuario.id)
-                if usuario_db:
-                    usuario_db.senha_hash= novo_hash
-                    # Atualiza o objeto em mémoria também
-                    self._usuario.senha_hash= novo_hash
+            #grava nova senha via camada de serviço (UsuarioService.redefinir_senha)
+            UsuarioService.redefinir_senha(self._usuario.id, nova)
+            # Atualiza o objeto em memória também (evita exigir relogin)
+            self._usuario.senha_hash = AuthService.hash_senha(nova)
             
             logger.info("Senha alterada com sucesso: pelo usuario %s", self._usuario.login)
             self._msg("", erro=False)
@@ -122,7 +115,7 @@ class TelaTrocaSenha(ctk.CTkFrame):
             self._msg(f"Erro ao alterar senha:{exc}", erro=True)
     
     def _cancelar(self):
-        self.limpar()
+        self._limpar()
     
     def _limpar(self):
         self._entry_atual.delete(0,"end")

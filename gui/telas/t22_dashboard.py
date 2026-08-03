@@ -6,25 +6,21 @@ Somente leitura. Auto-refresh via after(). Técnico e Gestora.
 
 import logging
 import os
-from datetime import date, datetime, timedelta
-from Modulo_06_dados import get_read_session, Produto,Lote
-from sqlalchemy.orm import joinedload
+from datetime import date, datetime
 import customtkinter as ctk
+
+from Modulo_02_estoque import EstoqueService
+
 logger = logging.getLogger(__name__)
 
-COR_AZUL   = "#1F4E79"
-COR_AZUL_M = "#2E75B6"
-COR_CINZA_E= "#F2F1ED"
-COR_CINZA_B= "#E8E6DE"
-COR_BRANCO = "#FFFFFF"
-COR_VERDE  = "#1D9E75"
-COR_AMBER  = "#BA7517"
-COR_VERM   = "#A32D2D"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_BRANCO,
+    COR_VERDE, COR_AMBER, COR_VERM,
+)
 
 
 def _buscar_dados_dashboard()->dict:
-    #Consulta todos os dados necessário para dashboard em uma única sessão.
-    hoje= date.today()
+    #Consulta todos os dados necessário para o dashboard via EstoqueService.
     resultado = {
         "vencidos":    [],
         "vence_7d":    [],
@@ -36,64 +32,45 @@ def _buscar_dados_dashboard()->dict:
         "ts":          datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
         "erro":        None,
     }
-    
-    try: 
-        with get_read_session() as s:
-            lotes=(
-                s.query(Lote)
-                .join(Produto)
-                .options(joinedload(Lote.produto))
-                .filter(Produto.ativo==True, Lote.quantidade_atual>0)
-                .order_by(Lote.data_vencimento)
-                .all()
-            )
 
-            #saldo por produto para calcular estoque baixo
-            saldo_prod: dict[int, int]={}
-            for l in lotes:
-                if l.data_vencimento is None or l.data_vencimento>=hoje:
-                    saldo_prod[l.produto_id]=(
-                    saldo_prod.get(l.produto_id,0)+ l.quantidade_atual)
-            
-            resultado["total_lotes"]=len(lotes)
+    try:
+        lotes = EstoqueService.listar_situacao_lotes(apenas_produtos_ativos=True)
+        resultado["total_lotes"] = len(lotes)
 
-            for l in lotes:
-                nome= f"{l.produto.nome[:24]} | Lote: {l.num_lote}"
-                diff=None if l.data_vencimento is None else (l.data_vencimento - hoje).days
-                if diff is None:
-                    continue
-                else:
-                    if l.data_vencimento<hoje:
-                        resultado["vencidos"].append(nome)
-                    elif diff<=7:
-                        resultado["vence_7d"].append(
-                            f"{nome} ({diff}d)")
-                    elif diff<=15:
-                        resultado["vence_15d"].append(
-                            f"{nome} ({diff}d)")
-                    elif diff<=30:
-                        resultado["vence_30d"].append(
-                            f"{nome} ({diff}d)")
-                    else:
-                        resultado["normais"]+=1
+        #saldo por produto para calcular estoque baixo (exclui lotes vencidos)
+        saldo_prod: dict[int, int] = {}
+        for l in lotes:
+            if l.situacao != "vencido":
+                saldo_prod[l.produto_id] = saldo_prod.get(l.produto_id, 0) + l.quantidade_atual
 
-            #estoque baixo(por produto, não por lote)
-            vistos:set[int]=set()
-            for l in lotes:
-                pid=l.produto_id
-                if pid in vistos:
-                    continue
-                vistos.add(pid)
-                minimo= l.produto.estoque_minimo
-                if minimo >0:
-                    saldo= saldo_prod.get(pid,0)
-                    if saldo<=minimo:
-                        resultado["baixo"].append(
-                            f"{l.produto.nome[:24]}\n"
-                            f"{saldo}/{minimo}")
+        for l in lotes:
+            if l.data_vencimento is None:
+                continue
+            nome = f"{l.produto_nome[:24]} | Lote: {l.num_lote}"
+            diff = (l.data_vencimento - date.today()).days
+            if l.situacao == "vencido":
+                resultado["vencidos"].append(nome)
+            elif l.situacao == "vence_7d":
+                resultado["vence_7d"].append(f"{nome} ({diff}d)")
+            elif l.situacao == "vence_15d":
+                resultado["vence_15d"].append(f"{nome} ({diff}d)")
+            elif l.situacao == "vence_30d":
+                resultado["vence_30d"].append(f"{nome} ({diff}d)")
+            else:
+                resultado["normais"] += 1
 
-            s.expunge_all()
-    
+        #estoque baixo(por produto, não por lote)
+        vistos: set[int] = set()
+        for l in lotes:
+            if l.produto_id in vistos:
+                continue
+            vistos.add(l.produto_id)
+            minimo = l.produto_estoque_minimo
+            if minimo > 0:
+                saldo = saldo_prod.get(l.produto_id, 0)
+                if saldo <= minimo:
+                    resultado["baixo"].append(f"{l.produto_nome[:24]}\n{saldo}/{minimo}")
+
     except Exception as exc:
         logger.error("Erro ao buscar dados dashboard: %s", exc)
         resultado["erro"]=str(exc)

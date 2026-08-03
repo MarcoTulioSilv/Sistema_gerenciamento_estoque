@@ -28,15 +28,34 @@ logger = logging.getLogger(__name__)
 # Configuração — ajuste conforme o ambiente da clínica
 # ------------------------------------------------------------------
 
-# Versão atual do executável.
-# Manter sincronizado com #define AppVersion no SCE_Setup.iss
-# e com o campo "version" em version.json gerado pelo build.bat.
-LOCAL_VERSION = "1.0.4"
+def _ler_versao_local() -> str:
+    """
+    Lê a versão do arquivo gerado pelo build.bat (sce_version.txt), embutido
+    no bundle via `datas` do .spec — evita editar uma constante manualmente
+    a cada release (fonte única: build.bat).
+    """
+    candidatos = []
+    if getattr(sys, "frozen", False):
+        candidatos.append(Path(sys._MEIPASS) / "sce_version.txt")
+    candidatos.append(Path(__file__).parent / "sce_version.txt")
+    for caminho in candidatos:
+        try:
+            return caminho.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+    return "0.0.0-dev"
+
+
+# Versão atual do executável — lida de sce_version.txt (gerado pelo build.bat).
+LOCAL_VERSION = _ler_versao_local()
 
 # Caminho UNC do share no servidor MySQL.
 # Formato: \\IP_SERVIDOR\NOME_DO_SHARE
 # Requer que a conta Windows das estações tenha leitura no share.
-UPDATE_SHARE = r"\\192.168.0.150\SCE_Updates"
+# Configurável via UPDATE_SHARE no .env (Modulo_06_dados.database já chama
+# load_dotenv() antes deste módulo ser importado por main.py); o valor abaixo
+# é só o fallback caso a variável não esteja definida.
+UPDATE_SHARE = os.getenv("UPDATE_SHARE", r"\\192.168.0.150\SCE_Updates")
 
 # Nome fixo do manifesto de versão dentro do share.
 VERSION_FILE = "version.json"

@@ -23,7 +23,6 @@ from datetime import datetime, date, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from Modulo_03_relatorios import RelatorioService
 from Modulo_04_notificacoes import NotificacaoService
 from Modulo_06_dados import get_read_session, Configuracao, RelatorioAgendamento, get_session
 
@@ -196,10 +195,17 @@ def _executar_job_notificacoes() -> None:
     logger.info("=== Job notificações diárias concluído em %.1fs ===", duracao)
 
 def _executar_job_relatorio(tipo_relatorio_str: str) -> None:
-    """Disparado pelo APScheduler APENAS no momento exato em que deve ser enviado."""
+    """
+    Disparado pelo APScheduler APENAS no momento exato em que deve ser enviado.
+    Importação local: Modulo_03_relatorios importa GmailClient de
+    Modulo_04_notificacoes, e Modulo_04_notificacoes/__init__.py importa este
+    módulo — import no topo do arquivo criaria import circular.
+    """
+    from Modulo_03_relatorios import RelatorioService
+
     logger.info(f"=== Iniciando job de envio do relatório: {tipo_relatorio_str} ===")
-    
-    try: 
+
+    try:
         with get_session() as s:
             ag = s.query(RelatorioAgendamento).filter_by(tipo_relatorio=tipo_relatorio_str).first()
             

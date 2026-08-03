@@ -5,21 +5,16 @@ Exibe produto, lote, nota fiscal, saldo, vencimento e situação.
 Ações de Entrada/Retirada disponíveis apenas para Técnico.
 """
 import logging
-from datetime import date, timedelta
-from Modulo_06_dados import get_read_session, Produto, Lote
-from sqlalchemy.orm import joinedload
 import customtkinter as ctk
 
+from Modulo_02_estoque import EstoqueService
 from gui.componentes.form_widgets import FeedbackBanner
 
 logger= logging.getLogger(__name__)
 
-COR_AZUL   = "#1F4E79"
-COR_AZUL_M = "#2E75B6"
-COR_CINZA_E= "#F2F1ED"
-COR_CINZA_B= "#E8E6DE"
-COR_BRANCO = "#FFFFFF"
-COR_VERM   = "#A32D2D"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_BRANCO, COR_VERM,
+)
 
 _SITUACAO_COR = {
     "Vencido":       ("#FCEBEB", "#A32D2D"),
@@ -43,20 +38,14 @@ _COLUNAS = [
 ]
 
 
-def _calcular_situacao(lote, hoje:date)->str:
-    if lote.data_vencimento is None:
-        return "Uso Contínuo"
-    
-    if lote.data_vencimento<hoje:
-        return "Vencido"
-    diff=(lote.data_vencimento-hoje).days
-    if diff<= 7 :
-        return "Vence em 7d"
-    if diff<= 15 and diff>7:
-        return "Vence em 15d"
-    if diff<= 30 and diff>15:
-        return"Vence em 30d"
-    return"Normal"
+_SITUACAO_LABEL = {
+    "uso_continuo": "Uso Contínuo",
+    "vencido":      "Vencido",
+    "vence_7d":     "Vence em 7d",
+    "vence_15d":    "Vence em 15d",
+    "vence_30d":    "Vence em 30d",
+    "normal":       "Normal",
+    }
 
 class TelaPosicaoEstoque(ctk.CTkFrame):
     #posição atual do estoque por lote- somente leitura para TI, com ações para administração e Tecnico
@@ -159,31 +148,19 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
     #___________Dados___________________________________________________________________
     def _carregar(self):
         try:
-            nome_produto_filtro= "" 
-            hoje= date.today()
-            with get_read_session() as s:
-                query=(
-                    s.query(Lote)
-                    .join(Produto)
-                    .options(joinedload(Lote.produto))
-                )
-                if self._produto_id:
-                    query=query.filter(Lote.produto_id==self._produto_id)
-                    produto_ref = s.query(Produto).get(self._produto_id)
-                    if produto_ref:
-                        nome_produto_filtro = produto_ref.nome
+            nome_produto_filtro = ""
+            if self._produto_id:
+                produto_ref = EstoqueService.buscar_produto_por_id(self._produto_id)
+                if produto_ref:
+                    nome_produto_filtro = produto_ref.nome
 
-                lotes= query.order_by(Produto.nome, Lote.data_vencimento).all()
+            lotes = EstoqueService.listar_situacao_lotes(produto_id=self._produto_id)
+            # apenas_com_saldo=True (padrão) já exclui lotes esgotados na origem.
+            self._linhas = [
+                (dto, _SITUACAO_LABEL.get(dto.situacao, "Normal"))
+                for dto in lotes
+            ]
 
-                self._linhas=[]
-                for l in lotes:
-                    if l.quantidade_atual==0:
-                        continue #pular lotes esgotados
-                    sit= _calcular_situacao(l, hoje)
-                    self._linhas.append((l, l.produto,sit))
-                
-                s.expunge_all()
-        
         except Exception as exc:
             logger.error("Erro ao carregar posição estoque: %s", exc)
             self._banner.erro(str(exc))
@@ -201,27 +178,25 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         situacao = self._opt_situacao.get()
 
         filtrados = []
-        for l, p, s in self._linhas:
+        for dto, s in self._linhas:
             try:
-               
-                nome_prod = p.nome.lower() if getattr(p, 'nome', None) else ""
-                num_lote = l.num_lote.lower() if getattr(l, 'num_lote', None) else ""
-                nf_segura = l.nota_fiscal.lower() if getattr(l, 'nota_fiscal', None) else ""
-                
+                nome_prod = dto.produto_nome.lower() if dto.produto_nome else ""
+                num_lote = dto.num_lote.lower() if dto.num_lote else ""
+                nf_segura = dto.nota_fiscal.lower() if dto.nota_fiscal else ""
 
                 centro_val = ""
-                if getattr(l, 'centro_alocacao', None):
-                    centro_val = str(getattr(l.centro_alocacao, 'value', l.centro_alocacao)).lower()
-                
+                if dto.centro_alocacao:
+                    centro_val = str(getattr(dto.centro_alocacao, 'value', dto.centro_alocacao)).lower()
+
                 nome_ok = (busca in nome_prod or busca in num_lote or busca in nf_segura)
                 centro_ok = (centro == "Todos os centros" or centro_val in centro.lower())
                 situacao_ok = (situacao == "Todas as situações" or s == situacao)
-                
+
                 if nome_ok and centro_ok and situacao_ok:
-                    filtrados.append((l, p, s))
-                    
+                    filtrados.append((dto, s))
+
             except Exception as e:
-                logger.error(f"Falha ao filtrar o lote {getattr(l, 'id', 'Desconhecido')}: {e}")
+                logger.error(f"Falha ao filtrar o lote {getattr(dto, 'lote_id', 'Desconhecido')}: {e}")
                 continue
                 
         # --- ATIVA A PAGINAÇÃO ---
@@ -283,24 +258,24 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
             self._lbl_rodape.configure(text="")
             return
         
-        for i, (lote, produto, situacao) in enumerate(linhas):
+        for i, (dto, situacao) in enumerate(linhas):
             bg = COR_BRANCO if i % 2 == 0 else COR_CINZA_E
-            
+
             row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
             row.pack(fill="x")
             row.grid_columnconfigure(7, weight=1)
 
-            lote_str= lote.num_lote if lote.num_lote else"S/L"
-            venc_str = lote.data_vencimento.strftime("%d/%m/%Y") if lote.data_vencimento else "—"
+            lote_str= dto.num_lote if dto.num_lote else"S/L"
+            venc_str = dto.data_vencimento.strftime("%d/%m/%Y") if dto.data_vencimento else "—"
 
-            
+
             valores = [
-                produto.nome[:28], 
+                dto.produto_nome[:28],
                 lote_str,
-                lote.nota_fiscal or "S/N",
-                lote.centro_alocacao.value.capitalize(),
-                lote.unidade_estoque.value.capitalize(),
-                str(lote.quantidade_atual),
+                dto.nota_fiscal or "S/N",
+                dto.centro_alocacao.value.capitalize(),
+                dto.unidade_estoque.value.capitalize(),
+                str(dto.quantidade_atual),
                 venc_str
             ]
             
@@ -330,18 +305,18 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
             acoes.pack_propagate(False)
             
             if self.permissao:
-                pid = produto.id
+                pid = dto.produto_id
                 ctk.CTkButton(
-                    acoes, text="Entrada", width=64, height=26, 
+                    acoes, text="Entrada", width=64, height=26,
                     fg_color=COR_BRANCO, text_color="#3d3d3a",
                     border_width=1, border_color=COR_CINZA_B,
-                    hover_color=COR_CINZA_E, font=ctk.CTkFont(size=11), 
+                    hover_color=COR_CINZA_E, font=ctk.CTkFont(size=11),
                     command=lambda p=pid: self._on_navigate("entrada_manual", extra=p)
                 ).pack(side="left", padx=(0,4))
 
                   #Retirada bloqueada para lotes vencidos
                 pode_retirar = situacao != "Vencido"
-                centro_val = lote.centro_alocacao.value
+                centro_val = dto.centro_alocacao.value
                 ctk.CTkButton(
                     acoes, text="Retirada", width=64, height=26,
                     fg_color=COR_BRANCO, text_color="#3d3d3a" if pode_retirar else "#AAAAAA",
@@ -354,7 +329,7 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                 ).pack(side="left")
 
         total_encontrado = len(self._lista_filtrada_atual)
-        vencidos = sum(1 for _, _, s in self._lista_filtrada_atual if s == "Vencido")
+        vencidos = sum(1 for _, s in self._lista_filtrada_atual if s == "Vencido")
         self._lbl_rodape.configure(
             text=f"{total_encontrado} lote(s) exibidos" + (f". {vencidos} vencidos" if vencidos else "")
         )

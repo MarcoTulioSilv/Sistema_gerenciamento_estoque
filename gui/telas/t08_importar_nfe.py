@@ -22,17 +22,10 @@ from Modulo_02_estoque import NFeParser, EstoqueService
 
 logger = logging.getLogger(__name__)
 
-COR_AZUL    = "#1F4E79"
-COR_AZUL_M  = "#2E75B6"
-COR_CINZA_E = "#F2F1ED"
-COR_CINZA_B = "#E8E6DE"
-COR_BRANCO  = "#FFFFFF"
-COR_VERDE_BG = "#EAF3DE"
-COR_VERDE_T  = "#27500A"
-COR_AMBER_BG = "#FAEEDA"
-COR_AMBER_T  = "#854F0B"
-COR_VERM_BG  = "#FCEBEB"
-COR_VERM_T   = "#A32D2D"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_BRANCO,
+    COR_VERDE_BG, COR_VERDE_T, COR_AMBER_BG, COR_AMBER_T, COR_VERM_BG, COR_VERM_T,
+)
 
 #Mapeamento de unidades NF-e -> unidadeEstoqueEnum
 

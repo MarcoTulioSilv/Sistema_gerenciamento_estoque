@@ -2,8 +2,11 @@
 setlocal
 
 :: ── Configuração ──────────────────────────────────────────────
-set VERSION=1.0.4
+set VERSION=1.0.5
 set SHARE=\\192.168.0.150\SCE_Updates
+if exist .env (
+    for /f "tokens=2 delims==" %%s in ('findstr /b "UPDATE_SHARE=" .env') do set SHARE=%%s
+)
 set INSTALLER=SCE_Setup_%VERSION%.exe
 :: ──────────────────────────────────────────────────────────────
 
@@ -13,13 +16,17 @@ echo ║   SCE Uronefrologia — Build %VERSION%    ║
 echo ╚══════════════════════════════════════════╝
 echo.
 
-:: 1. Limpa build anterior
+:: 1. Limpa build anterior (varre TODAS as pastas de versao antiga, nao so a atual)
 echo [1/4] Limpando build anterior...
-if exist dist\SCE_Uro_v1   rmdir /s /q dist\SCE_Uro_v1
-if exist build\SCE_Uro_v1  rmdir /s /q build\SCE_Uro_v1
+for /d %%D in (dist\SCE_Uro_v*)  do rmdir /s /q "%%D"
+for /d %%D in (build\SCE_Uro_v*) do rmdir /s /q "%%D"
 
 :: 2. PyInstaller via .spec
+:: SCE_VERSION (env var) e sce_version.txt (arquivo embutido) sao como o
+:: .spec e o auto_updater.py recebem a versao sem precisar editar codigo.
 echo [2/4] Empacotando com PyInstaller...
+set SCE_VERSION=%VERSION%
+echo %VERSION%> sce_version.txt
 pyinstaller SCE_Uro_v1.spec --clean
 if errorlevel 1 (
     echo ERRO no PyInstaller. Build abortado.
@@ -39,6 +46,7 @@ if errorlevel 1 (
 :: 4. Publica no share para auto-updater
 echo [4/4] Publicando no share de atualizacoes...
 if exist "%SHARE%" (
+    if exist "%SHARE%\SCE_Setup_*.exe" del /Q "%SHARE%\SCE_Setup_*.exe"
     copy /Y "dist\instalador\%INSTALLER%" "%SHARE%\%INSTALLER%"
     :: Atualiza version.json
     echo {"version": "%VERSION%", "file": "%INSTALLER%"} > "%SHARE%\version.json"

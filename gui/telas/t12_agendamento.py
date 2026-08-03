@@ -12,13 +12,9 @@ from gui.componentes.form_widgets import FeedbackBanner
 
 logger = logging.getLogger(__name__)
 
-COR_AZUL   = "#1F4E79"
-COR_AZUL_M = "#2E75B6"
-COR_CINZA_E= "#F2F1ED"
-COR_CINZA_B= "#E8E6DE"
-COR_BRANCO = "#FFFFFF"
-COR_VERDE  = "#1D9E75"
-COR_VERM   = "#A32D2D"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_BRANCO, COR_VERDE, COR_VERM,
+)
 
 PERIODICIDADES = ["diario", "semanal", "mensal"]
 

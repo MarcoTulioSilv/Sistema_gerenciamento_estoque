@@ -6,7 +6,10 @@ import logging
 from datetime import date, datetime
 from decimal import Decimal
 
-from Modulo_06_dados import get_session, get_read_session, Lote, Movimentacao, TipoMovimentacaoEnum
+from sqlalchemy import func
+from sqlalchemy.orm import joinedload
+
+from Modulo_06_dados import get_session, get_read_session, Lote, Movimentacao, Produto, TipoMovimentacaoEnum
 
 logger= logging.getLogger(__name__)
  
@@ -68,6 +71,29 @@ class LoteRepo:
             return lote
 
     @staticmethod
+    def listar_todos_ativos(
+        apenas_com_saldo: bool = True,
+        produto_id: int | None = None,
+        apenas_produtos_ativos: bool = False,
+    ) -> list[Lote]:
+        # Cross-produto: todos os lotes (com produto já carregado), usado por telas
+        # de painel/dashboard/posição de estoque para evitar N+1 de lazy-load.
+        with get_read_session() as s:
+            q = (s.query(Lote)
+                 .join(Produto)
+                 .options(joinedload(Lote.produto))
+                 .order_by(Produto.nome, Lote.data_vencimento))
+            if apenas_com_saldo:
+                q = q.filter(Lote.quantidade_atual > 0)
+            if produto_id is not None:
+                q = q.filter(Lote.produto_id == produto_id)
+            if apenas_produtos_ativos:
+                q = q.filter(Produto.ativo == True)
+            itens = q.all()
+            s.expunge_all()
+            return itens
+
+    @staticmethod
     def saldo_total_produto(produto_id: int)-> int:
         #Soma do saldo de todos os lotes ativos(Não vencidos) de um produto.
         hoje= date.today()
@@ -88,5 +114,27 @@ class MovimentacaoRepo:
             itens = (s.query(Movimentacao)
                      .order_by(Movimentacao.data_hora.desc())
                      .limit(limite).all())
+            s.expunge_all()
+            return itens
+
+    @staticmethod
+    def contar_desde(momento: datetime) -> int:
+        with get_read_session() as s:
+            return (s.query(func.count(Movimentacao.id))
+                    .filter(Movimentacao.data_hora >= momento)
+                    .scalar() or 0)
+
+    @staticmethod
+    def listar_no_periodo(inicio: datetime, fim: datetime, limite: int = 500) -> list[Movimentacao]:
+        with get_read_session() as s:
+            itens = (s.query(Movimentacao)
+                     .options(
+                         joinedload(Movimentacao.usuario),
+                         joinedload(Movimentacao.lote).joinedload(Lote.produto),
+                     )
+                     .filter(Movimentacao.data_hora.between(inicio, fim))
+                     .order_by(Movimentacao.data_hora.desc())
+                     .limit(limite)
+                     .all())
             s.expunge_all()
             return itens

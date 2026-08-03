@@ -18,10 +18,6 @@ import webbrowser
 
 logger= logging.getLogger(__name__)
 
-_URL_SEFAZ = (
-    "https://www.nfe.fazenda.gov.br/portal/consultaResumo.aspx"
-    "?tipoConteudo=7PhJ+gAVw2g="
-)
 
 class DanfeEntryAssistant:
     """
@@ -86,15 +82,7 @@ class DanfeEntryAssistant:
         if len(chave)!=44:
             return""
         return str(int(chave[22:25]))
-    
-    @staticmethod 
-    def abrir_portal_sefaz(chave:str)-> bool:
-        url=f"{_URL_SEFAZ}&chave={chave.strip()}"
-        logger.info("Abrindo portal SEFAZ para chave: %s ... %s", chave[:6], chave[-4:])
-        resultado= webbrowser.open(url)
-        if not resultado:
-            logger.warning("webbrowser.open() retornou False")
-            return resultado
+
     
     @staticmethod
     def processar_chave(chave:str)-> dict:

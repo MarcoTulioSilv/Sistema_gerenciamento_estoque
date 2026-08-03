@@ -11,12 +11,9 @@ from typing import Callable
 from Modulo_01_autenticacao import AuthService
 from gui.componentes.form_widgets import FeedbackBanner
 
-COR_AZUL   = "#1F4E79"
-COR_AZUL_M = "#2E75B6"
-COR_AZUL_L = "#D6E4F0"
-COR_ERRO   = "#A32D2D"
-COR_CINZA_E  = "#F2F1ED"
-COR_FUNDO  = "#D6E4F0"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_AZUL_L, COR_ERRO, COR_CINZA_E, COR_FUNDO,
+)
 
 class TelaLogin(ctk.CTkFrame):
     """Tela de autenticação- todos os perfis (UC-01)"""

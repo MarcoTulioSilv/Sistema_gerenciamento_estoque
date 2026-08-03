@@ -7,15 +7,11 @@ import customtkinter as ctk
 import tkinter as tk
 from Modulo_02_estoque import EstoqueService
 import logging
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_B, COR_CINZA_E, COR_ERRO, COR_BRANCO, COR_VERDE,
+)
 
 logger= logging.getLogger(__name__)
-COR_AZUL   = "#1F4E79"
-COR_AZUL_M = "#2E75B6"
-COR_CINZA_B= "#E8E6DE"
-COR_CINZA_E= "#F2F1ED"
-COR_ERRO   = "#A32D2D"
-COR_BRANCO = "#FFFFFF"
-COR_VERDE  = "#1D9E75"
 
 class Campo(ctk.CTkFrame):
     """

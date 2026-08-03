@@ -607,3 +607,51 @@ class XlsxBuilder:
         Path(caminho).write_bytes(_bytes_final)
         logger.info("Relatório lotes vencidos gerado: %s (%d lotes)", caminho, len(lotes))
         return caminho
+
+    # ── 5. Consumo médio por produto ────────────────────────────────────────
+
+    @staticmethod
+    def consumo_medio(dados: list[list], meses_labels: list[str]) -> Path:
+        """
+        Consumo (saídas) mês a mês, por grupo de consumo ou produto individual,
+        nos últimos meses de calendário indicados em `meses_labels` (ex.:
+        ["Jun/2026", "Jul/2026", "Ago/2026"]). `dados` já vem pronto de
+        RelatorioService.buscar_dados_consumo_medio — cada linha é
+        [rótulo, mês1, ..., mêsN, total, média_mensal].
+        """
+        meses = len(meses_labels)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = f"Consumo Médio ({meses}m)"
+        st = _wb_styles()
+
+        colunas = (
+            [("Produto/Grupo", 40)]
+            + [(label, 12) for label in meses_labels]
+            + [("Total Consumido", 16), ("Média Mensal", 14)]
+        )
+        n_cols = len(colunas)
+        ultima_letra = chr(ord('A') + n_cols - 1)
+
+        ws.row_dimensions[1].height = 25
+        ws.merge_cells(f'A1:{ultima_letra}1')
+        cell_p = ws['A1']
+        cell_p.value = (f"Consumo médio — últimos {meses} meses "
+                         f"({meses_labels[0]} a {meses_labels[-1]}, base: saídas de estoque)")
+        cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+        cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+        _aplicar_header(ws, colunas, st, row_idx=2)
+
+        alinhamentos = [st["left"]] + [st["center"]] * (n_cols - 1)
+        for i, linha in enumerate(dados, 3):
+            _aplicar_linha(ws, i, linha, st, alignments=alinhamentos)
+
+        ws.freeze_panes = "B3"
+        _buf = _io_bg.BytesIO()
+        wb.save(_buf)
+        _bytes_final = _aplicar_background(_buf.getvalue())
+        caminho = XlsxBuilder._nome_arquivo("consumo_medio")
+        Path(caminho).write_bytes(_bytes_final)
+        logger.info("Relatório consumo médio gerado: %s (%d linhas)", caminho, len(dados))
+        return caminho

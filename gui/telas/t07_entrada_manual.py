@@ -22,16 +22,10 @@ from gui.telas.t07c_entrada_danfe import TelaEntradaDANFE
  
 logger = logging.getLogger(__name__)
  
-COR_AZUL    = "#1F4E79"
-COR_AZUL_M  = "#2E75B6"
-COR_CINZA_E = "#F2F1ED"
-COR_CINZA_B = "#E8E6DE"
-COR_BRANCO  = "#FFFFFF"
-COR_VERDE   = "#EAF3DE"
-COR_VERDE_T = "#27500A"
-COR_AMBER_BG= "#FAEEDA"
-COR_AMBER_T = "#854F0B"
-COR_VERM    = "#A32D2D"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_BRANCO,
+    COR_VERDE_BG, COR_VERDE_T, COR_AMBER_BG, COR_AMBER_T, COR_VERM,
+)
  
 UNIDADES = ["unidade","pacote","ampola","galao","fardo","litro","rolo","kit","dose","caixa"]
 CENTROS  = ["deposito","almoxarifado", "farmacia"]
@@ -86,7 +80,7 @@ class TelaEntradaManual(ctk.CTkFrame):
  
         # Card: produto encontrado (verde)
         self._card_produto = ctk.CTkFrame(
-            self._sec1, fg_color=COR_VERDE, corner_radius=6,
+            self._sec1, fg_color=COR_VERDE_BG, corner_radius=6,
             border_width=1, border_color="#97C459")
         self._lbl_produto = ctk.CTkLabel(
             self._card_produto, text="", text_color=COR_VERDE_T,
@@ -315,7 +309,12 @@ class TelaEntradaManual(ctk.CTkFrame):
             self._banner._limpar()
 
     def _buscar_produto_por_id(self, id_: int):
-        p = ProdutoRepo.buscar_por_id(id_)
+        try:
+            p = ProdutoRepo.buscar_por_id(id_)
+        except Exception as exc:
+            logger.error("Erro ao buscar produto %s: %s", id_, exc)
+            self._banner.erro(f"Erro ao buscar produto: {exc}")
+            return
         if p:
             self._ean.set(p.ean)
             self._on_leitura_ean(p.ean)

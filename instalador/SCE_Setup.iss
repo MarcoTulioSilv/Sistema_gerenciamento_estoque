@@ -1,15 +1,20 @@
 ; ================================================================
 ; SCE — Sistema de Controle de Estoque · Centro Uronefrologia
 ; Script Inno Setup 6.x
-; Atualizar #define AppVersion a cada release
+; Versão vem do build.bat (set VERSION=...) via /DAppVersion — não editar
+; AppVersion aqui manualmente.
 ; ================================================================
 
 #define AppName      "SCE - Controle de Estoque Uronefrologia"
-#define AppVersion   "1.0.4"
+; AppVersion vem de /DAppVersion=... (passado pelo build.bat). O fallback
+; abaixo só é usado se o .iss for compilado direto, fora do build.bat.
+#ifndef AppVersion
+  #define AppVersion "0.0.0-dev"
+#endif
 #define AppPublisher "Centro Uronefrologia"
 
 ; 1. CORREÇÃO: Nomes dinâmicos baseados no AppVersion acima!
-#define AppExeName   "SCE_Uro_v" + AppVersion + ".exe"
+#define AppExeName   "SCE_Uro.exe"
 #define SourceDir    "..\dist\SCE_Uro_v" + AppVersion
 #define AppIcon      "..\assets\Logo_Uro_sem_Nome.ico"
 

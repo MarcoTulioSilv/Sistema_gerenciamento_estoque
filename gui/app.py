@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import time
@@ -7,6 +8,13 @@ import gc
 from customtkinter.windows.widgets.core_widget_classes.dropdown_menu import DropdownMenu
 from customtkinter.windows.widgets.ctk_button import CTkButton
 from datetime import datetime
+
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_SIDEBAR, COR_SIDEBAR_H, COR_SIDEBAR_A,
+    COR_CINZA_E, COR_TEXTO, COR_VERMELHO,
+)
+
+logger = logging.getLogger(__name__)
 
 
 from Modulo_04_notificacoes.scheduler import NotificacaoScheduler
@@ -34,15 +42,6 @@ from gui.telas.t19_log      import TelaLog
 # tema global
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
-
-COR_AZUL      = "#1F4E79"
-COR_AZUL_M    = "#2E75B6"
-COR_SIDEBAR   = "#1F4E79"
-COR_SIDEBAR_H = "#2E75B6"   # hover
-COR_SIDEBAR_A = "#2E75B6"   # ativo
-COR_CINZA_E   = "#F2F1ED"
-COR_TEXTO     = "#3d3d3a"
-COR_VERMELHO  = "#A32D2D"
 
 _original_set_scaling = DropdownMenu._set_scaling
 
@@ -85,7 +84,7 @@ class SCEApp(ctk.CTk):
                 myappid = 'uronefrologia.sce.v1.0.1' # Uma string única (ID) para o seu app
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
             except Exception as e:
-                print(f"Erro ao definir App ID no Windows: {e}")
+                logger.error("Erro ao definir App ID no Windows: %s", e)
 
         self.escala_atual = 1.0
 
@@ -119,7 +118,7 @@ class SCEApp(ctk.CTk):
                     img = tk.PhotoImage(file=caminho_png)
                     self.iconphoto(False, img)
             except Exception as e:
-                print(f"Erro ao forçar o ícone: {e}")
+                logger.error("Erro ao forçar o ícone: %s", e)
 
         # Atrasa a aplicação do ícone para 200ms DEPOIS que o CustomTkinter maximizar a tela
         self.after(200, aplicar_icone)
@@ -129,7 +128,7 @@ class SCEApp(ctk.CTk):
 
         self.bind_all("<Button-1>", self._remover_foco_global)
         
-        self.iniciarScheduler()
+        self.iniciar_scheduler()
         self.session_timer = None
 
         #exibe tela de login na inicialização
@@ -303,12 +302,12 @@ class SCEApp(ctk.CTk):
        self._scheduler.parar()
        super().destroy()
     
-    def iniciarScheduler(self):
+    def iniciar_scheduler(self):
         #Inicializa o scheduler de notificações
         self._scheduler= NotificacaoScheduler()
         self._scheduler.iniciar()
 
-    def pararScheduler(self):
+    def parar_scheduler(self):
         self._scheduler.parar()
     
     def _limpar_area_conteudo(self):
@@ -319,7 +318,7 @@ class SCEApp(ctk.CTk):
                 try:
                     w.limpar_memoria()
                 except Exception as e:
-                    print(f"Erro ao limpar memória da tela: {e}")
+                    logger.error("Erro ao limpar memória da tela: %s", e)
             
             # 2. Destrói o widget visualmente
             w.destroy()

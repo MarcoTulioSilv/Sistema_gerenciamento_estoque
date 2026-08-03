@@ -33,15 +33,14 @@ from Modulo_06_dados import CentroAlocacaoEnum, TipoMovimentacaoEnum, UnidadeEst
 
 logger= logging.getLogger(__name__)
 
-COR_AZUL   = "#1F4E79"
-COR_AZUL_M = "#2E75B6"
-COR_CINZA_E= "#F2F1ED"
-COR_CINZA_B= "#E8E6DE"
-COR_BRANCO = "#FFFFFF"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_BRANCO, COR_VERM, COR_AMBER,
+)
+
+# Variante local (verde-água) intencionalmente distinta do COR_VERDE_BG/COR_VERDE_T
+# canônicos — usada só no card de produto encontrado desta tela.
 COR_VERDE_BG = "#E1F5EE"
 COR_VERDE_T  = "#0F6E56"
-COR_VERM   = "#A32D2D"
-COR_AMBER  = "#BA7517"
 
 
 
@@ -313,8 +312,6 @@ class TelaRetirada(ctk.CTkFrame):
     
     def _ao_ler_nome(self, nome:str):
         self._buscar_e_exibir(EstoqueService.buscar_produto_por_nome, nome,
-                                erro_msg=f"Produto '{nome}' não encontrado.")
-        self._buscar_e_exibir(EstoqueService.buscar_produto_por_nome, nome,
                               erro_msg=f"Produto '{nome}' não encontrado.")
     
     def _buscar_e_exibir(self, func_busca, valor: str, erro_msg: str):
@@ -334,8 +331,13 @@ class TelaRetirada(ctk.CTkFrame):
             return
         
         hoje = date.today()
-        lotes = LoteRepo.listar_por_produto(produto.id)
- 
+        try:
+            lotes = LoteRepo.listar_por_produto(produto.id)
+        except Exception as exc:
+            logger.error("Erro ao buscar lotes do produto %s: %s", produto.id, exc)
+            self._banner.erro(f"Erro ao buscar lotes: {exc}")
+            return
+
         if self._baixa_vencido:
             lotes_vis = [l for l in lotes
                          if l.quantidade_atual > 0 and l.data_vencimento < hoje]
@@ -635,6 +637,9 @@ class TelaRetirada(ctk.CTkFrame):
             except ValueError as exc:
                 self._banner.erro(str(exc),15000)
                 logger.error("Erro na transferência: %s", exc)
+            except Exception as exc:
+                logger.error("Erro na transferência: %s", exc)
+                self._banner.erro(f"Erro ao registrar: {exc}",15000)
         #----- Cenário C: Retirada simples-----------------------------------------------------------
         else: 
             try:

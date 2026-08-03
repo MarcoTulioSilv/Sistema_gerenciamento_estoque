@@ -137,6 +137,9 @@ class Lote(Base):
 
     __table_args__ = (
         Index('idx_saida_estoque', 'produto_id', 'data_vencimento', 'criado_em'),
+        # Cobre buscas cross-produto por vencimento sem produto_id no WHERE
+        # (ex.: NotificacaoService.verificar_vencimentos/alertar_lotes_vencidos).
+        Index('idx_lote_vencimento', 'data_vencimento'),
     )
 
     @property
@@ -163,6 +166,14 @@ class Movimentacao(Base):
     lote:    Mapped["Lote"]    = relationship(back_populates="movimentacoes")
     usuario: Mapped["Usuario"] = relationship(back_populates="movimentacoes")
 
+    __table_args__ = (
+        Index('idx_mov_lote_hora', 'lote_id', 'data_hora'),
+        Index('idx_mov_usuario', 'usuario_id'),
+        # Cobre buscas por período sem lote_id no WHERE (ex.: KPI "movimentações
+        # hoje" da T-02 e o filtro de datas da T-19).
+        Index('idx_mov_data_hora', 'data_hora'),
+    )
+
     def __repr__(self):
         return f"<Movimentacao {self.tipo} | lote {self.lote_id} | qtd {self.quantidade}>"
 
@@ -179,6 +190,10 @@ class NotificacaoLog(Base):
     erro_msg:     Mapped[str | None]     = mapped_column(String(255), nullable=True)
 
     lote: Mapped["Lote"] = relationship(back_populates="notificacoes")
+
+    __table_args__ = (
+        Index('idx_notif_lote_tipo_data', 'lote_id', 'tipo_alerta', 'enviado_em'),
+    )
 
 
 class JobLog(Base):
@@ -215,6 +230,22 @@ class RelatorioAgendamento(Base):
     periodicidade:  Mapped[PeriodicidadeEnum]   = mapped_column(Enum(PeriodicidadeEnum), nullable=False)
     horario:        Mapped[str]                 = mapped_column(Time, nullable=False)
     ultimo_envio:   Mapped[datetime | None]     = mapped_column(DateTime, nullable=True)
+
+
+class GrupoConsumo(Base):
+    """
+    Tabela: grupo_consumo — MOD-03
+    Agrupa produtos "irmãos" (mesmo item, marcas/nomes diferentes) para o
+    relatório de consumo médio, via palavras-chave (todas precisam bater no
+    nome do produto, AND — não OR). Mantido pela tela de gestão em T-11.
+    """
+    __tablename__ = "grupo_consumo"
+
+    id:           Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nome:         Mapped[str]      = mapped_column(String(120), nullable=False, unique=True)
+    termos_chave: Mapped[str]      = mapped_column(String(255), nullable=False)
+    criado_em:    Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+
 
 class VwSaldoProduto(Base):
     """view de saldo total de produtos"""

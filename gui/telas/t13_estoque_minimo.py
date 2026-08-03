@@ -5,20 +5,15 @@ Gestora e TI podem visualizar e alterar o estoque mínimo de cada produto.
 Edição inline — sem abrir nova tela; Salvar por linha (não em lote).
 """
 import logging
-from Modulo_06_dados import get_session, get_read_session, Produto
 import customtkinter as ctk
 from gui.componentes.form_widgets import FeedbackBanner
-from Modulo_02_estoque import estoque_service
+from Modulo_02_estoque import EstoqueService
 
 logger = logging.getLogger(__name__)
 
-COR_AZUL   = "#1F4E79"
-COR_AZUL_M = "#2E75B6"
-COR_CINZA_E= "#F2F1ED"
-COR_CINZA_B= "#E8E6DE"
-COR_BRANCO = "#FFFFFF"
-COR_VERM   = "#A32D2D"
-COR_VERDE  = "#1D9E75"
+from gui.componentes.tema import (
+    COR_AZUL, COR_AZUL_M, COR_CINZA_E, COR_CINZA_B, COR_BRANCO, COR_VERM, COR_VERDE,
+)
 
 _SITUACAO_COR = {
     "Normal":           ("#EAF3DE", "#27500A"),
@@ -109,25 +104,23 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
     # ── Dados ─────────────────────────────────────────────────────────────────
 
     def _carregar(self):
-        """Carrega produtos ativos com saldo calculado a partir dos lotes."""
+        """Carrega produtos ativos com saldo via vw_saldo_produtos (EstoqueService).
+
+        Exclui lotes vencidos ainda não retirados do estoque; inclui lotes
+        "de consumo" sem data_vencimento.
+        """
         try:
-            with get_read_session() as s:
-                produtos = (s.query(Produto)
-                              .filter_by(ativo=True)
-                              .order_by(Produto.nome)
-                              .all())
-                dados = []
-                for p in produtos:
-                    saldo = sum(
-                        l.quantidade_atual for l in p.lotes
-                        if l.quantidade_atual > 0
-                    )
-                    dados.append({
-                        "id":             p.id,
-                        "nome":           p.nome,
-                        "estoque_minimo": p.estoque_minimo,
-                        "saldo":          saldo,
-                    })
+            produtos = [p for p in EstoqueService.listar_view_produtos() if p.ativo]
+            dados = [
+                {
+                    "id":             p.id,
+                    "nome":           p.nome,
+                    "estoque_minimo": p.estoque_minimo,
+                    "saldo":          int(p.saldo_total) if p.saldo_total is not None else 0,
+                }
+                for p in produtos
+            ]
+            dados.sort(key=lambda d: d["nome"])
             self._dados = dados
             self._renderizar(dados)
         except Exception as exc:
@@ -182,7 +175,7 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
             entry_min.grid(row=0, column=3, padx=6, pady=7, sticky="w")
 
             # Badge de situação calculada em tempo real
-            situacao = _calcular_situacao(d["saldo"], d["estoque_minimo"])
+            situacao = _situacao_minimo(d["saldo"], d["estoque_minimo"])
             fg_s, tc_s = _SITUACAO_COR.get(situacao, ("#F1EFE8", "#5F5E5A"))
             ctk.CTkLabel(row, text=situacao,
                          fg_color=fg_s, text_color=tc_s,
@@ -214,20 +207,19 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
                 "Valor inválido. Informe um número inteiro ≥ 0.")
             return
 
+        nome_produto = produto_id
         try:
-            with get_session() as s:
-                produto = s.query(Produto).filter_by(id=produto_id).first()
-                if produto:
-                    produto.estoque_minimo = novo_min
+            EstoqueService.atualizar_produto(produto_id, estoque_minimo=novo_min)
 
             # Atualizar cache local para filtro continuar correto
             for linha in self._linhas:
                 if linha["id"] == produto_id:
                     linha["dados"]["estoque_minimo"] = novo_min
+                    nome_produto = linha["dados"]["nome"]
                     break
             self._banner.sucesso("Estoque mínimo atualizado com sucesso.")
             logger.info("Estoque mínimo do produto %s → %s (usuário: %s).",
-                        produto.name, novo_min, self._usuario.login)
+                        nome_produto, novo_min, self._usuario.login)
         except Exception as exc:
             logger.error("Erro ao salvar estoque mínimo (produto %s): %s", produto_id, exc)
             self._banner.erro(f"Erro ao salvar: {exc}")
@@ -244,7 +236,7 @@ class TelaEstoqueMinimo(ctk.CTkFrame):
 
 # ── Utilitários ───────────────────────────────────────────────────────────────
 
-def _calcular_situacao(saldo: int, minimo: int) -> str:
+def _situacao_minimo(saldo: int, minimo: int) -> str:
     """Retorna rótulo de situação para o badge."""
     if minimo == 0:
         return "Sem controle"

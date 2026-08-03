@@ -16,6 +16,7 @@ import logging
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from Modulo_06_dados import (
     get_session, get_read_session,
@@ -23,6 +24,7 @@ from Modulo_06_dados import (
     TipoAlertaEnum,
 )
 from Modulo_04_notificacoes.gmail_client import GmailClient
+from Modulo_04_notificacoes.job_log_repo import JobLogRepo
 
 logger = logging.getLogger(__name__)
 
@@ -85,26 +87,37 @@ class NotificacaoService:
                 "verificar_vencimentos", sucesso=False, detalhe=str(exc))
             return resumo
 
+        # Busca de uma vez só quais (lote, marco) já foram notificados hoje —
+        # evita 1 SELECT por lote dentro do loop abaixo.
+        ja_notificados = NotificacaoService._marcos_notificados_hoje()
+        registros: list[NotificacaoLog] = []
+
         for dados in dados_lotes:
             dias_restantes = (dados["data_vencimento"] - hoje).days
             for dias_marco, tipo_alerta in NotificacaoService._MARCOS:
                 if dias_restantes > dias_marco:
                     continue
                 # Verifica duplicidade: já enviou este marco hoje para este lote?
-                if NotificacaoService._ja_enviado_hoje(dados["id"], tipo_alerta):
+                if (dados["id"], tipo_alerta) in ja_notificados:
                     resumo["ignorados"] += 1
                     continue
                 # Dispara e-mail
                 ok, erro = NotificacaoService._enviar_alerta_vencimento(
                     dados, dias_marco, tipo_alerta)
-                NotificacaoService._registrar_notificacao(
-                    dados["id"], tipo_alerta, sucesso=ok, erro_msg=erro)
+                registros.append(NotificacaoLog(
+                    lote_id     = dados["id"],
+                    tipo_alerta = tipo_alerta,
+                    enviado_em  = datetime.utcnow(),
+                    sucesso     = ok,
+                    erro_msg    = erro,
+                ))
                 if ok:
                     resumo["enviados"] += 1
                 else:
                     resumo["erros"] += 1
                 break   # Apenas o marco mais urgente por execução (7d tem prioridade sobre 15d)
 
+        NotificacaoService._registrar_notificacoes_em_lote(registros)
         logger.info("verificar_vencimentos: %s", resumo)
         NotificacaoService._registrar_job_log(
             "verificar_vencimentos", sucesso=True,
@@ -166,10 +179,19 @@ class NotificacaoService:
         if resumo["lotes_vencidos"] > 0:
             tipo = TipoAlertaEnum.vencido
             ok, erro = NotificacaoService._enviar_consolidado_vencidos(dados_lotes)
-        # Registra um log por lote
-        for d in dados_lotes:
-            NotificacaoService._registrar_notificacao(
-                d["id"], tipo, sucesso=ok, erro_msg=erro)
+        # Registra um log por lote — grava tudo numa única transação.
+        agora = datetime.utcnow()
+        registros = [
+            NotificacaoLog(
+                lote_id     = d["id"],
+                tipo_alerta = tipo,
+                enviado_em  = agora,
+                sucesso     = ok,
+                erro_msg    = erro,
+            )
+            for d in dados_lotes
+        ]
+        NotificacaoService._registrar_notificacoes_em_lote(registros)
 
         resumo["enviado"] = ok
         logger.info("alertar_lotes_vencidos: %d lote(s), enviado=%s", len(dados_lotes), ok)
@@ -256,6 +278,28 @@ class NotificacaoService:
             logger.error("Erro ao verificar duplicidade de notificação: %s", exc)
             return False   # Em caso de erro, permite o envio (preferência segura)
 
+    @staticmethod
+    def _marcos_notificados_hoje() -> set[tuple[int, TipoAlertaEnum]]:
+        """
+        Igual a `_ja_enviado_hoje`, mas para todos os lotes de uma vez só —
+        evita 1 SELECT por lote em `verificar_vencimentos()`.
+        """
+        hoje_inicio = datetime.combine(date.today(), datetime.min.time())
+        try:
+            with get_read_session() as s:
+                linhas = (
+                    s.query(NotificacaoLog.lote_id, NotificacaoLog.tipo_alerta)
+                    .filter(
+                        NotificacaoLog.enviado_em >= hoje_inicio,
+                        NotificacaoLog.sucesso == True,
+                    )
+                    .all()
+                )
+                return {(lote_id, tipo) for lote_id, tipo in linhas}
+        except Exception as exc:
+            logger.error("Erro ao verificar duplicidade de notificações: %s", exc)
+            return set()   # Em caso de erro, permite o envio (preferência segura)
+
     # ─────────────────────────────────────────────────────────────────────────
     # Montagem e envio de e-mails
     # ─────────────────────────────────────────────────────────────────────────
@@ -340,6 +384,17 @@ class NotificacaoService:
             logger.error("Erro ao registrar notificacao_log: %s", exc)
 
     @staticmethod
+    def _registrar_notificacoes_em_lote(registros: list[NotificacaoLog]) -> None:
+        """Insere vários registros de notificacao_log numa única transação."""
+        if not registros:
+            return
+        try:
+            with get_session() as s:
+                s.add_all(registros)
+        except Exception as exc:
+            logger.error("Erro ao registrar notificacao_log em lote: %s", exc)
+
+    @staticmethod
     def _registrar_job_log(
         job_nome: str, sucesso: bool, detalhe: str | None = None
     ) -> None:
@@ -354,6 +409,27 @@ class NotificacaoService:
                 ))
         except Exception as exc:
             logger.error("Erro ao registrar job_log: %s", exc)
+
+    #__________ Leitura para telas (T-18/T-19) ___________________________________________
+    @staticmethod
+    def listar_notificacoes_no_periodo(inicio: datetime, fim: datetime, limite: int = 200) -> list[NotificacaoLog]:
+        with get_read_session() as s:
+            itens = (s.query(NotificacaoLog)
+                     .options(joinedload(NotificacaoLog.lote).joinedload(Lote.produto))
+                     .filter(NotificacaoLog.enviado_em.between(inicio, fim))
+                     .order_by(NotificacaoLog.enviado_em.desc())
+                     .limit(limite)
+                     .all())
+            s.expunge_all()
+            return itens
+
+    @staticmethod
+    def listar_job_logs_no_periodo(inicio: datetime, fim: datetime, limite: int = 100) -> list[JobLog]:
+        return JobLogRepo.listar_no_periodo(inicio, fim, limite)
+
+    @staticmethod
+    def listar_job_logs_por_nome(job_nome: str, limite: int = 10) -> list[JobLog]:
+        return JobLogRepo.listar_por_job(job_nome, limite)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

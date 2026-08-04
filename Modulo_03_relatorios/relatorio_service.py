@@ -297,6 +297,12 @@ class RelatorioService:
         rotulos_presentes = sorted(set(produto_rotulo.values()))
         acumulado: dict[str, list[int]] = {r: [0] * meses for r in rotulos_presentes}
 
+        # Data da saída mais antiga já registrada no sistema — aproxima o
+        # início real de produção do SCE. Sem isso, meses anteriores à entrada
+        # em produção entrariam como "consumo zero" e derrubariam a média
+        # artificialmente (o sistema não existia, não é que não houve consumo).
+        data_inicio_sistema = min((dh.date() for dh, _, _ in movs), default=None)
+
         for data_hora, quantidade, produto_id in movs:
             rotulo = produto_rotulo.get(produto_id)
             if rotulo is None:
@@ -307,11 +313,24 @@ class RelatorioService:
                     acumulado[rotulo][idx] += quantidade
                     break
 
+        # Meses inteiramente anteriores ao início real de produção não contam
+        # no total/média (não têm dado real — nem "zero" de verdade).
+        meses_validos = [
+            idx for idx, (_, fim, _) in enumerate(periodos)
+            if data_inicio_sistema is not None and fim >= data_inicio_sistema
+        ]
+        qtd_meses_validos = len(meses_validos) or 1  # evita divisão por zero
+
         linhas = []
         for rotulo in rotulos_presentes:
             valores_mes = acumulado[rotulo]
-            total = sum(valores_mes)
-            linhas.append([rotulo, *valores_mes, total, round(total / meses, 1)])
+            total = sum(valores_mes[idx] for idx in meses_validos)
+            media = round(total / qtd_meses_validos, 1)
+            valores_exibicao = [
+                valores_mes[idx] if idx in meses_validos else "—"
+                for idx in range(meses)
+            ]
+            linhas.append([rotulo, *valores_exibicao, total, media])
 
         return rotulos_meses, linhas
 

@@ -626,7 +626,7 @@ class XlsxBuilder:
         st = _wb_styles()
 
         colunas = (
-            [("Produto/Grupo", 40)]
+            [("Produto/Grupo", 100)]
             + [(label, 12) for label in meses_labels]
             + [("Total Consumido", 16), ("Média Mensal", 14)]
         )
@@ -647,7 +647,11 @@ class XlsxBuilder:
         for i, linha in enumerate(dados, 3):
             _aplicar_linha(ws, i, linha, st, alignments=alinhamentos)
 
-        ws.freeze_panes = "B3"
+        # "A3" em vez de "B3": congela só as linhas 1-2 (título + cabeçalho),
+        # sem congelar coluna nenhuma. Um freeze de coluna (ex. "B3") cruzaria
+        # a célula mesclada do título (que ocupa A1 até a última coluna),
+        # cortando-a visualmente ao rolar a planilha para os lados.
+        ws.freeze_panes = "A3"
         _buf = _io_bg.BytesIO()
         wb.save(_buf)
         _bytes_final = _aplicar_background(_buf.getvalue())

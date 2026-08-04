@@ -43,6 +43,15 @@ BACKUP_DIR       = Path(_CONFIG.get("BACKUP_DIR", str(BASE_DIR / "Backups_SCE"))
 RETENCAO_DIAS    = int(_CONFIG.get("RETENCAO_DIAS", "30"))
 TIMEOUT_SEGUNDOS = int(_CONFIG.get("TIMEOUT_SEGUNDOS", "600"))
 
+# Caminho do mysqldump. Por padrão usa "mysqldump" (depende do PATH), mas
+# a tarefa agendada roda como SYSTEM, que tem um PATH próprio e pode não
+# enxergar o mysqldump mesmo que ele funcione no seu usuário interativo
+# (mesma causa que já pegou o python.exe neste servidor — ver
+# instalar_tarefa.bat). Se acontecer de novo, defina o caminho completo em
+# MYSQLDUMP_EXE no backup.env, ex.:
+#   MYSQLDUMP_EXE=C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqldump.exe
+MYSQLDUMP_EXE = _CONFIG.get("MYSQLDUMP_EXE", "mysqldump")
+
 JOB_NOME = "backup_automatico_servidor"
 
 logger = logging.getLogger("backup_sce")
@@ -106,7 +115,7 @@ def _remover_arquivo_parcial(arquivo: Path) -> None:
 
 def _executar_mysqldump(arquivo: Path) -> None:
     cmd = [
-        "mysqldump",
+        MYSQLDUMP_EXE,
         f"--host={DB_HOST}",
         f"--port={DB_PORT}",
         f"--user={DB_USER}",

@@ -16,7 +16,12 @@ REM ============================================================
 setlocal
 
 set SCRIPT_DIR=%~dp0
-set PYTHON_EXE=python
+REM Caminho COMPLETO do Python deste servidor (nao usar so "python": a
+REM tarefa roda como SYSTEM, que tem seu proprio PATH e normalmente NAO
+REM enxerga onde o Python foi instalado, mesmo com o PATH do seu usuario
+REM certinho). Se reinstalar/mover o Python neste servidor, atualize a
+REM linha abaixo.
+set PYTHON_EXE=C:\Program Files\Python313\python.exe
 set HORARIO=06:30
 set NOME_TAREFA=SCE_Backup_Diario
 

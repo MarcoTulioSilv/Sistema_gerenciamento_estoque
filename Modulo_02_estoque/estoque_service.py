@@ -417,7 +417,9 @@ class EstoqueService:
                         lote_origem.centro_alocacao = CentroAlocacaoEnum(destino_centro)
                         criar_espelho = False
                     else:
-                        # Transferência parcial: Preparação para criar o sufixo -T
+                        # Transferência parcial: mantém o mesmo num_lote da origem —
+                        # o que diferencia as linhas é a busca abaixo (nota fiscal +
+                        # produto + num_lote + centro), não um sufixo no num_lote.
                         qtd_dest = item.qtd_a_retirar
                         val_unit_dest = lote_origem.valor_unitario
                         unidade_dest_enum = lote_origem.unidade_estoque
@@ -427,11 +429,18 @@ class EstoqueService:
                 # 4. Criação ou Incremento no Destino
                 if criar_espelho:
                     val_tot_dest = round(val_unit_dest * qtd_dest, 2)
-                    
-                    # Consulta se este lote derivado (-F ou -T) já foi transferido para cá antes
+
+                    # Consulta se esta MESMA entrada (nota fiscal + produto + num_lote)
+                    # já foi transferida para este centro antes. Sem filtrar por
+                    # nota_fiscal e centro_alocacao, produto_id+num_lote sozinhos podem
+                    # bater com outra entrada de compra (mesmo num_lote, NF diferente)
+                    # ou até com o próprio lote de origem — incrementando a linha errada
+                    # de forma silenciosa (bug original).
                     lote_existente = session.query(Lote).filter_by(
                         produto_id=lote_origem.produto_id,
-                        num_lote=num_lote_dest
+                        num_lote=num_lote_dest,
+                        nota_fiscal=lote_origem.nota_fiscal,
+                        centro_alocacao=CentroAlocacaoEnum(destino_centro),
                     ).first()
 
                     if lote_existente:

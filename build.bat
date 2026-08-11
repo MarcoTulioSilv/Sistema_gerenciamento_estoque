@@ -2,7 +2,7 @@
 setlocal
 
 :: ── Configuração ──────────────────────────────────────────────
-set VERSION=1.0.5
+set VERSION=1.0.6
 set SHARE=\\192.168.0.150\SCE_Updates
 if exist .env (
     for /f "tokens=2 delims==" %%s in ('findstr /b "UPDATE_SHARE=" .env') do set SHARE=%%s

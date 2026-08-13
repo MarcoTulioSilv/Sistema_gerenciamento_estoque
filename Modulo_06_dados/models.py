@@ -1,6 +1,8 @@
 """
 MOD-06 · mod06_dados · models.py
-Modelos SQLAlchemy mapeando as 9 tabelas do schema sce_db (ERD v2 / DDL v1.1).
+Modelos SQLAlchemy do schema sce_db.
+MOD-01 a MOD-06: DDL v1.4 (reverse-engineered da producao).
+MOD-07 Patrimonio: migracao 007_patrimonio.sql (ERS v1.7 / DAS v1.4).
 """
 import enum
 from datetime import datetime, date
@@ -8,7 +10,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Integer, String, Enum, Boolean, DateTime, Date,
-    Numeric, Time, ForeignKey, Text, func, Index
+    Numeric, Time, ForeignKey, Text, func, Index, Computed, CHAR
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -259,3 +261,409 @@ class VwSaldoProduto(Base):
     estoque_minimo: Mapped[int]        = mapped_column(Integer)
     ativo:          Mapped[bool]       = mapped_column(Boolean)
     saldo_total:    Mapped[Decimal]    = mapped_column(Numeric(10, 2))
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# MOD-07 · PATRIMÔNIO
+# Tabelas criadas pela migração 007_patrimonio.sql (ERS v1.7 / DAS v1.4).
+# MOD-07 não referencia produto nem lote: a separação de domínios é
+# deliberada (AD-13) e está explícita tanto no schema quanto aqui.
+# ════════════════════════════════════════════════════════════════════════════
+
+
+# ─── ENUMs do MOD-07 ────────────────────────────────────────────────────────
+
+class SituacaoBemEnum(str, enum.Enum):
+    ativo       = "ativo"
+    em_apuracao = "em_apuracao"   # não localizado em sessão fechada (RN-15)
+    baixado     = "baixado"       # baixa registrada (RN-12)
+
+
+class TipoMovimentacaoBemEnum(str, enum.Enum):
+    cadastro          = "cadastro"
+    transferencia     = "transferencia"
+    ajuste_inventario = "ajuste_inventario"   # sempre vinculado a inventario_id
+    baixa             = "baixa"
+
+
+class MotivoBaixaEnum(str, enum.Enum):
+    descarte      = "descarte"
+    doacao        = "doacao"
+    venda         = "venda"
+    extravio      = "extravio"
+    obsolescencia = "obsolescencia"
+    sinistro      = "sinistro"
+
+
+class EscopoInventarioEnum(str, enum.Enum):
+    geral       = "geral"
+    localizacao = "localizacao"
+
+
+class StatusInventarioEnum(str, enum.Enum):
+    aberto     = "aberto"
+    finalizado = "finalizado"
+    cancelado  = "cancelado"
+
+
+class StatusItemInventarioEnum(str, enum.Enum):
+    pendente         = "pendente"
+    encontrado       = "encontrado"
+    divergente_local = "divergente_local"
+    nao_localizado   = "nao_localizado"
+
+
+class TipoSobraEnum(str, enum.Enum):
+    fora_escopo    = "fora_escopo"      # tombo existe, fora do escopo da sessão
+    nao_cadastrado = "nao_cadastrado"   # código lido não corresponde a tombo
+
+
+# ─── MODELOS DO MOD-07 ──────────────────────────────────────────────────────
+
+class Localizacao(Base):
+    """Tabela: localizacao — MOD-07"""
+    __tablename__ = "localizacao"
+
+    id:         Mapped[int]        = mapped_column(Integer, primary_key=True, autoincrement=True)
+    setor:      Mapped[str]        = mapped_column(String(80),  nullable=False)
+    sala:       Mapped[str]        = mapped_column(String(80),  nullable=False)
+    descricao:  Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ativo:      Mapped[bool]       = mapped_column(Boolean, nullable=False, default=True)
+    criado_em:  Mapped[datetime]   = mapped_column(DateTime, nullable=False, default=func.now())
+
+    bens: Mapped[list["BemPatrimonial"]] = relationship(back_populates="localizacao")
+
+    __table_args__ = (
+        Index('uq_localizacao_setor_sala', 'setor', 'sala', unique=True),
+        Index('idx_localizacao_ativo', 'ativo'),
+    )
+
+    @property
+    def nome_completo(self) -> str:
+        """Rótulo de exibição usado nas telas e no relatório."""
+        return f"{self.setor} — {self.sala}"
+
+    def __repr__(self):
+        return f"<Localizacao {self.id}: {self.setor} / {self.sala}>"
+
+
+class BemPatrimonial(Base):
+    """
+    Tabela: bem_patrimonial — MOD-07
+
+    Bem permanente identificado unitariamente pelo tombo (RN-09: único e
+    imutável após a emissão). Campos de aquisição são todos opcionais por
+    decisão de escopo — não há depreciação nem valor contábil nesta versão.
+    """
+    __tablename__ = "bem_patrimonial"
+
+    id:               Mapped[int]              = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tombo:            Mapped[str]              = mapped_column(String(30),  nullable=False)
+    descricao:        Mapped[str]              = mapped_column(String(160), nullable=False)
+    marca_modelo:     Mapped[str | None]       = mapped_column(String(120), nullable=True)
+    data_aquisicao:   Mapped[date | None]      = mapped_column(Date, nullable=True)
+    valor_aquisicao:  Mapped[Decimal | None]   = mapped_column(Numeric(10, 2), nullable=True)
+    nota_fiscal:      Mapped[str | None]       = mapped_column(String(60),  nullable=True)
+    localizacao_id:   Mapped[int]              = mapped_column(Integer, ForeignKey("localizacao.id"), nullable=False)
+    situacao:         Mapped[SituacaoBemEnum]  = mapped_column(Enum(SituacaoBemEnum), nullable=False, default=SituacaoBemEnum.ativo)
+    observacao:       Mapped[str | None]       = mapped_column(String(500), nullable=True)
+    criado_em:        Mapped[datetime]         = mapped_column(DateTime, nullable=False, default=func.now())
+    criado_por:       Mapped[int]              = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
+
+    localizacao:   Mapped["Localizacao"]            = relationship(back_populates="bens")
+    movimentacoes: Mapped[list["MovimentacaoBem"]]  = relationship(back_populates="bem", order_by="MovimentacaoBem.data_hora")
+    baixa:         Mapped["BaixaBem | None"]        = relationship(back_populates="bem", uselist=False)
+    itens_inventario: Mapped[list["InventarioItem"]] = relationship(back_populates="bem")
+
+    __table_args__ = (
+        Index('uq_bem_tombo', 'tombo', unique=True),
+        Index('idx_bem_localizacao_situacao', 'localizacao_id', 'situacao'),
+        Index('idx_bem_descricao', 'descricao'),
+        Index('idx_bem_criado_por', 'criado_por'),
+    )
+
+    @property
+    def ativo(self) -> bool:
+        """Bem em uso — entra no snapshot de novas sessões de inventário."""
+        return self.situacao == SituacaoBemEnum.ativo
+
+    def __repr__(self):
+        return f"<BemPatrimonial {self.tombo}: {self.descricao} [{self.situacao}]>"
+
+
+class Inventario(Base):
+    """
+    Tabela: inventario — MOD-07
+
+    Sessão de conferência física. A coluna escopo_aberto é GERADA pelo banco
+    e implementa parte da RN-16: enquanto a sessão está aberta ela guarda o
+    id da localização (ou 0 para escopo geral); ao finalizar, vira NULL — e
+    índice único ignora NULL, liberando a área para uma sessão futura.
+
+    LIMITE: a regra "sessão geral bloqueia qualquer outra" não é expressável
+    por índice único e permanece sob responsabilidade de
+    InventarioService.abrir_sessao().
+    """
+    __tablename__ = "inventario"
+
+    id:              Mapped[int]                   = mapped_column(Integer, primary_key=True, autoincrement=True)
+    descricao:       Mapped[str]                   = mapped_column(String(160), nullable=False)
+    escopo:          Mapped[EscopoInventarioEnum]  = mapped_column(Enum(EscopoInventarioEnum), nullable=False)
+    localizacao_id:  Mapped[int | None]            = mapped_column(Integer, ForeignKey("localizacao.id"), nullable=True)
+    status:          Mapped[StatusInventarioEnum]  = mapped_column(Enum(StatusInventarioEnum), nullable=False, default=StatusInventarioEnum.aberto)
+    aberto_em:       Mapped[datetime]              = mapped_column(DateTime, nullable=False, default=func.now())
+    aberto_por:      Mapped[int]                   = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
+    finalizado_em:   Mapped[datetime | None]       = mapped_column(DateTime, nullable=True)
+    finalizado_por:  Mapped[int | None]            = mapped_column(Integer, ForeignKey("usuario.id"), nullable=True)
+
+    # Coluna gerada pelo banco — nunca escrita pela aplicação.
+    escopo_aberto:   Mapped[int | None]            = mapped_column(
+        Integer,
+        Computed("(CASE WHEN `status` = 'aberto' THEN COALESCE(`localizacao_id`, 0) ELSE NULL END)", persisted=True),
+        nullable=True,
+    )
+
+    localizacao: Mapped["Localizacao | None"]        = relationship(foreign_keys=[localizacao_id])
+    itens:       Mapped[list["InventarioItem"]]      = relationship(back_populates="inventario")
+    sobras:      Mapped[list["InventarioSobra"]]     = relationship(back_populates="inventario")
+    tokens:      Mapped[list["ColetaToken"]]         = relationship(back_populates="inventario")
+    aberto_por_usuario:     Mapped["Usuario"]        = relationship(foreign_keys=[aberto_por])
+    finalizado_por_usuario: Mapped["Usuario | None"] = relationship(foreign_keys=[finalizado_por])
+
+    __table_args__ = (
+        Index('uq_inventario_escopo_aberto', 'escopo_aberto', unique=True),
+        Index('idx_inventario_status', 'status'),
+        Index('idx_inventario_localizacao', 'localizacao_id'),
+        Index('idx_inventario_aberto_por', 'aberto_por'),
+        Index('idx_inventario_finalizado_por', 'finalizado_por'),
+    )
+
+    @property
+    def aberta(self) -> bool:
+        return self.status == StatusInventarioEnum.aberto
+
+    def __repr__(self):
+        return f"<Inventario {self.id}: {self.descricao} [{self.escopo}/{self.status}]>"
+
+
+class MovimentacaoBem(Base):
+    """
+    Tabela: movimentacao_bem — MOD-07
+
+    Histórico do bem. SOMENTE INCREMENTAL (RN-11): correção se faz por nova
+    linha, nunca por UPDATE ou DELETE. inventario_id só é preenchido em
+    ajuste_inventario, vinculando o ajuste à sessão que o originou (RN-14).
+    """
+    __tablename__ = "movimentacao_bem"
+
+    id:                      Mapped[int]                      = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bem_id:                  Mapped[int]                      = mapped_column(Integer, ForeignKey("bem_patrimonial.id"), nullable=False)
+    tipo:                    Mapped[TipoMovimentacaoBemEnum]  = mapped_column(Enum(TipoMovimentacaoBemEnum), nullable=False)
+    localizacao_origem_id:   Mapped[int | None]               = mapped_column(Integer, ForeignKey("localizacao.id"), nullable=True)
+    localizacao_destino_id:  Mapped[int | None]               = mapped_column(Integer, ForeignKey("localizacao.id"), nullable=True)
+    inventario_id:           Mapped[int | None]               = mapped_column(Integer, ForeignKey("inventario.id"), nullable=True)
+    motivo:                  Mapped[str | None]               = mapped_column(String(255), nullable=True)
+    usuario_id:              Mapped[int]                      = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
+    data_hora:               Mapped[datetime]                 = mapped_column(DateTime, nullable=False, default=func.now())
+
+    bem:                 Mapped["BemPatrimonial"]     = relationship(back_populates="movimentacoes")
+    localizacao_origem:  Mapped["Localizacao | None"] = relationship(foreign_keys=[localizacao_origem_id])
+    localizacao_destino: Mapped["Localizacao | None"] = relationship(foreign_keys=[localizacao_destino_id])
+    inventario:          Mapped["Inventario | None"]  = relationship(foreign_keys=[inventario_id])
+    usuario:             Mapped["Usuario"]            = relationship(foreign_keys=[usuario_id])
+
+    __table_args__ = (
+        Index('idx_mov_bem_hora', 'bem_id', 'data_hora'),
+        Index('idx_mov_bem_tipo', 'tipo'),
+        Index('idx_mov_bem_usuario', 'usuario_id'),
+        Index('idx_mov_bem_origem', 'localizacao_origem_id'),
+        Index('idx_mov_bem_destino', 'localizacao_destino_id'),
+        Index('idx_mov_bem_inventario', 'inventario_id'),
+    )
+
+    def __repr__(self):
+        return f"<MovimentacaoBem {self.tipo} | bem {self.bem_id} | {self.data_hora}>"
+
+
+class BaixaBem(Base):
+    """
+    Tabela: baixa_bem — MOD-07
+
+    Baixa lógica e irreversível pela interface (RN-12). O UNIQUE em bem_id é
+    o que impede baixa dupla — a garantia está no banco, não na camada de
+    serviço.
+    """
+    __tablename__ = "baixa_bem"
+
+    id:             Mapped[int]              = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bem_id:         Mapped[int]              = mapped_column(Integer, ForeignKey("bem_patrimonial.id"), nullable=False)
+    motivo:         Mapped[MotivoBaixaEnum]  = mapped_column(Enum(MotivoBaixaEnum), nullable=False)
+    documento:      Mapped[str | None]       = mapped_column(String(120), nullable=True)
+    data_baixa:     Mapped[date]             = mapped_column(Date, nullable=False)
+    observacao:     Mapped[str | None]       = mapped_column(String(500), nullable=True)
+    usuario_id:     Mapped[int]              = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
+    registrado_em:  Mapped[datetime]         = mapped_column(DateTime, nullable=False, default=func.now())
+
+    bem:     Mapped["BemPatrimonial"] = relationship(back_populates="baixa")
+    usuario: Mapped["Usuario"]        = relationship(foreign_keys=[usuario_id])
+
+    __table_args__ = (
+        Index('uq_baixa_bem', 'bem_id', unique=True),
+        Index('idx_baixa_data', 'data_baixa'),
+        Index('idx_baixa_usuario', 'usuario_id'),
+    )
+
+    def __repr__(self):
+        return f"<BaixaBem bem {self.bem_id} | {self.motivo} | {self.data_baixa}>"
+
+
+class InventarioItem(Base):
+    """
+    Tabela: inventario_item — MOD-07
+
+    Snapshot materializado na abertura da sessão (AD-19 / RN-13). O UNIQUE
+    (inventario_id, bem_id) é o mecanismo de idempotência da RN-20: leituras
+    simultâneas de dois dispositivos colidem no índice, não em verificação de
+    memória.
+
+    localizacao_esperada_id é COPIADA na abertura, não derivada do bem: se o
+    bem for movimentado durante a sessão, o snapshot precisa preservar onde
+    ele deveria estar quando a sessão começou.
+    """
+    __tablename__ = "inventario_item"
+
+    id:                          Mapped[int]                        = mapped_column(Integer, primary_key=True, autoincrement=True)
+    inventario_id:               Mapped[int]                        = mapped_column(Integer, ForeignKey("inventario.id"), nullable=False)
+    bem_id:                      Mapped[int]                        = mapped_column(Integer, ForeignKey("bem_patrimonial.id"), nullable=False)
+    localizacao_esperada_id:     Mapped[int]                        = mapped_column(Integer, ForeignKey("localizacao.id"), nullable=False)
+    status:                      Mapped[StatusItemInventarioEnum]   = mapped_column(Enum(StatusItemInventarioEnum), nullable=False, default=StatusItemInventarioEnum.pendente)
+    localizacao_encontrada_id:   Mapped[int | None]                 = mapped_column(Integer, ForeignKey("localizacao.id"), nullable=True)
+    conferido_em:                Mapped[datetime | None]            = mapped_column(DateTime, nullable=True)
+    conferido_por:               Mapped[int | None]                 = mapped_column(Integer, ForeignKey("usuario.id"), nullable=True)
+    observacao:                  Mapped[str | None]                 = mapped_column(String(255), nullable=True)
+
+    inventario:             Mapped["Inventario"]         = relationship(back_populates="itens")
+    bem:                    Mapped["BemPatrimonial"]     = relationship(back_populates="itens_inventario")
+    localizacao_esperada:   Mapped["Localizacao"]        = relationship(foreign_keys=[localizacao_esperada_id])
+    localizacao_encontrada: Mapped["Localizacao | None"] = relationship(foreign_keys=[localizacao_encontrada_id])
+    conferido_por_usuario:  Mapped["Usuario | None"]     = relationship(foreign_keys=[conferido_por])
+
+    __table_args__ = (
+        Index('uq_inv_item_sessao_bem', 'inventario_id', 'bem_id', unique=True),
+        Index('idx_inv_item_sessao_status', 'inventario_id', 'status'),
+        Index('idx_inv_item_bem', 'bem_id'),
+        Index('idx_inv_item_loc_esperada', 'localizacao_esperada_id'),
+        Index('idx_inv_item_loc_encontrada', 'localizacao_encontrada_id'),
+        Index('idx_inv_item_conferido_por', 'conferido_por'),
+    )
+
+    @property
+    def divergente(self) -> bool:
+        return self.status == StatusItemInventarioEnum.divergente_local
+
+    def __repr__(self):
+        return f"<InventarioItem sessao {self.inventario_id} | bem {self.bem_id} | {self.status}>"
+
+
+class InventarioSobra(Base):
+    """
+    Tabela: inventario_sobra — MOD-07
+
+    Leituras que não correspondem a item do snapshot. Tabela SEPARADA de
+    inventario_item porque a sobra pode não ter bem_id algum — o código lido
+    pode não existir no cadastro. codigo_lido guarda o texto bruto, única
+    evidência do que foi encontrado em campo.
+    """
+    __tablename__ = "inventario_sobra"
+
+    id:               Mapped[int]            = mapped_column(Integer, primary_key=True, autoincrement=True)
+    inventario_id:    Mapped[int]            = mapped_column(Integer, ForeignKey("inventario.id"), nullable=False)
+    codigo_lido:      Mapped[str]            = mapped_column(String(120), nullable=False)
+    tipo:             Mapped[TipoSobraEnum]  = mapped_column(Enum(TipoSobraEnum), nullable=False)
+    localizacao_id:   Mapped[int]            = mapped_column(Integer, ForeignKey("localizacao.id"), nullable=False)
+    descricao_livre:  Mapped[str | None]     = mapped_column(String(255), nullable=True)
+    registrado_em:    Mapped[datetime]       = mapped_column(DateTime, nullable=False, default=func.now())
+    registrado_por:   Mapped[int]            = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
+
+    inventario:            Mapped["Inventario"]  = relationship(back_populates="sobras")
+    localizacao:           Mapped["Localizacao"] = relationship(foreign_keys=[localizacao_id])
+    registrado_por_usuario: Mapped["Usuario"]    = relationship(foreign_keys=[registrado_por])
+
+    __table_args__ = (
+        Index('uq_inv_sobra_sessao_codigo', 'inventario_id', 'codigo_lido', unique=True),
+        Index('idx_inv_sobra_sessao_tipo', 'inventario_id', 'tipo'),
+        Index('idx_inv_sobra_localizacao', 'localizacao_id'),
+        Index('idx_inv_sobra_registrado_por', 'registrado_por'),
+    )
+
+    def __repr__(self):
+        return f"<InventarioSobra sessao {self.inventario_id} | {self.codigo_lido} | {self.tipo}>"
+
+
+class ColetaToken(Base):
+    """
+    Tabela: coleta_token — MOD-07
+
+    Pareamento de dispositivo móvel à sessão (AD-16 / RN-19). Uma linha por
+    aparelho: vários celulares podem estar pareados ao mesmo tempo, cada um
+    com sua localização e seu operador, preservando a rastreabilidade em
+    inventario_item.conferido_por.
+
+    Revogação é lógica, não exclusão: o histórico de qual dispositivo
+    registrou o quê precisa sobreviver ao fechamento da sessão.
+    """
+    __tablename__ = "coleta_token"
+
+    id:                         Mapped[int]         = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token:                      Mapped[str]         = mapped_column(CHAR(43), nullable=False)
+    inventario_id:              Mapped[int]         = mapped_column(Integer, ForeignKey("inventario.id"), nullable=False)
+    localizacao_conferida_id:   Mapped[int]         = mapped_column(Integer, ForeignKey("localizacao.id"), nullable=False)
+    usuario_id:                 Mapped[int]         = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
+    dispositivo_label:          Mapped[str | None]  = mapped_column(String(60), nullable=True)
+    criado_em:                  Mapped[datetime]    = mapped_column(DateTime, nullable=False, default=func.now())
+    expira_em:                  Mapped[datetime]    = mapped_column(DateTime, nullable=False)
+    revogado:                   Mapped[bool]        = mapped_column(Boolean, nullable=False, default=False)
+
+    inventario:            Mapped["Inventario"]  = relationship(back_populates="tokens")
+    localizacao_conferida: Mapped["Localizacao"] = relationship(foreign_keys=[localizacao_conferida_id])
+    usuario:               Mapped["Usuario"]     = relationship(foreign_keys=[usuario_id])
+
+    __table_args__ = (
+        Index('uq_coleta_token', 'token', unique=True),
+        Index('idx_coleta_token_sessao', 'inventario_id', 'revogado'),
+        Index('idx_coleta_token_localizacao', 'localizacao_conferida_id'),
+        Index('idx_coleta_token_usuario', 'usuario_id'),
+    )
+
+    @property
+    def valido(self) -> bool:
+        """
+        Validade local do token. NÃO substitui a checagem no serviço, que
+        também confirma se a sessão continua aberta.
+        """
+        return (not self.revogado) and self.expira_em > datetime.now()
+
+    def __repr__(self):
+        return f"<ColetaToken sessao {self.inventario_id} | {self.dispositivo_label} | revogado={self.revogado}>"
+
+
+class SchemaMigracao(Base):
+    """
+    Tabela: schema_migracao — infra
+
+    Registro das migrações aplicadas (AD-20). Não é consumida pela aplicação:
+    existe para tornar verificável, no próprio banco, quais scripts rodaram.
+    """
+    __tablename__ = "schema_migracao"
+
+    id:           Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
+    versao:       Mapped[str]      = mapped_column(String(60),  nullable=False)
+    descricao:    Mapped[str]      = mapped_column(String(255), nullable=False)
+    aplicada_em:  Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+
+    __table_args__ = (
+        Index('uq_schema_migracao_versao', 'versao', unique=True),
+    )
+
+    def __repr__(self):
+        return f"<SchemaMigracao {self.versao} em {self.aplicada_em}>"

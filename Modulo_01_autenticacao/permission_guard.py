@@ -46,6 +46,14 @@ _PERMISSOES: dict[str,list[str]]={
     "gerenciar_usuarios": ["ti"],
     "acessar_backup":     ["ti"],
     "ver_log":            ["ti"],
+    # MOD-07 — Patrimônio (Sprint 9)
+    "bens_patrimoniais":     ["tecnico", "admin", "ti"],
+    "novo_bem":               ["tecnico", "admin", "ti"],
+    "movimentar_bem":         ["tecnico", "admin", "ti"],
+    "baixar_bem":             ["admin", "ti"],
+    "cadastrar_localizacao":  ["ti"],
+    "editar_localizacao":     ["ti"],
+    "desativar_localizacao":  ["ti"],
 }
 
 class PermissionGuard:

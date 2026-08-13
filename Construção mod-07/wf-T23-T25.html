@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Wireframes SCE — T-23 Bens · T-24 Cadastro · T-25 Movimentação e Baixa</title>
+<style>
+:root {
+  --azul: #1F4E79; --azul-m: #2E75B6; --azul-l: #D6E4F0;
+  --petroleo: #1F5F5B; --petroleo-m: #2E8A83; --petroleo-l: #D7ECEA;
+  --cinza-e: #F2F1ED; --cinza-b: #E8E6DE; --cinza-m: #888780;
+  --cinza-t: #3d3d3a; --branco: #ffffff;
+  --verde: #1D9E75; --amber: #BA7517; --vermelho: #A32D2D;
+  --sidebar-w: 200px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #ECEAE4; color: var(--cinza-t); }
+.page { padding: 32px; display: flex; flex-direction: column; gap: 40px; }
+.section-title { font-size: 13px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--cinza-m); margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px; }
+.section-title::after { content:''; flex:1; height:1px; background:var(--cinza-b); }
+.badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 8px; }
+.b-gray { background: #F1EFE8; color: #5F5E5A; }
+.b-blue { background: #E6F1FB; color: #185FA5; }
+.b-green { background: #EAF3DE; color: #3B6D11; }
+.b-amber { background: #FAEEDA; color: #854F0B; }
+.b-red { background: #FCEBEB; color: #A32D2D; }
+.b-teal { background: var(--petroleo-l); color: #14504C; }
+.nota { font-size: 12px; color: var(--cinza-m); line-height: 1.55; background: var(--branco);
+  border-left: 3px solid var(--cinza-b); padding: 10px 14px; border-radius: 0 6px 6px 0; margin-top: 12px; }
+.nota b { color: var(--cinza-t); }
+
+.window { background: var(--branco); border-radius: 8px; border: 1px solid var(--cinza-b);
+  overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+.win-titlebar { background: var(--petroleo); color: #fff; padding: 8px 16px; font-size: 13px;
+  font-weight: 500; display: flex; justify-content: space-between; align-items: center; }
+.win-controls { display: flex; gap: 6px; }
+.wc { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.3); }
+.win-modo { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  background: rgba(255,255,255,.18); padding: 2px 8px; border-radius: 8px; margin-left: 10px; }
+
+.app-layout { display: flex; min-height: 560px; }
+.sidebar { width: var(--sidebar-w); background: var(--petroleo); flex-shrink: 0;
+  display: flex; flex-direction: column; }
+.sidebar-user { padding: 14px 14px 10px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.su-name { font-size: 12px; font-weight: 600; color: #fff; }
+.su-role { font-size: 10px; color: rgba(255,255,255,.55); margin-top: 1px; }
+.su-role span { background: rgba(255,255,255,.15); padding: 1px 6px; border-radius: 6px; }
+.modo-tag { padding: 8px 14px; background: rgba(0,0,0,.18); display: flex; align-items: center; gap: 8px; }
+.mt-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--petroleo-m); }
+.mt-txt { font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: rgba(255,255,255,.85); }
+.menu-group { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+.menu-label { padding: 4px 14px 2px; font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: rgba(255,255,255,.4); }
+.menu-item { padding: 8px 14px; font-size: 12px; color: rgba(255,255,255,.8);
+  display: flex; align-items: center; gap: 8px; }
+.menu-item.active { background: rgba(255,255,255,.18); color: #fff; font-weight: 600; }
+.menu-item.disabled { color: rgba(255,255,255,.25); }
+.menu-icon { width: 14px; height: 14px; background: rgba(255,255,255,.2); border-radius: 3px; flex-shrink: 0; }
+.menu-item .pill { margin-left: auto; font-size: 9px; font-weight: 700; padding: 1px 6px;
+  border-radius: 7px; background: var(--amber); color: #fff; }
+.sidebar-bottom { margin-top: auto; }
+.btn-modo { display: flex; align-items: center; gap: 8px; width: 100%; padding: 11px 14px;
+  background: rgba(255,255,255,.10); border: none; border-top: 1px solid rgba(255,255,255,.16);
+  color: #fff; font-size: 12px; font-weight: 600; text-align: left; font-family: inherit; }
+.rodape { padding: 10px 14px; border-top: 1px solid rgba(255,255,255,.1); }
+.btn-sair { font-size: 11px; color: rgba(255,255,255,.5); background: none; border: none; font-family: inherit; }
+
+.conteudo { flex: 1; background: var(--cinza-e); display: flex; flex-direction: column; }
+.cab { background: var(--branco); border-bottom: 1px solid var(--cinza-b); padding: 14px 22px;
+  display: flex; align-items: center; gap: 12px; }
+.cab h1 { font-size: 16px; font-weight: 600; }
+.cab .trilha { font-size: 11px; color: var(--cinza-m); }
+.cab .trilha b { color: var(--petroleo); font-weight: 600; }
+.cab .acoes { margin-left: auto; display: flex; gap: 8px; }
+.corpo { padding: 18px 22px; flex: 1; }
+
+.btn { padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--cinza-b); background: var(--branco); color: var(--cinza-t); font-family: inherit; }
+.btn-pri { background: var(--petroleo-m); color: #fff; border-color: var(--petroleo-m); }
+.btn-perigo { background: var(--branco); color: var(--vermelho); border-color: #E9C9C9; }
+.btn:disabled, .btn.off { opacity: .45; }
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+
+.barra-filtros { background: var(--branco); border: 1px solid var(--cinza-b); border-radius: 8px;
+  padding: 12px 14px; display: flex; gap: 10px; align-items: flex-end; margin-bottom: 14px; flex-wrap: wrap; }
+.f { display: flex; flex-direction: column; gap: 4px; }
+.f label { font-size: 10px; font-weight: 600; color: var(--cinza-m); text-transform: uppercase; letter-spacing: .05em; }
+.f input, .f select { padding: 7px 10px; border: 1px solid var(--cinza-b); border-radius: 6px;
+  font-size: 12px; background: var(--cinza-e); color: var(--cinza-t); font-family: inherit; min-width: 150px; }
+.f.cresce { flex: 1; } .f.cresce input { width: 100%; }
+
+.selecao { background: var(--petroleo-l); border: 1px solid #B9DCD8; border-radius: 8px;
+  padding: 10px 14px; display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.selecao .txt { font-size: 12px; color: #14504C; font-weight: 600; }
+.selecao .acoes { margin-left: auto; display: flex; gap: 8px; }
+
+table.dados { width: 100%; border-collapse: collapse; background: var(--branco);
+  border: 1px solid var(--cinza-b); border-radius: 8px; overflow: hidden; font-size: 12px; }
+table.dados th { background: var(--cinza-e); text-align: left; padding: 9px 12px; font-size: 10px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--cinza-m);
+  border-bottom: 1px solid var(--cinza-b); }
+table.dados td { padding: 9px 12px; border-bottom: 1px solid var(--cinza-e); }
+table.dados tr:last-child td { border-bottom: none; }
+table.dados tr.sel { background: #F1F9F8; }
+table.dados .tombo { font-family: 'Consolas', monospace; font-weight: 600; color: var(--petroleo); }
+.chk { width: 13px; height: 13px; border: 1px solid var(--cinza-m); border-radius: 3px;
+  display: inline-block; vertical-align: middle; background: var(--branco); }
+.chk.on { background: var(--petroleo-m); border-color: var(--petroleo-m); position: relative; }
+.chk.on::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.acao-linha { color: var(--petroleo-m); font-size: 11px; font-weight: 600; }
+.rodape-tab { display: flex; align-items: center; gap: 10px; margin-top: 10px;
+  font-size: 11px; color: var(--cinza-m); }
+.pag { margin-left: auto; display: flex; gap: 4px; }
+.pag span { padding: 3px 8px; border: 1px solid var(--cinza-b); border-radius: 4px; background: var(--branco); }
+.pag span.on { background: var(--petroleo-m); color: #fff; border-color: var(--petroleo-m); }
+
+.form-card { background: var(--branco); border: 1px solid var(--cinza-b); border-radius: 8px; padding: 20px 22px; }
+.form-sec { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--petroleo); margin: 4px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--cinza-e); }
+.form-sec:not(:first-child) { margin-top: 24px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px 18px; }
+.campo { display: flex; flex-direction: column; gap: 5px; }
+.campo label { font-size: 11px; font-weight: 600; color: var(--cinza-m); }
+.campo label .opc { font-weight: 400; text-transform: none; letter-spacing: 0; color: #ABA9A2; }
+.campo input, .campo select, .campo textarea { padding: 8px 11px; border: 1px solid var(--cinza-b);
+  border-radius: 6px; font-size: 12px; background: var(--cinza-e); color: var(--cinza-t); font-family: inherit; }
+.campo textarea { resize: none; height: 60px; }
+.campo .dica { font-size: 10px; color: #ABA9A2; }
+.campo.bloq input { background: #EDECE7; color: var(--cinza-m); }
+.tombo-preview { display: flex; align-items: center; gap: 10px; background: var(--petroleo-l);
+  border: 1px solid #B9DCD8; border-radius: 6px; padding: 9px 12px; }
+.tombo-preview .tp-num { font-family: Consolas, monospace; font-size: 17px; font-weight: 700; color: var(--petroleo); }
+.tombo-preview .tp-txt { font-size: 10px; color: #14504C; }
+.form-rodape { display: flex; gap: 8px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--cinza-e); }
+.form-rodape .dir { margin-left: auto; display: flex; gap: 8px; }
+
+.abas { display: flex; gap: 2px; border-bottom: 1px solid var(--cinza-b); margin-bottom: 16px; }
+.aba { padding: 9px 16px; font-size: 12px; font-weight: 500; color: var(--cinza-m);
+  border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; }
+.aba.on { background: var(--branco); border-color: var(--cinza-b); color: var(--petroleo);
+  font-weight: 600; margin-bottom: -1px; }
+.duas-col { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; align-items: start; }
+
+.bem-resumo { background: var(--branco); border: 1px solid var(--cinza-b); border-radius: 8px; padding: 16px 18px; }
+.br-topo { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.br-tombo { font-family: Consolas, monospace; font-size: 19px; font-weight: 700; color: var(--petroleo); }
+.br-desc { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+.br-linha { display: flex; font-size: 12px; padding: 5px 0; border-top: 1px solid var(--cinza-e); }
+.br-linha .k { color: var(--cinza-m); width: 120px; flex-shrink: 0; }
+
+.timeline { position: relative; padding-left: 20px; }
+.timeline::before { content:''; position:absolute; left:5px; top:6px; bottom:6px; width:2px; background:var(--cinza-b); }
+.tl-item { position: relative; padding: 8px 0; }
+.tl-item::before { content:''; position:absolute; left:-18px; top:13px; width:9px; height:9px;
+  border-radius:50%; background:var(--petroleo-m); border:2px solid var(--branco); }
+.tl-item.baixa::before { background: var(--vermelho); }
+.tl-item.ajuste::before { background: var(--amber); }
+.tl-t { font-size: 12px; font-weight: 600; }
+.tl-s { font-size: 11px; color: var(--cinza-m); margin-top: 1px; }
+.alerta { border-radius: 6px; padding: 10px 13px; font-size: 12px; line-height: 1.5;
+  display: flex; gap: 9px; align-items: flex-start; margin-bottom: 14px; }
+.alerta.amber { background: #FAEEDA; color: #6E410A; border: 1px solid #EBD3AE; }
+.alerta.red { background: #FCEBEB; color: #7E2222; border: 1px solid #EDC9C9; }
+.alerta .ico { width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+  background: currentColor; opacity: .35; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ══════════ T-23 ══════════ -->
+<div>
+  <div class="section-title">T-23 · Bens patrimoniais — listagem, seleção e etiquetas <span class="badge b-teal">novo</span></div>
+  <div class="window">
+    <div class="win-titlebar">
+      <span>SCE — Controle de Patrimônio <span class="win-modo">Patrimônio</span></span>
+      <div class="win-controls"><div class="wc"></div><div class="wc"></div><div class="wc"></div></div>
+    </div>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="sidebar-user"><div class="su-name">João Silva</div>
+          <div class="su-role"><span>Técnico</span></div></div>
+        <div class="modo-tag"><div class="mt-dot"></div><div class="mt-txt">Controle de Patrimônio</div></div>
+        <div class="menu-group">
+          <div class="menu-label">Bens</div>
+          <div class="menu-item active"><div class="menu-icon"></div> Bens patrimoniais</div>
+          <div class="menu-item"><div class="menu-icon"></div> Cadastrar bem</div>
+          <div class="menu-item"><div class="menu-icon"></div> Movimentar / Baixar</div>
+          <div class="menu-item"><div class="menu-icon"></div> Etiquetas</div>
+          <div class="menu-label">Inventário</div>
+          <div class="menu-item"><div class="menu-icon"></div> Sessões <span class="pill">1 aberta</span></div>
+          <div class="menu-label">Consulta</div>
+          <div class="menu-item"><div class="menu-icon"></div> Relatórios</div>
+          <div class="menu-label">Acesso restrito</div>
+          <div class="menu-item disabled"><div class="menu-icon"></div> Localizações</div>
+          <div class="menu-item disabled"><div class="menu-icon"></div> Configurações</div>
+        </div>
+        <div class="sidebar-bottom">
+          <button class="btn-modo"><div class="menu-icon"></div> ‹ Voltar ao Estoque</button>
+          <div class="rodape"><button class="btn-sair">Trocar senha &nbsp;·&nbsp; Sair</button></div>
+        </div>
+      </div>
+      <div class="conteudo">
+        <div class="cab">
+          <h1>Bens patrimoniais</h1>
+          <span class="trilha"><b>Patrimônio</b> › Bens</span>
+          <div class="acoes"><button class="btn btn-pri">+ Cadastrar bem</button></div>
+        </div>
+        <div class="corpo">
+          <div class="barra-filtros">
+            <div class="f cresce"><label>Buscar</label><input value="cadeira" placeholder="Tombo ou descrição"></div>
+            <div class="f"><label>Localização</label><select><option>Todas</option><option>Recepção — Sala 1</option></select></div>
+            <div class="f"><label>Situação</label><select><option>Ativos</option><option>Em apuração</option><option>Baixados</option><option>Todas</option></select></div>
+            <div class="f"><label>Etiqueta</label><select><option>Todas</option><option>Nunca impressa</option></select></div>
+            <button class="btn">Limpar</button>
+          </div>
+
+          <div class="selecao">
+            <span class="chk on"></span>
+            <span class="txt">3 bens selecionados</span>
+            <div class="acoes">
+              <button class="btn btn-sm">Imprimir na térmica</button>
+              <button class="btn btn-sm">Gerar arquivo (gráfica)</button>
+              <button class="btn btn-sm">Limpar seleção</button>
+            </div>
+          </div>
+
+          <table class="dados">
+            <tr>
+              <th style="width:34px"><span class="chk on"></span></th>
+              <th style="width:110px">Tombo</th>
+              <th>Descrição</th>
+              <th style="width:150px">Marca / modelo</th>
+              <th style="width:170px">Localização</th>
+              <th style="width:110px">Situação</th>
+              <th style="width:90px">Etiqueta</th>
+              <th style="width:70px"></th>
+            </tr>
+            <tr class="sel"><td><span class="chk on"></span></td><td class="tombo">PAT-0001</td>
+              <td>Cadeira giratória diretor</td><td>Flexform Cavaletti</td><td>Recepção — Sala 1</td>
+              <td><span class="badge b-green">Ativo</span></td><td><span class="badge b-gray">Impressa</span></td>
+              <td><span class="acao-linha">Abrir</span></td></tr>
+            <tr class="sel"><td><span class="chk on"></span></td><td class="tombo">PAT-0014</td>
+              <td>Cadeira fixa para espera</td><td>—</td><td>Recepção — Sala 1</td>
+              <td><span class="badge b-green">Ativo</span></td><td><span class="badge b-amber">Nunca</span></td>
+              <td><span class="acao-linha">Abrir</span></td></tr>
+            <tr class="sel"><td><span class="chk on"></span></td><td class="tombo">PAT-0027</td>
+              <td>Cadeira para coleta</td><td>Ergomed EC-200</td><td>Coleta — Sala 3</td>
+              <td><span class="badge b-green">Ativo</span></td><td><span class="badge b-amber">Nunca</span></td>
+              <td><span class="acao-linha">Abrir</span></td></tr>
+            <tr><td><span class="chk"></span></td><td class="tombo">PAT-0038</td>
+              <td>Cadeira odontológica adaptada</td><td>Dabi Atlante</td><td>Consultório 2</td>
+              <td><span class="badge b-amber">Em apuração</span></td><td><span class="badge b-gray">Impressa</span></td>
+              <td><span class="acao-linha">Abrir</span></td></tr>
+            <tr><td><span class="chk"></span></td><td class="tombo">PAT-0052</td>
+              <td>Cadeira de rodas para transporte</td><td>Jaguaribe</td><td>Corredor — Ala B</td>
+              <td><span class="badge b-red">Baixado</span></td><td><span class="badge b-gray">—</span></td>
+              <td><span class="acao-linha">Abrir</span></td></tr>
+          </table>
+          <div class="rodape-tab">
+            <span>5 de 312 bens · 3 selecionados</span>
+            <div class="pag"><span class="on">1</span><span>2</span><span>3</span><span>›</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="nota">
+    <b>Seleção múltipla (RF-28):</b> a caixa do cabeçalho marca a página inteira; a barra verde só aparece com
+    algo selecionado, e nela ficam as duas saídas de etiqueta. Bens baixados podem ser selecionados para
+    visualização, mas a emissão os recusa — etiqueta de bem baixado colada em campo gera leitura fantasma na
+    próxima conferência.
+    <br><br>
+    <b>Coluna Etiqueta:</b> existe por causa do AP-07. Como não há número de série, a etiqueta física é a única
+    identidade do bem — saber quais nunca foram impressas é operacionalmente crítico antes da primeira
+    campanha. O filtro “Nunca impressa” dá a fila de trabalho.
+  </div>
+</div>
+
+<!-- ══════════ T-24 ══════════ -->
+<div>
+  <div class="section-title">T-24 · Cadastro de bem <span class="badge b-teal">novo</span></div>
+  <div class="window">
+    <div class="win-titlebar">
+      <span>SCE — Controle de Patrimônio <span class="win-modo">Patrimônio</span></span>
+      <div class="win-controls"><div class="wc"></div><div class="wc"></div><div class="wc"></div></div>
+    </div>
+    <div class="app-layout" style="min-height:520px">
+      <div class="sidebar">
+        <div class="sidebar-user"><div class="su-name">João Silva</div>
+          <div class="su-role"><span>Técnico</span></div></div>
+        <div class="modo-tag"><div class="mt-dot"></div><div class="mt-txt">Controle de Patrimônio</div></div>
+        <div class="menu-group">
+          <div class="menu-label">Bens</div>
+          <div class="menu-item"><div class="menu-icon"></div> Bens patrimoniais</div>
+          <div class="menu-item active"><div class="menu-icon"></div> Cadastrar bem</div>
+          <div class="menu-item"><div class="menu-icon"></div> Movimentar / Baixar</div>
+          <div class="menu-item"><div class="menu-icon"></div> Etiquetas</div>
+          <div class="menu-label">Inventário</div>
+          <div class="menu-item"><div class="menu-icon"></div> Sessões <span class="pill">1 aberta</span></div>
+        </div>
+        <div class="sidebar-bottom">
+          <button class="btn-modo"><div class="menu-icon"></div> ‹ Voltar ao Estoque</button>
+          <div class="rodape"><button class="btn-sair">Trocar senha &nbsp;·&nbsp; Sair</button></div>
+        </div>
+      </div>
+      <div class="conteudo">
+        <div class="cab"><h1>Cadastrar bem</h1><span class="trilha"><b>Patrimônio</b> › Bens › Novo</span></div>
+        <div class="corpo">
+          <div class="form-card">
+            <div class="form-sec">Identificação</div>
+            <div class="grid2">
+              <div class="campo">
+                <label>Número de tombo</label>
+                <div class="tombo-preview">
+                  <div class="tp-num">PAT-0313</div>
+                  <div class="tp-txt">Gerado automaticamente ao salvar<br>Sequência contínua · imutável</div>
+                </div>
+              </div>
+              <div class="campo">
+                <label>Descrição <span class="opc">· obrigatório</span></label>
+                <input value="Armário de aço 2 portas">
+                <span class="dica">Como o bem é reconhecido em campo. Aparece na etiqueta e na conferência.</span>
+              </div>
+            </div>
+            <div class="grid2" style="margin-top:14px">
+              <div class="campo"><label>Marca / modelo <span class="opc">· opcional</span></label>
+                <input value="Pandin PA-90"></div>
+              <div class="campo"><label>Localização <span class="opc">· obrigatório</span></label>
+                <select><option>Almoxarifado — Sala 2</option><option>Recepção — Sala 1</option></select>
+                <span class="dica">Cadastradas previamente pelo TI.</span></div>
+            </div>
+
+            <div class="form-sec">Aquisição <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#ABA9A2">— todos opcionais</span></div>
+            <div class="grid3">
+              <div class="campo"><label>Data de aquisição</label><input value="" placeholder="dd/mm/aaaa"></div>
+              <div class="campo"><label>Valor de aquisição</label><input value="" placeholder="R$ 0,00"></div>
+              <div class="campo"><label>Nota fiscal</label><input value="" placeholder="Número da NF"></div>
+            </div>
+
+            <div class="form-sec">Observação</div>
+            <div class="campo"><textarea placeholder="Informações adicionais sobre o bem"></textarea></div>
+
+            <div class="form-rodape">
+              <button class="btn">Cancelar</button>
+              <div class="dir">
+                <button class="btn">Salvar</button>
+                <button class="btn btn-pri">Salvar e imprimir etiqueta</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="nota">
+    <b>O tombo é exibido, nunca digitado.</b> Mostrar o próximo número antes de salvar dá previsibilidade a
+    quem cadastra vários bens seguidos, mas o campo é somente leitura: a emissão real acontece na transação de
+    gravação, com bloqueio de linha. Se outra estação cadastrar no intervalo, o número final pode diferir do
+    exibido — por isso a dica “gerado ao salvar”, e não “seu tombo será”.
+    <br><br>
+    <b>“Salvar e imprimir etiqueta”</b> encadeia as duas ações mais comuns: cadastrar e etiquetar acontecem
+    juntos na prática, e separá-los em duas telas dobraria o trabalho de carga inicial do acervo.
+    <br><br>
+    <b>Aquisição em seção própria, marcada como opcional.</b> A clínica raramente terá NF de móvel antigo.
+    Agrupar os três campos e rotular o bloco evita que o operador ache que travou o cadastro por não ter o dado.
+  </div>
+</div>
+
+<!-- ══════════ T-25 ══════════ -->
+<div>
+  <div class="section-title">T-25 · Movimentação e baixa <span class="badge b-teal">novo</span></div>
+  <div class="window">
+    <div class="win-titlebar">
+      <span>SCE — Controle de Patrimônio <span class="win-modo">Patrimônio</span></span>
+      <div class="win-controls"><div class="wc"></div><div class="wc"></div><div class="wc"></div></div>
+    </div>
+    <div class="app-layout" style="min-height:600px">
+      <div class="sidebar">
+        <div class="sidebar-user"><div class="su-name">Ana Costa</div>
+          <div class="su-role"><span>Administrador</span></div></div>
+        <div class="modo-tag"><div class="mt-dot"></div><div class="mt-txt">Controle de Patrimônio</div></div>
+        <div class="menu-group">
+          <div class="menu-label">Bens</div>
+          <div class="menu-item"><div class="menu-icon"></div> Bens patrimoniais</div>
+          <div class="menu-item"><div class="menu-icon"></div> Cadastrar bem</div>
+          <div class="menu-item active"><div class="menu-icon"></div> Movimentar / Baixar</div>
+          <div class="menu-item"><div class="menu-icon"></div> Etiquetas</div>
+          <div class="menu-label">Inventário</div>
+          <div class="menu-item"><div class="menu-icon"></div> Sessões <span class="pill">1 aberta</span></div>
+        </div>
+        <div class="sidebar-bottom">
+          <button class="btn-modo"><div class="menu-icon"></div> ‹ Voltar ao Estoque</button>
+          <div class="rodape"><button class="btn-sair">Trocar senha &nbsp;·&nbsp; Sair</button></div>
+        </div>
+      </div>
+      <div class="conteudo">
+        <div class="cab"><h1>PAT-0001 — Cadeira giratória diretor</h1>
+          <span class="trilha"><b>Patrimônio</b> › Bens › Movimentar</span></div>
+        <div class="corpo">
+          <div class="duas-col">
+            <div>
+              <div class="abas">
+                <div class="aba on">Transferir</div>
+                <div class="aba">Baixar</div>
+                <div class="aba">Editar dados</div>
+              </div>
+
+              <div class="form-card">
+                <div class="alerta amber">
+                  <div class="ico"></div>
+                  <div>Este bem está no snapshot da sessão <b>“Recepção — ago/26”</b>, aberta há 2 dias.
+                  Transferi-lo agora fará com que apareça como divergência na conferência.</div>
+                </div>
+
+                <div class="grid2">
+                  <div class="campo bloq"><label>Localização atual</label><input value="Recepção — Sala 1" readonly></div>
+                  <div class="campo"><label>Nova localização <span class="opc">· obrigatório</span></label>
+                    <select><option>Selecione…</option><option>Almoxarifado — Sala 2</option>
+                    <option>Consultório 2</option></select></div>
+                </div>
+                <div class="campo" style="margin-top:14px">
+                  <label>Motivo <span class="opc">· obrigatório</span></label>
+                  <textarea placeholder="Ex.: realocação por reforma da recepção"></textarea>
+                  <span class="dica">Fica no histórico permanente do bem e não pode ser editado depois.</span>
+                </div>
+                <div class="form-rodape">
+                  <button class="btn">Cancelar</button>
+                  <div class="dir"><button class="btn btn-pri">Confirmar transferência</button></div>
+                </div>
+              </div>
+
+              <div class="form-card" style="margin-top:18px;border-color:#EDC9C9">
+                <div class="form-sec" style="color:var(--vermelho);border-color:#F6E3E3">Aba “Baixar” — perfis Administrador e TI</div>
+                <div class="alerta red"><div class="ico"></div>
+                  <div><b>A baixa é irreversível pela interface.</b> O bem sai do escopo de inventários futuros
+                  e permanece consultável apenas para auditoria.</div></div>
+                <div class="grid3">
+                  <div class="campo"><label>Motivo <span class="opc">· obrigatório</span></label>
+                    <select><option>Descarte</option><option>Doação</option><option>Venda</option>
+                    <option>Extravio</option><option>Obsolescência</option><option>Sinistro</option></select></div>
+                  <div class="campo"><label>Data da baixa</label><input value="11/08/2026"></div>
+                  <div class="campo"><label>Documento <span class="opc">· opcional</span></label>
+                    <input placeholder="Ata, termo, processo"></div>
+                </div>
+                <div class="form-rodape">
+                  <div class="dir"><button class="btn btn-perigo">Registrar baixa</button></div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="bem-resumo">
+                <div class="br-topo"><span class="br-tombo">PAT-0001</span>
+                  <span class="badge b-green">Ativo</span></div>
+                <div class="br-desc">Cadeira giratória diretor</div>
+                <div class="br-linha"><span class="k">Marca / modelo</span><span>Flexform Cavaletti</span></div>
+                <div class="br-linha"><span class="k">Localização</span><span>Recepção — Sala 1</span></div>
+                <div class="br-linha"><span class="k">Aquisição</span><span>12/03/2019</span></div>
+                <div class="br-linha"><span class="k">Valor</span><span>R$ 890,00</span></div>
+                <div class="br-linha"><span class="k">Nota fiscal</span><span>—</span></div>
+                <div class="br-linha"><span class="k">Etiqueta</span><span>Impressa em 04/08/2026</span></div>
+              </div>
+
+              <div class="bem-resumo" style="margin-top:14px">
+                <div class="form-sec" style="margin-top:0">Histórico · somente leitura</div>
+                <div class="timeline">
+                  <div class="tl-item ajuste">
+                    <div class="tl-t">Ajuste de inventário</div>
+                    <div class="tl-s">Consultório 2 › Recepção — Sala 1<br>04/08/2026 · Ana Costa · sessão #12</div>
+                  </div>
+                  <div class="tl-item">
+                    <div class="tl-t">Transferência</div>
+                    <div class="tl-s">Recepção — Sala 1 › Consultório 2<br>19/05/2026 · João Silva</div>
+                  </div>
+                  <div class="tl-item">
+                    <div class="tl-t">Cadastro</div>
+                    <div class="tl-s">Recepção — Sala 1<br>12/03/2019 · Ana Costa</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="nota">
+    <b>Três abas, um bem.</b> Transferir, baixar e editar operam sobre o mesmo registro e compartilham o painel
+    lateral — separá-los em telas distintas obrigaria a buscar o bem três vezes. As duas caixas de formulário
+    aparecem juntas aqui apenas para o wireframe mostrar as duas abas; na tela real, uma por vez.
+    <br><br>
+    <b>Editar não move o bem.</b> A aba “Editar dados” não tem campo de localização: mudança de lotação é
+    transferência e gera histórico. Permitir na edição abriria caminho para alteração sem rastro, furando a
+    RN-11. O serviço recusa a operação mesmo que a tela envie.
+    <br><br>
+    <b>Aviso de sessão aberta:</b> movimentar um bem que está no snapshot de uma campanha em andamento é
+    legítimo, mas gera divergência que não é divergência real. O alerta é informativo — não bloqueia — e evita
+    que a gestora estranhe o resultado no fechamento.
+    <br><br>
+    <b>Histórico como linha do tempo, sem ação alguma.</b> Não há botão de editar ou excluir: a tabela é
+    append-only (RN-11). Correção se faz por nova movimentação.
+  </div>
+</div>
+
+</div>
+</body>
+</html>

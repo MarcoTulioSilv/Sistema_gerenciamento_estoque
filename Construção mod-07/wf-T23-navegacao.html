@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Wireframes SCE — Subsistema Patrimônio · Navegação e transição</title>
+<style>
+:root {
+  --azul: #1F4E79; --azul-m: #2E75B6; --azul-l: #D6E4F0;
+  --petroleo: #1F5F5B; --petroleo-m: #2E8A83; --petroleo-l: #D7ECEA;
+  --cinza-e: #F2F1ED; --cinza-b: #E8E6DE; --cinza-m: #888780;
+  --cinza-t: #3d3d3a; --branco: #ffffff;
+  --verde: #1D9E75; --amber: #BA7517; --vermelho: #A32D2D;
+  --sidebar-w: 200px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #ECEAE4; color: var(--cinza-t); }
+
+.page { padding: 32px; display: flex; flex-direction: column; gap: 40px; }
+.section-title {
+  font-size: 13px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--cinza-m); margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-title::after { content:''; flex:1; height:1px; background:var(--cinza-b); }
+.badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 8px; }
+.b-gray { background: #F1EFE8; color: #5F5E5A; }
+.b-blue { background: #E6F1FB; color: #185FA5; }
+.b-green { background: #EAF3DE; color: #3B6D11; }
+.b-amber { background: #FAEEDA; color: #854F0B; }
+.b-teal  { background: var(--petroleo-l); color: #14504C; }
+.nota {
+  font-size: 12px; color: var(--cinza-m); line-height: 1.55;
+  background: var(--branco); border-left: 3px solid var(--cinza-b);
+  padding: 10px 14px; border-radius: 0 6px 6px 0; margin-top: 12px;
+}
+.nota b { color: var(--cinza-t); }
+
+.window {
+  background: var(--branco); border-radius: 8px;
+  border: 1px solid var(--cinza-b); overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,.08);
+}
+.win-titlebar {
+  background: var(--azul); color: #fff; padding: 8px 16px;
+  font-size: 13px; font-weight: 500; display: flex;
+  justify-content: space-between; align-items: center; user-select: none;
+}
+.win-titlebar.patrim { background: var(--petroleo); }
+.win-controls { display: flex; gap: 6px; }
+.wc { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.3); }
+.win-modo {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  background: rgba(255,255,255,.18); padding: 2px 8px; border-radius: 8px; margin-left: 10px;
+}
+
+.app-layout { display: flex; min-height: 500px; position: relative; }
+.sidebar { width: var(--sidebar-w); background: var(--azul); flex-shrink: 0; display: flex; flex-direction: column; }
+.sidebar.patrim { background: var(--petroleo); }
+.sidebar-user { padding: 14px 14px 10px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.su-name { font-size: 12px; font-weight: 600; color: #fff; }
+.su-role { font-size: 10px; color: rgba(255,255,255,.55); margin-top: 1px; }
+.su-role span { background: rgba(255,255,255,.15); padding: 1px 6px; border-radius: 6px; }
+
+.modo-tag {
+  padding: 8px 14px; background: rgba(0,0,0,.18);
+  display: flex; align-items: center; gap: 8px;
+}
+.modo-tag .mt-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--petroleo-m); }
+.modo-tag .mt-dot.azul { background: var(--azul-m); }
+.modo-tag .mt-txt { font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: rgba(255,255,255,.85); }
+
+.menu-group { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+.menu-label { padding: 4px 14px 2px; font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.4); }
+.menu-item { padding: 8px 14px; font-size: 12px; color: rgba(255,255,255,.8);
+  display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.menu-item:hover { background: rgba(255,255,255,.1); }
+.menu-item.active { background: rgba(255,255,255,.18); color: #fff; font-weight: 600; }
+.menu-item.disabled { color: rgba(255,255,255,.25); cursor: default; }
+.menu-icon { width: 14px; height: 14px; background: rgba(255,255,255,.2); border-radius: 3px; flex-shrink: 0; }
+.menu-item .pill {
+  margin-left: auto; font-size: 9px; font-weight: 700; padding: 1px 6px;
+  border-radius: 7px; background: var(--amber); color: #fff;
+}
+
+.sidebar-bottom { margin-top: auto; }
+.btn-modo {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 11px 14px; background: rgba(255,255,255,.10);
+  border: none; border-top: 1px solid rgba(255,255,255,.16);
+  color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; text-align: left;
+  font-family: inherit;
+}
+.btn-modo:hover { background: rgba(255,255,255,.18); }
+.btn-modo .seta { margin-left: auto; opacity: .7; font-size: 13px; }
+.rodape { padding: 10px 14px; border-top: 1px solid rgba(255,255,255,.1); }
+.btn-sair { font-size: 11px; color: rgba(255,255,255,.5); background: none;
+  border: none; cursor: pointer; padding: 0; font-family: inherit; }
+
+.conteudo { flex: 1; background: var(--cinza-e); display: flex; flex-direction: column; }
+.cab {
+  background: var(--branco); border-bottom: 1px solid var(--cinza-b);
+  padding: 14px 22px; display: flex; align-items: center; gap: 12px;
+}
+.cab h1 { font-size: 16px; font-weight: 600; color: var(--cinza-t); }
+.cab .trilha { font-size: 11px; color: var(--cinza-m); }
+.cab .trilha b { color: var(--petroleo); font-weight: 600; }
+.corpo { padding: 22px; flex: 1; }
+
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+.card { background: var(--branco); border: 1px solid var(--cinza-b); border-radius: 8px; padding: 14px 16px; }
+.card .k { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--cinza-m); }
+.card .v { font-size: 24px; font-weight: 600; color: var(--petroleo); margin-top: 4px; }
+.card .s { font-size: 11px; color: var(--cinza-m); margin-top: 2px; }
+.placeholder {
+  background: var(--branco); border: 1px dashed var(--cinza-b); border-radius: 8px;
+  padding: 26px; text-align: center; font-size: 12px; color: var(--cinza-m);
+}
+
+/* ─── TRANSIÇÃO ─── */
+.trans-tira { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.quadro { position: relative; }
+.quadro .rot {
+  font-size: 10px; font-weight: 700; color: var(--cinza-m); margin-bottom: 6px;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.mini { height: 200px; position: relative; overflow: hidden; border-radius: 6px;
+  border: 1px solid var(--cinza-b); background: var(--cinza-e); }
+.mini .fundo { position: absolute; inset: 0; display: flex; }
+.mini .sb { width: 62px; background: var(--azul); }
+.mini .sb.patrim { background: var(--petroleo); }
+.mini .ct { flex: 1; background: var(--cinza-e); padding: 10px; }
+.mini .linha { height: 7px; background: var(--cinza-b); border-radius: 3px; margin-bottom: 6px; }
+.mini .linha.curta { width: 55%; }
+.overlay {
+  position: absolute; inset: 0; background: var(--petroleo);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #fff; gap: 8px;
+}
+.overlay .ov-t { font-size: 15px; font-weight: 600; letter-spacing: .02em; }
+.overlay .ov-s { font-size: 10px; color: rgba(255,255,255,.65); letter-spacing: .1em; text-transform: uppercase; }
+.overlay .ov-mark { width: 34px; height: 34px; border-radius: 8px; background: rgba(255,255,255,.18); margin-bottom: 4px; }
+.overlay.azul-ov { background: var(--azul); }
+.seta-dir { font-size: 10px; color: var(--cinza-m); margin-top: 5px; letter-spacing: .03em; }
+
+/* Demonstração animada */
+.demo { display: flex; gap: 18px; align-items: flex-start; }
+.demo-janela { flex: 1; }
+.btn-demo {
+  padding: 9px 16px; background: var(--petroleo-m); color: #fff; border: none;
+  border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.btn-demo.azul { background: var(--azul-m); }
+#palco { position: relative; overflow: hidden; }
+#veu {
+  position: absolute; inset: 0; background: var(--petroleo); z-index: 5;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #fff; gap: 6px; transform: translateX(-100%); transition: transform .34s ease-in-out;
+}
+#veu.azul { background: var(--azul); }
+/* Posições de repouso — a regra .entra vem depois e vence quando ambas existem */
+#veu.pos-esq { transform: translateX(-100%); }
+#veu.pos-dir { transform: translateX(100%); }
+#veu.entra   { transform: translateX(0); }
+.legenda { font-size: 11px; color: var(--cinza-m); margin-top: 8px; }
+table.spec { width: 100%; border-collapse: collapse; background: var(--branco); font-size: 12px; }
+table.spec th, table.spec td { border: 1px solid var(--cinza-b); padding: 7px 10px; text-align: left; vertical-align: top; }
+table.spec th { background: var(--cinza-e); font-weight: 600; font-size: 11px;
+  text-transform: uppercase; letter-spacing: .05em; color: var(--cinza-m); }
+table.spec td code { background: var(--cinza-e); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ══════════ 1. MODO ESTOQUE ══════════ -->
+<div>
+  <div class="section-title">1 · Modo Estoque — botão de troca no rodapé da sidebar <span class="badge b-blue">alterado</span></div>
+  <div class="window">
+    <div class="win-titlebar">
+      <span>SCE — Sistema de Controle de Estoque <span class="win-modo">Estoque</span></span>
+      <div class="win-controls"><div class="wc"></div><div class="wc"></div><div class="wc"></div></div>
+    </div>
+    <div class="app-layout">
+      <div class="sidebar">
+        <div class="sidebar-user">
+          <div class="su-name">João Silva</div>
+          <div class="su-role"><span>Técnico</span></div>
+        </div>
+        <div class="modo-tag"><div class="mt-dot azul"></div><div class="mt-txt">Controle de Estoque</div></div>
+        <div class="menu-group">
+          <div class="menu-label">Estoque</div>
+          <div class="menu-item active"><div class="menu-icon"></div> Início</div>
+          <div class="menu-item"><div class="menu-icon"></div> Produtos</div>
+          <div class="menu-item"><div class="menu-icon"></div> Fornecedores</div>
+          <div class="menu-label">Movimentação</div>
+          <div class="menu-item"><div class="menu-icon"></div> Entrada manual</div>
+          <div class="menu-item"><div class="menu-icon"></div> Importar NF-e</div>
+          <div class="menu-item"><div class="menu-icon"></div> Retirada</div>
+          <div class="menu-label">Consulta</div>
+          <div class="menu-item"><div class="menu-icon"></div> Posição estoque</div>
+          <div class="menu-item"><div class="menu-icon"></div> Dashboard</div>
+        </div>
+        <div class="sidebar-bottom">
+          <button class="btn-modo">
+            <div class="menu-icon"></div> Ir para Patrimônio <span class="seta">›</span>
+          </button>
+          <div class="rodape"><button class="btn-sair">Trocar senha &nbsp;·&nbsp; Sair</button></div>
+        </div>
+      </div>
+      <div class="conteudo">
+        <div class="cab"><h1>Início</h1><span class="trilha">Estoque</span></div>
+        <div class="corpo"><div class="placeholder">Conteúdo atual da T-02 — inalterado</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="nota">
+    O botão fica <b>acima</b> de “Trocar senha · Sair”, separado por borda superior e com fundo levemente
+    destacado — é ação de navegação, não de conta. O grupo “Acesso restrito” não aparece aqui porque o
+    perfil é Técnico.
+  </div>
+</div>
+
+<!-- ══════════ 2. TRANSIÇÃO ══════════ -->
+<div>
+  <div class="section-title">2 · Transição entre subsistemas <span class="badge b-teal">novo</span></div>
+  <div style="font-size:11px;font-weight:700;color:var(--cinza-m);letter-spacing:.06em;margin-bottom:8px;">
+    ESTOQUE › PATRIMÔNIO — véu verde entra pela esquerda e recua pela esquerda
+  </div>
+  <div class="trans-tira">
+    <div class="quadro">
+      <div class="rot">0 ms — clique</div>
+      <div class="mini">
+        <div class="fundo"><div class="sb"></div><div class="ct">
+          <div class="linha"></div><div class="linha curta"></div><div class="linha"></div></div></div>
+        <div class="overlay" style="left:-100%"></div>
+      </div>
+      <div class="seta-dir">véu aguarda à esquerda &nbsp;›</div>
+    </div>
+    <div class="quadro">
+      <div class="rot">170 ms — cobre</div>
+      <div class="mini">
+        <div class="fundo"><div class="sb"></div><div class="ct">
+          <div class="linha"></div><div class="linha curta"></div></div></div>
+        <div class="overlay">
+          <div class="ov-mark"></div>
+          <div class="ov-t">Patrimônio</div>
+          <div class="ov-s">Centro de Uronefrologia</div>
+        </div>
+      </div>
+      <div class="seta-dir">&nbsp;</div>
+    </div>
+    <div class="quadro">
+      <div class="rot">340 ms — recua à esquerda</div>
+      <div class="mini">
+        <div class="fundo"><div class="sb patrim"></div><div class="ct">
+          <div class="linha"></div><div class="linha curta"></div><div class="linha"></div></div></div>
+        <div class="overlay" style="left:-100%"></div>
+      </div>
+      <div class="seta-dir">‹ &nbsp;véu volta para a esquerda</div>
+    </div>
+  </div>
+
+  <div style="font-size:11px;font-weight:700;color:var(--cinza-m);letter-spacing:.06em;margin:22px 0 8px;">
+    PATRIMÔNIO › ESTOQUE — véu azul entra pela direita e sai pela esquerda
+  </div>
+  <div class="trans-tira">
+    <div class="quadro">
+      <div class="rot">0 ms — clique</div>
+      <div class="mini">
+        <div class="fundo"><div class="sb patrim"></div><div class="ct">
+          <div class="linha"></div><div class="linha curta"></div><div class="linha"></div></div></div>
+        <div class="overlay azul-ov" style="left:100%"></div>
+      </div>
+      <div class="seta-dir">‹ &nbsp;véu aguarda à direita</div>
+    </div>
+    <div class="quadro">
+      <div class="rot">170 ms — cobre</div>
+      <div class="mini">
+        <div class="fundo"><div class="sb patrim"></div><div class="ct">
+          <div class="linha"></div><div class="linha curta"></div></div></div>
+        <div class="overlay azul-ov">
+          <div class="ov-mark"></div>
+          <div class="ov-t">Controle de Estoque</div>
+          <div class="ov-s">Centro de Uronefrologia</div>
+        </div>
+      </div>
+      <div class="seta-dir">&nbsp;</div>
+    </div>
+    <div class="quadro">
+      <div class="rot">340 ms — sai pela esquerda</div>
+      <div class="mini">
+        <div class="fundo"><div class="sb"></div><div class="ct">
+          <div class="linha"></div><div class="linha curta"></div><div class="linha"></div></div></div>
+        <div class="overlay azul-ov" style="left:-100%"></div>
+      </div>
+      <div class="seta-dir">‹ &nbsp;véu segue para a esquerda</div>
+    </div>
+  </div>
+
+  <div class="nota">
+    <b>Metáfora espacial:</b> o Patrimônio fica “guardado” à esquerda da tela e o Estoque à direita. O véu
+    sempre vem do lado onde mora o destino, e o movimento final reforça a direção: indo ao Patrimônio ele
+    <b>recua</b> pela esquerda (vai e volta); voltando ao Estoque ele <b>atravessa</b> para a esquerda, como
+    se empurrasse a tela anterior para fora de cena.
+    <br><br>
+    <b>Como funciona:</b> um <code>Frame</code> em <code>place()</code> ocupando a janela inteira desliza sobre
+    o conteúdo, que é reconstruído por baixo enquanto está coberto. Deslocamento por
+    <code>after(16, ...)</code>, ~34 ms por passo.
+    <br><br>
+    <b>Por que deslizar e não desvanecer:</b> no Tkinter, <code>-alpha</code> só existe em <code>Toplevel</code>.
+    Não há opacidade em <code>Frame</code> — fade exigiria uma janela sem borda sobreposta, que pisca ao ganhar
+    foco. O deslize é nativo e estável.
+  </div>
+</div>
+
+<!-- ══════════ 3. DEMONSTRAÇÃO ══════════ -->
+<div>
+  <div class="section-title">3 · Demonstração — clique para alternar</div>
+  <div class="demo">
+    <div class="demo-janela">
+      <div class="window">
+        <div class="win-titlebar" id="tbar">
+          <span id="tbar-txt">SCE — Sistema de Controle de Estoque <span class="win-modo" id="tbar-modo">Estoque</span></span>
+          <div class="win-controls"><div class="wc"></div><div class="wc"></div><div class="wc"></div></div>
+        </div>
+        <div class="app-layout" id="palco">
+          <div id="veu"><div class="ov-mark"></div><div class="ov-t" id="veu-t">Patrimônio</div>
+            <div class="ov-s">Centro de Uronefrologia</div></div>
+          <div class="sidebar" id="sb">
+            <div class="sidebar-user">
+              <div class="su-name">João Silva</div><div class="su-role"><span>Técnico</span></div>
+            </div>
+            <div class="modo-tag"><div class="mt-dot azul" id="dot"></div>
+              <div class="mt-txt" id="modo-txt">Controle de Estoque</div></div>
+            <div class="menu-group" id="menu"></div>
+            <div class="sidebar-bottom">
+              <button class="btn-modo" id="btn-modo" onclick="alternar()">
+                <div class="menu-icon"></div> <span id="btn-txt">Ir para Patrimônio</span> <span class="seta">›</span>
+              </button>
+              <div class="rodape"><button class="btn-sair">Trocar senha &nbsp;·&nbsp; Sair</button></div>
+            </div>
+          </div>
+          <div class="conteudo">
+            <div class="cab"><h1 id="titulo">Início</h1><span class="trilha" id="trilha">Estoque</span></div>
+            <div class="corpo" id="corpo"></div>
+          </div>
+        </div>
+      </div>
+      <div class="legenda">Transição de 340 ms, igual à proposta para o CustomTkinter.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 4. MODO PATRIMÔNIO ══════════ -->
+<div>
+  <div class="section-title">4 · Modo Patrimônio — sidebar do subsistema <span class="badge b-teal">novo</span></div>
+  <div class="window">
+    <div class="win-titlebar patrim">
+      <span>SCE — Controle de Patrimônio <span class="win-modo">Patrimônio</span></span>
+      <div class="win-controls"><div class="wc"></div><div class="wc"></div><div class="wc"></div></div>
+    </div>
+    <div class="app-layout">
+      <div class="sidebar patrim">
+        <div class="sidebar-user">
+          <div class="su-name">João Silva</div>
+          <div class="su-role"><span>Técnico</span></div>
+        </div>
+        <div class="modo-tag"><div class="mt-dot"></div><div class="mt-txt">Controle de Patrimônio</div></div>
+        <div class="menu-group">
+          <div class="menu-label">Bens</div>
+          <div class="menu-item active"><div class="menu-icon"></div> Bens patrimoniais</div>
+          <div class="menu-item"><div class="menu-icon"></div> Cadastrar bem</div>
+          <div class="menu-item"><div class="menu-icon"></div> Movimentar / Baixar</div>
+          <div class="menu-item"><div class="menu-icon"></div> Etiquetas</div>
+          <div class="menu-label">Inventário</div>
+          <div class="menu-item"><div class="menu-icon"></div> Sessões <span class="pill">1 aberta</span></div>
+          <div class="menu-label">Consulta</div>
+          <div class="menu-item"><div class="menu-icon"></div> Relatórios</div>
+          <div class="menu-label">Acesso restrito</div>
+          <div class="menu-item disabled"><div class="menu-icon"></div> Localizações</div>
+          <div class="menu-item disabled"><div class="menu-icon"></div> Configurações</div>
+        </div>
+        <div class="sidebar-bottom">
+          <button class="btn-modo"><div class="menu-icon"></div> ‹ Voltar ao Estoque</button>
+          <div class="rodape"><button class="btn-sair">Trocar senha &nbsp;·&nbsp; Sair</button></div>
+        </div>
+      </div>
+      <div class="conteudo">
+        <div class="cab">
+          <h1>Bens patrimoniais</h1>
+          <span class="trilha"><b>Patrimônio</b> › Bens</span>
+        </div>
+        <div class="corpo">
+          <div class="cards">
+            <div class="card"><div class="k">Bens ativos</div><div class="v">312</div><div class="s">em 14 localizações</div></div>
+            <div class="card"><div class="k">Sem etiqueta</div><div class="v">27</div><div class="s">nunca impressa</div></div>
+            <div class="card"><div class="k">Em apuração</div><div class="v">4</div><div class="s">não localizados</div></div>
+            <div class="card"><div class="k">Baixados</div><div class="v">18</div><div class="s">no ano</div></div>
+          </div>
+          <div class="placeholder">Tabela de bens — detalhada na T-23</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="nota">
+    Três sinais simultâneos de contexto: <b>cor</b> (verde-petróleo contra o azul do estoque),
+    <b>rótulo fixo</b> abaixo do usuário, e <b>barra de título</b> com o nome do subsistema. A transição
+    marca o momento da troca; estes três marcam o estado — e é o estado que evita o “onde eu estou”
+    dez minutos depois.
+    <br><br>
+    O contador <span class="badge b-amber">1 aberta</span> em Sessões existe porque sessão de inventário é
+    estado de longa duração: quem entra no módulo precisa ver que há campanha em andamento sem abrir a tela.
+  </div>
+</div>
+
+<!-- ══════════ 5. ESPECIFICAÇÃO ══════════ -->
+<div>
+  <div class="section-title">5 · Especificação de implementação</div>
+  <table class="spec">
+    <tr><th style="width:22%">Item</th><th>Definição</th></tr>
+    <tr><td>Componente</td><td><code>gui/componentes/troca_modo.py</code> — overlay reutilizável; <code>gui/app.py</code> mantém <code>self._modo</code> e reconstrói a sidebar</td></tr>
+    <tr><td>Duração</td><td>340 ms no total (170 ms entrando, 170 ms saindo), <code>after(16, ...)</code></td></tr>
+    <tr><td>Direção</td><td>Ida ao Patrimônio: véu verde entra pela esquerda e recua pela esquerda. Volta ao Estoque: véu azul entra pela direita e sai pela esquerda. Reforça que o Patrimônio está à esquerda e o Estoque à direita</td></tr>
+    <tr><td>Desativável</td><td>Chave <code>ui_animacao_transicao</code> em <code>configuracao</code>. Em máquina lenta, a troca vira imediata sem alterar o resto do fluxo</td></tr>
+    <tr><td>Não bloqueante</td><td>Reconstrução da sidebar acontece <b>durante</b> o véu. Se demorar mais que a animação, o véu permanece até concluir — nunca o contrário</td></tr>
+    <tr><td>Memória de tela</td><td>Cada subsistema lembra a última tela aberta na sessão. Voltar ao Estoque devolve à tela onde o usuário estava, não ao Início</td></tr>
+    <tr><td>Coleta em andamento</td><td>Se houver sessão de inventário em coleta ativa, a troca pede confirmação — o progresso está em <code>inventario_item</code> e não se perde, mas a interrupção deve ser consciente</td></tr>
+    <tr><td>Permissão</td><td>Todos os perfis entram no Patrimônio. <code>tecnico</code> não vê Localizações nem Configurações; abertura e fechamento de sessão e baixa ficam desabilitados para ele</td></tr>
+    <tr><td>Atalho</td><td><code>Ctrl+M</code> alterna entre subsistemas, para quem alterna com frequência</td></tr>
+    <tr><td>Telas</td><td>T-23 Bens · T-24 Cadastro · T-25 Movimentação e baixa · T-26 Inventário (fluxo único) · T-27 Relatórios</td></tr>
+  </table>
+</div>
+
+</div>
+
+<script>
+const MENUS = {
+  estoque: [
+    ['label','Estoque'],['item','Início',true],['item','Produtos'],['item','Fornecedores'],
+    ['label','Movimentação'],['item','Entrada manual'],['item','Importar NF-e'],['item','Retirada'],
+    ['label','Consulta'],['item','Posição estoque'],['item','Dashboard']
+  ],
+  patrimonio: [
+    ['label','Bens'],['item','Bens patrimoniais',true],['item','Cadastrar bem'],
+    ['item','Movimentar / Baixar'],['item','Etiquetas'],
+    ['label','Inventário'],['item','Sessões',false,'1 aberta'],
+    ['label','Consulta'],['item','Relatórios'],
+    ['label','Acesso restrito'],['item','Localizações',false,null,true],['item','Configurações',false,null,true]
+  ]
+};
+let modo = 'estoque', ocupado = false;
+
+function pintarMenu() {
+  const alvo = document.getElementById('menu');
+  alvo.innerHTML = MENUS[modo].map(e => {
+    if (e[0] === 'label') return `<div class="menu-label">${e[1]}</div>`;
+    const cls = 'menu-item' + (e[2] ? ' active' : '') + (e[4] ? ' disabled' : '');
+    const pill = e[3] ? `<span class="pill">${e[3]}</span>` : '';
+    return `<div class="${cls}"><div class="menu-icon"></div> ${e[1]}${pill}</div>`;
+  }).join('');
+}
+
+function pintarModo() {
+  const p = modo === 'patrimonio';
+  document.getElementById('sb').className = 'sidebar' + (p ? ' patrim' : '');
+  document.getElementById('tbar').className = 'win-titlebar' + (p ? ' patrim' : '');
+  document.getElementById('dot').className = 'mt-dot' + (p ? '' : ' azul');
+  document.getElementById('modo-txt').textContent = p ? 'Controle de Patrimônio' : 'Controle de Estoque';
+  document.getElementById('btn-txt').textContent = p ? '‹ Voltar ao Estoque' : 'Ir para Patrimônio';
+  document.getElementById('tbar-modo').textContent = p ? 'Patrimônio' : 'Estoque';
+  document.getElementById('tbar-txt').childNodes[0].nodeValue =
+    p ? 'SCE — Controle de Patrimônio ' : 'SCE — Sistema de Controle de Estoque ';
+  document.getElementById('titulo').textContent = p ? 'Bens patrimoniais' : 'Início';
+  document.getElementById('trilha').innerHTML = p ? '<b>Patrimônio</b> › Bens' : 'Estoque';
+  document.getElementById('corpo').innerHTML = p
+    ? `<div class="cards">
+         <div class="card"><div class="k">Bens ativos</div><div class="v">312</div><div class="s">em 14 localizações</div></div>
+         <div class="card"><div class="k">Sem etiqueta</div><div class="v">27</div><div class="s">nunca impressa</div></div>
+         <div class="card"><div class="k">Em apuração</div><div class="v">4</div><div class="s">não localizados</div></div>
+         <div class="card"><div class="k">Baixados</div><div class="v">18</div><div class="s">no ano</div></div>
+       </div>
+       <div class="placeholder">Tabela de bens — detalhada na T-23</div>`
+    : `<div class="placeholder">Conteúdo atual da T-02 — inalterado</div>`;
+  pintarMenu();
+}
+
+function alternar() {
+  if (ocupado) return;
+  ocupado = true;
+  const veu = document.getElementById('veu');
+  const indoPatrim = modo === 'estoque';
+
+  // Entrada: verde pela esquerda (Patrimônio mora à esquerda),
+  //          azul pela direita  (Estoque mora à direita).
+  // Saída: sempre pela esquerda.
+  const classeInicial = indoPatrim ? 'pos-esq' : 'azul pos-dir';
+
+  veu.style.transition = 'none';          // reposiciona sem animar
+  veu.className = classeInicial;
+  veu.offsetHeight;
+  veu.style.transition = '';
+  veu.offsetHeight;
+
+  document.getElementById('veu-t').textContent = indoPatrim ? 'Patrimônio' : 'Controle de Estoque';
+  veu.classList.add('entra');
+
+  setTimeout(() => {
+    modo = indoPatrim ? 'patrimonio' : 'estoque';
+    pintarModo();                          // reconstrói por baixo do véu
+    veu.classList.remove('entra');
+    veu.classList.remove('pos-dir');
+    veu.classList.add('pos-esq');          // sai pela esquerda nos dois sentidos
+    setTimeout(() => { ocupado = false; }, 340);
+  }, 360);
+}
+pintarModo();
+</script>
+</body>
+</html>

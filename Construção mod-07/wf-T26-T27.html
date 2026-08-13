@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Wireframes SCE — T-26 Inventário · T-27 Relatórios · Página móvel</title>
+<style>
+:root {
+  --azul: #1F4E79; --azul-m: #2E75B6;
+  --petroleo: #1F5F5B; --petroleo-m: #2E8A83; --petroleo-l: #D7ECEA;
+  --cinza-e: #F2F1ED; --cinza-b: #E8E6DE; --cinza-m: #888780;
+  --cinza-t: #3d3d3a; --branco: #ffffff;
+  --verde: #1D9E75; --amber: #BA7517; --vermelho: #A32D2D;
+  --sidebar-w: 200px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #ECEAE4; color: var(--cinza-t); }
+.page { padding: 32px; display: flex; flex-direction: column; gap: 40px; }
+.section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--cinza-m); margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+.section-title::after { content:''; flex:1; height:1px; background:var(--cinza-b); }
+.badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 8px; }
+.b-gray{background:#F1EFE8;color:#5F5E5A} .b-green{background:#EAF3DE;color:#3B6D11}
+.b-amber{background:#FAEEDA;color:#854F0B} .b-red{background:#FCEBEB;color:#A32D2D}
+.b-teal{background:var(--petroleo-l);color:#14504C}
+.nota { font-size: 12px; color: var(--cinza-m); line-height: 1.55; background: var(--branco);
+  border-left: 3px solid var(--cinza-b); padding: 10px 14px; border-radius: 0 6px 6px 0; margin-top: 12px; }
+.nota b { color: var(--cinza-t); }
+
+.window { background: var(--branco); border-radius: 8px; border: 1px solid var(--cinza-b);
+  overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+.win-titlebar { background: var(--petroleo); color:#fff; padding:8px 16px; font-size:13px;
+  font-weight:500; display:flex; justify-content:space-between; align-items:center; }
+.win-controls{display:flex;gap:6px} .wc{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.3)}
+.win-modo{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  background:rgba(255,255,255,.18);padding:2px 8px;border-radius:8px;margin-left:10px}
+
+.app-layout{display:flex;min-height:560px}
+.sidebar{width:var(--sidebar-w);background:var(--petroleo);flex-shrink:0;display:flex;flex-direction:column}
+.sidebar-user{padding:14px 14px 10px;border-bottom:1px solid rgba(255,255,255,.12)}
+.su-name{font-size:12px;font-weight:600;color:#fff}
+.su-role{font-size:10px;color:rgba(255,255,255,.55);margin-top:1px}
+.su-role span{background:rgba(255,255,255,.15);padding:1px 6px;border-radius:6px}
+.modo-tag{padding:8px 14px;background:rgba(0,0,0,.18);display:flex;align-items:center;gap:8px}
+.mt-dot{width:7px;height:7px;border-radius:50%;background:var(--petroleo-m)}
+.mt-txt{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.85)}
+.menu-group{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+.menu-label{padding:4px 14px 2px;font-size:9px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:rgba(255,255,255,.4)}
+.menu-item{padding:8px 14px;font-size:12px;color:rgba(255,255,255,.8);display:flex;align-items:center;gap:8px}
+.menu-item.active{background:rgba(255,255,255,.18);color:#fff;font-weight:600}
+.menu-item.disabled{color:rgba(255,255,255,.25)}
+.menu-icon{width:14px;height:14px;background:rgba(255,255,255,.2);border-radius:3px;flex-shrink:0}
+.menu-item .pill{margin-left:auto;font-size:9px;font-weight:700;padding:1px 6px;border-radius:7px;
+  background:var(--amber);color:#fff}
+.sidebar-bottom{margin-top:auto}
+.btn-modo{display:flex;align-items:center;gap:8px;width:100%;padding:11px 14px;background:rgba(255,255,255,.10);
+  border:none;border-top:1px solid rgba(255,255,255,.16);color:#fff;font-size:12px;font-weight:600;
+  text-align:left;font-family:inherit}
+.rodape{padding:10px 14px;border-top:1px solid rgba(255,255,255,.1)}
+.btn-sair{font-size:11px;color:rgba(255,255,255,.5);background:none;border:none;font-family:inherit}
+
+.conteudo{flex:1;background:var(--cinza-e);display:flex;flex-direction:column}
+.cab{background:var(--branco);border-bottom:1px solid var(--cinza-b);padding:14px 22px;
+  display:flex;align-items:center;gap:12px}
+.cab h1{font-size:16px;font-weight:600}
+.cab .trilha{font-size:11px;color:var(--cinza-m)} .cab .trilha b{color:var(--petroleo);font-weight:600}
+.cab .acoes{margin-left:auto;display:flex;gap:8px}
+.corpo{padding:18px 22px;flex:1}
+
+.btn{padding:8px 14px;border-radius:6px;font-size:12px;font-weight:500;border:1px solid var(--cinza-b);
+  background:var(--branco);color:var(--cinza-t);font-family:inherit}
+.btn-pri{background:var(--petroleo-m);color:#fff;border-color:var(--petroleo-m)}
+.btn-perigo{background:var(--branco);color:var(--vermelho);border-color:#E9C9C9}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn.off{opacity:.45}
+
+/* ─── ESTÁGIOS ─── */
+.stepper{display:flex;align-items:center;gap:0;background:var(--branco);border:1px solid var(--cinza-b);
+  border-radius:8px;padding:12px 18px;margin-bottom:16px}
+.step{display:flex;align-items:center;gap:9px;padding:0 4px}
+.step .num{width:24px;height:24px;border-radius:50%;background:var(--cinza-b);color:var(--cinza-m);
+  font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step.on .num{background:var(--petroleo-m);color:#fff}
+.step.done .num{background:var(--verde);color:#fff}
+.step .lb{font-size:12px;color:var(--cinza-m)}
+.step.on .lb{color:var(--petroleo);font-weight:600}
+.step.done .lb{color:var(--cinza-t)}
+.step-liga{flex:1;height:2px;background:var(--cinza-b);margin:0 6px}
+.step-liga.done{background:var(--verde)}
+
+.card{background:var(--branco);border:1px solid var(--cinza-b);border-radius:8px;padding:18px 20px}
+.form-sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--petroleo);
+  margin:0 0 12px;padding-bottom:6px;border-bottom:1px solid var(--cinza-e)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px}
+.campo{display:flex;flex-direction:column;gap:5px}
+.campo label{font-size:11px;font-weight:600;color:var(--cinza-m)}
+.campo input,.campo select{padding:8px 11px;border:1px solid var(--cinza-b);border-radius:6px;
+  font-size:12px;background:var(--cinza-e);color:var(--cinza-t);font-family:inherit}
+.campo .dica{font-size:10px;color:#ABA9A2}
+.radio-linha{display:flex;gap:10px;margin-top:2px}
+.radio-op{flex:1;border:1px solid var(--cinza-b);border-radius:7px;padding:11px 13px;background:var(--cinza-e)}
+.radio-op.on{border-color:var(--petroleo-m);background:var(--petroleo-l)}
+.radio-op .t{font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px}
+.radio-op .r{width:13px;height:13px;border-radius:50%;border:1px solid var(--cinza-m);flex-shrink:0}
+.radio-op.on .r{border:4px solid var(--petroleo-m)}
+.radio-op .d{font-size:10px;color:var(--cinza-m);margin-top:4px;margin-left:20px}
+.alerta{border-radius:6px;padding:10px 13px;font-size:12px;line-height:1.5;display:flex;gap:9px;
+  align-items:flex-start;margin-bottom:14px}
+.alerta.amber{background:#FAEEDA;color:#6E410A;border:1px solid #EBD3AE}
+.alerta.teal{background:var(--petroleo-l);color:#14504C;border:1px solid #B9DCD8}
+.alerta .ico{width:15px;height:15px;border-radius:50%;flex-shrink:0;margin-top:1px;background:currentColor;opacity:.35}
+.form-rodape{display:flex;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--cinza-e)}
+.form-rodape .dir{margin-left:auto;display:flex;gap:8px}
+
+/* ─── COLETA ─── */
+.coleta{display:grid;grid-template-columns:1.25fr .75fr;gap:16px;align-items:start}
+.bip-card{background:var(--branco);border:1px solid var(--cinza-b);border-radius:8px;overflow:hidden}
+.bip-topo{padding:12px 18px;background:var(--petroleo);color:#fff;display:flex;align-items:center;gap:12px}
+.bip-topo .loc{font-size:13px;font-weight:600}
+.bip-topo .sub{font-size:10px;color:rgba(255,255,255,.65)}
+.bip-topo .cont{margin-left:auto;text-align:right}
+.bip-topo .cont .n{font-size:20px;font-weight:700;line-height:1}
+.bip-topo .cont .l{font-size:10px;color:rgba(255,255,255,.65)}
+.barra-prog{height:5px;background:rgba(0,0,0,.2)}
+.barra-prog .fill{height:100%;background:var(--verde);width:62%}
+.bip-campo{padding:20px 18px;border-bottom:1px solid var(--cinza-e)}
+.bip-campo label{font-size:11px;font-weight:600;color:var(--cinza-m);display:block;margin-bottom:6px}
+.bip-input{width:100%;padding:14px 16px;border:2px solid var(--petroleo-m);border-radius:8px;
+  font-size:19px;font-family:Consolas,monospace;font-weight:600;color:var(--petroleo);
+  background:var(--branco);letter-spacing:.06em}
+.bip-dica{font-size:10px;color:#ABA9A2;margin-top:7px}
+.feedback{padding:16px 18px;display:flex;align-items:center;gap:14px;border-left:5px solid transparent}
+.feedback.ok{background:#F1F9F2;border-left-color:var(--verde)}
+.feedback.atencao{background:#FDF6EA;border-left-color:var(--amber)}
+.feedback.erro{background:#FCF0F0;border-left-color:var(--vermelho)}
+.fb-ico{width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
+  justify-content:center;font-size:19px;font-weight:700;color:#fff}
+.feedback.ok .fb-ico{background:var(--verde)} .feedback.atencao .fb-ico{background:var(--amber)}
+.feedback.erro .fb-ico{background:var(--vermelho)}
+.fb-txt .t{font-size:13px;font-weight:700}
+.feedback.ok .fb-txt .t{color:#186B45} .feedback.atencao .fb-txt .t{color:#7A4A08}
+.feedback.erro .fb-txt .t{color:#7E2222}
+.fb-txt .s{font-size:11px;color:var(--cinza-m);margin-top:2px}
+.fb-tombo{margin-left:auto;font-family:Consolas,monospace;font-size:15px;font-weight:700;color:var(--cinza-m)}
+.log{max-height:170px;overflow:hidden;border-top:1px solid var(--cinza-e)}
+.log-item{display:flex;align-items:center;gap:10px;padding:8px 18px;font-size:11px;border-bottom:1px solid var(--cinza-e)}
+.log-item .d{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.log-item .d.ok{background:var(--verde)} .log-item .d.at{background:var(--amber)} .log-item .d.er{background:var(--vermelho)}
+.log-item .tb{font-family:Consolas,monospace;font-weight:600;width:78px}
+.log-item .ds{flex:1;color:var(--cinza-m)}
+.log-item .hr{color:#ABA9A2}
+
+.lateral-card{background:var(--branco);border:1px solid var(--cinza-b);border-radius:8px;padding:14px 16px}
+.lc-tit{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--petroleo);
+  margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.lc-tit .n{margin-left:auto;background:var(--cinza-e);padding:1px 7px;border-radius:8px;color:var(--cinza-m)}
+.pend-item{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--cinza-e);font-size:11px}
+.pend-item:last-child{border-bottom:none}
+.pend-item .tb{font-family:Consolas,monospace;font-weight:600;color:var(--petroleo);width:72px}
+.pend-item .ds{flex:1;color:var(--cinza-m);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qr-pareamento{text-align:center;padding:4px 0}
+.qr-box{width:118px;height:118px;margin:0 auto 10px;background:
+  repeating-conic-gradient(var(--cinza-t) 0% 25%, var(--branco) 0% 50%) 50%/11px 11px;
+  border:6px solid var(--branco);outline:1px solid var(--cinza-b);border-radius:4px}
+.qr-txt{font-size:10px;color:var(--cinza-m);line-height:1.5}
+.disp{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--cinza-e);font-size:11px}
+.disp:last-child{border-bottom:none}
+.disp .pt{width:7px;height:7px;border-radius:50%;background:var(--verde)}
+.disp .nm{font-weight:600} .disp .lo{color:var(--cinza-m);margin-left:auto;font-size:10px}
+
+/* ─── FECHAMENTO ─── */
+.resumo-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
+.rc{background:var(--branco);border:1px solid var(--cinza-b);border-radius:8px;padding:13px 15px}
+.rc .k{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--cinza-m)}
+.rc .v{font-size:23px;font-weight:600;margin-top:3px}
+.rc.ok .v{color:var(--verde)} .rc.at .v{color:var(--amber)} .rc.er .v{color:var(--vermelho)}
+.rc .v.neutro{color:var(--cinza-t)}
+table.dados{width:100%;border-collapse:collapse;background:var(--branco);border:1px solid var(--cinza-b);
+  border-radius:8px;overflow:hidden;font-size:12px}
+table.dados th{background:var(--cinza-e);text-align:left;padding:9px 12px;font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--cinza-m);border-bottom:1px solid var(--cinza-b)}
+table.dados td{padding:9px 12px;border-bottom:1px solid var(--cinza-e);vertical-align:middle}
+table.dados tr:last-child td{border-bottom:none}
+table.dados .tombo{font-family:Consolas,monospace;font-weight:600;color:var(--petroleo)}
+.escolha{display:flex;gap:6px}
+.op{padding:4px 10px;border:1px solid var(--cinza-b);border-radius:5px;font-size:11px;background:var(--branco)}
+.op.on{background:var(--petroleo-m);color:#fff;border-color:var(--petroleo-m);font-weight:600}
+.op.on.nao{background:var(--cinza-m);border-color:var(--cinza-m)}
+.grupo-tit{font-size:12px;font-weight:600;margin:18px 0 8px;display:flex;align-items:center;gap:8px}
+
+/* ─── CELULAR ─── */
+.fones{display:flex;gap:22px;flex-wrap:wrap}
+.fone{width:232px}
+.fone-rot{font-size:11px;font-weight:700;color:var(--cinza-m);margin-bottom:7px;text-transform:uppercase;letter-spacing:.05em}
+.fone-corpo{border:9px solid #2A2A28;border-radius:24px;overflow:hidden;background:var(--branco);
+  box-shadow:0 3px 14px rgba(0,0,0,.14)}
+.fone-barra{background:#F6F5F2;padding:5px 10px;font-size:9px;color:var(--cinza-m);
+  display:flex;justify-content:space-between;border-bottom:1px solid var(--cinza-b)}
+.fone-topo{background:var(--petroleo);color:#fff;padding:10px 13px}
+.fone-topo .a{font-size:9px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.07em}
+.fone-topo .b{font-size:12px;font-weight:600;margin-top:2px}
+.fone-conteudo{padding:14px 13px;min-height:250px}
+.fc-tombo{font-family:Consolas,monospace;font-size:22px;font-weight:700;color:var(--petroleo)}
+.fc-desc{font-size:13px;font-weight:600;margin:3px 0 12px}
+.fc-linha{display:flex;font-size:11px;padding:6px 0;border-top:1px solid var(--cinza-e)}
+.fc-linha .k{color:var(--cinza-m);width:76px}
+.fc-btn{display:block;width:100%;padding:13px;border-radius:8px;font-size:13px;font-weight:600;
+  border:none;margin-top:16px;font-family:inherit}
+.fc-btn.pri{background:var(--petroleo-m);color:#fff}
+.fc-msg{border-radius:8px;padding:13px;text-align:center;margin-top:14px}
+.fc-msg.ok{background:#F1F9F2;border:1px solid #C5E6CE}
+.fc-msg.at{background:#FDF6EA;border:1px solid #EBD3AE}
+.fc-msg .ic{width:40px;height:40px;border-radius:50%;margin:0 auto 8px;display:flex;
+  align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:700}
+.fc-msg.ok .ic{background:var(--verde)} .fc-msg.at .ic{background:var(--amber)}
+.fc-msg .t{font-size:13px;font-weight:700} .fc-msg.ok .t{color:#186B45} .fc-msg.at .t{color:#7A4A08}
+.fc-msg .s{font-size:11px;color:var(--cinza-m);margin-top:3px}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ══════════ T-26 · ESTÁGIO 1 ══════════ -->
+<div>
+  <div class="section-title">T-26 · Inventário — estágio 1: abertura <span class="badge b-teal">novo</span></div>
+  <div class="window">
+    <div class="win-titlebar"><span>SCE — Controle de Patrimônio <span class="win-modo">Patrimônio</span></span>
+      <div class="win-controls"><div class="wc"></div><div class="wc"></div><div class="wc"></div></div></div>
+    <div class="app-layout" style="min-height:520px">
+      <div class="sidebar">
+        <div class="sidebar-user"><div class="su-name">Ana Costa</div><div class="su-role"><span>Administrador</span></div></div>
+        <div class="modo-tag"><div class="mt-dot"></div><div class="mt-txt">Controle de Patrimônio</div></div>
+        <div class="menu-group">
+          <div class="menu-label">Bens</div>
+          <div class="menu-item"><div class="menu-icon"></div> Bens patrimoniais</div>
+          <div class="menu-item"><div class="menu-icon"></div> Cadastrar bem</div>
+          <div class="menu-item"><div class="menu-icon"></div> Movimentar / Baixar</div>
+          <div class="menu-item"><div class="menu-icon"></div> Etiquetas</div>
+          <div class="menu-label">Inventário</div>
+          <div class="menu-item active"><div class="menu-icon"></div> Sessões</div>
+          <div class="menu-label">Consulta</div>
+          <div class="menu-item"><div class="menu-icon"></div> Relatórios</div>
+        </div>
+        <div class="sidebar-bottom"><button class="btn-modo"><div class="menu-icon"></div> ‹ Voltar ao Estoque</button>
+          <div class="rodape"><button class="btn-sair">Trocar senha &nbsp;·&nbsp; Sair</button></div></div>
+      </div>
+      <div class="conteudo">
+        <div class="cab"><h1>Nova sessão de inventário</h1>
+          <span class="trilha"><b>Patrimônio</b> › Inventário › Abertura</span>
+          <div class="acoes"><button class="btn">Ver sessões anteriores</button></div></div>
+        <div class="corpo">
+          <div class="stepper">
+            <div class="step on"><div class="num">1</div><div class="lb">Abertura</div></div>
+            <div class="step-liga"></div>
+            <div class="step"><div class="num">2</div><div class="lb">Coleta</div></div>
+            <div class="step-liga"></div>
+            <div class="step"><div class="num">3</div><div class="lb">Fechamento</div></div>
+          </div>
+          <div class="card">
+            <div class="form-sec">Escopo da conferência</div>
+            <div class="radio-linha">
+              <div class="radio-op on"><div class="t"><span class="r"></span> Por localização</div>
+                <div class="d">Confere uma área. Outras áreas podem ser conferidas em paralelo.</div></div>
+              <div class="radio-op"><div class="t"><span class="r"></span> Geral</div>
+                <div class="d">Confere a clínica inteira. Bloqueia qualquer outra sessão enquanto aberta.</div></div>
+            </div>
+            <div class="grid2" style="margin-top:16px">
+              <div class="campo"><label>Localização</label>
+                <select><option>Almoxarifado — Sala 2</option><option>Recepção — Sala 1</option></select>
+                <span class="dica">42 bens ativos nesta localização entrarão no snapshot.</span></div>
+              <div class="campo"><label>Descrição da sessão</label>
+                <input value="Almoxarifado — ago/26">
+                <span class="dica">Identifica a campanha nos relatórios e no histórico.</span></div>
+            </div>
+            <div class="alerta teal" style="margin-top:18px"><div class="ico"></div>
+              <div>O snapshot é <b>congelado agora</b>: bens cadastrados depois da abertura não entram nesta
+              sessão, e bens baixados nunca entram. Movimentações durante a campanha aparecerão como
+              divergência.</div></div>
+            <div class="form-rodape">
+              <button class="btn">Cancelar</button>
+              <div class="dir"><button class="btn btn-pri">Abrir sessão e iniciar coleta</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="nota">
+    <b>A contagem do escopo aparece antes de abrir.</b> O texto “42 bens ativos” vem de
+    <code>contar_escopo()</code> e se atualiza a cada troca do combo. Se o resultado for zero, a dica vira aviso
+    âmbar — a sessão ainda pode ser aberta, mas o usuário sabe de antemão que não haverá o que conferir.
+    <br><br>
+    <b>As duas opções de escopo dizem a consequência, não só o nome.</b> “Geral bloqueia qualquer outra sessão”
+    é a RN-16 explicada onde a decisão é tomada, evitando que a gestora descubra a regra por meio de uma
+    mensagem de erro.
+  </div>
+</div>
+
+<!-- ══════════ T-26 · ESTÁGIO 2 ══════════ -->
+<div>
+  <div class="section-title">T-26 · Estágio 2: coleta — tela de bipagem <span class="badge b-amber">tela crítica</span></div>
+  <div class="window">
+    <div class="win-titlebar"><span>SCE — Controle de Patrimônio <span class="win-modo">Patrimônio</span></span>
+      <div class="win-controls"><div class="wc"></div><div class="wc"></div><div class="wc"></div></div></div>
+    <div class="app-layout" style="min-height:640px">
+      <div class="sidebar">
+        <div class="sidebar-user"><div class="su-name">João Silva</div><div class="su-role"><span>Técnico</span></div></div>
+        <div class="modo-tag"><div class="mt-dot"></div><div class="mt-txt">Controle de Patrimônio</div></div>
+        <div class="menu-group">
+          <div class="menu-label">Bens</div>
+          <div class="menu-item"><div class="menu-icon"></div> Bens patrimoniais</div>
+          <div class="menu-item"><div class="menu-icon"></div> Cadastrar bem</div>
+          <div class="menu-item"><div class="menu-icon"></div> Movimentar / Baixar</div>
+          <div class="menu-item"><div class="menu-icon"></div> Etiquetas</div>
+          <div class="menu-label">Inventário</div>
+          <div class="menu-item active"><div class="menu-icon"></div> Sessões <span class="pill">coleta</span></div>
+        </div>
+        <div class="sidebar-bottom"><button class="btn-modo"><div class="menu-icon"></div> ‹ Voltar ao Estoque</button>
+          <div class="rodape"><button class="btn-sair">Trocar senha &nbsp;·&nbsp; Sair</button></div></div>
+      </div>
+      <div class="conteudo">
+        <div class="cab"><h1>Almoxarifado — ago/26</h1>
+          <span class="trilha"><b>Patrimônio</b> › Inventário › Coleta</span>
+          <div class="acoes"><button class="btn">Pausar e sair</button>
+            <button class="btn btn-pri">Ir para fechamento ›</button></div></div>
+        <div class="corpo">
+          <div class="stepper">
+            <div class="step done"><div class="num">✓</div><div class="lb">Abertura</div></div>
+            <div class="step-liga done"></div>
+            <div class="step on"><div class="num">2</div><div class="lb">Coleta</div></div>
+            <div class="step-liga"></div>
+            <div class="step"><div class="num">3</div><div class="lb">Fechamento</div></div>
+          </div>
+
+          <div class="coleta">
+            <div>
+              <div class="bip-card">
+                <div class="bip-topo">
+                  <div><div class="loc">Almoxarifado — Sala 2</div>
+                    <div class="sub">Sessão #14 · aberta hoje às 08:12</div></div>
+                  <div class="cont"><div class="n">26 / 42</div><div class="l">conferidos</div></div>
+                </div>
+                <div class="barra-prog"><div class="fill"></div></div>
+
+                <div class="bip-campo">
+                  <label>Leitura</label>
+                  <input class="bip-input" value="PAT-0027" autofocus>
+                  <div class="bip-dica">Leitor de código de barras, QR ou digitação do tombo. O campo limpa e
+                    volta ao foco sozinho após cada leitura.</div>
+                </div>
+
+                <div class="feedback ok">
+                  <div class="fb-ico">✓</div>
+                  <div class="fb-txt"><div class="t">Encontrado</div>
+                    <div class="s">Prateleira de aço 5 níveis · esperado nesta sala</div></div>
+                  <div class="fb-tombo">PAT-0027</div>
+                </div>
+
+                <div class="log">
+                  <div class="log-item"><span class="d at"></span><span class="tb">PAT-0113</span>
+                    <span class="ds">Bebedouro — esperado em Recepção — Sala 1</span><span class="hr">09:41</span></div>
+                  <div class="log-item"><span class="d ok"></span><span class="tb">PAT-0031</span>
+                    <span class="ds">Armário de aço 2 portas</span><span class="hr">09:40</span></div>
+                  <div class="log-item"><span class="d er"></span><span class="tb">—</span>
+                    <span class="ds">Código não reconhecido: 7891234567890</span><span class="hr">09:39</span></div>
+                  <div class="log-item"><span class="d ok"></span><span class="tb">PAT-0030</span>
+                    <span class="ds">Escada de alumínio 5 degraus</span><span class="hr">09:38</span></div>
+                  <div class="log-item"><span class="d ok"></span><span class="tb">PAT-0029</span>
+                    <span class="ds">Carrinho de transporte</span><span class="hr">09:37</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="lateral-card">
+                <div class="lc-tit">Pendentes <span class="n">16</span></div>
+                <div class="pend-item"><span class="tb">PAT-0033</span><span class="ds">Mesa de apoio inox</span></div>
+                <div class="pend-item"><span class="tb">PAT-0035</span><span class="ds">Estante modular 4 prateleiras</span></div>
+                <div class="pend-item"><span class="tb">PAT-0041</span><span class="ds">Ventilador de coluna</span></div>
+                <div class="pend-item"><span class="tb">PAT-0044</span><span class="ds">Balança de piso</span></div>
+                <div class="pend-item"><span class="tb">PAT-0047</span><span class="ds">Arquivo de aço 4 gavetas</span></div>
+                <div class="pend-item" style="color:#ABA9A2;justify-content:center">+ 11 pendentes</div>
+              </div>
+
+              <div class="lateral-card" style="margin-top:14px">
+                <div class="lc-tit">Parear celular</div>
+                <div class="qr-pareamento">
+                  <div class="qr-box"></div>
+                  <div class="qr-txt">Aponte a câmera do celular.<br>
+                    Vale 12 h · fixa <b>Almoxarifado — Sala 2</b></div>
+                </div>
+              </div>
+
+              <div class="lateral-card" style="margin-top:14px">
+                <div class="lc-tit">Dispositivos ativos <span class="n">2</span></div>
+                <div class="disp"><span class="pt"></span><span class="nm">Celular João</span>
+                  <span class="lo">Almoxarifado</span></div>
+                <div class="disp"><span class="pt"></span><span class="nm">Esta estação</span>
+                  <span class="lo">Almoxarifado</span></div>
+                <button class="btn btn-sm" style="width:100%;margin-top:10px">Revogar pareamentos</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="nota">
+    <b>Nenhum diálogo modal durante a coleta (RNF-13).</b> Código ilegível, bem baixado e sobra são
+    <i>resultados</i>, não erros: aparecem na faixa de realimentação e no log, e a bipagem continua. Uma caixa
+    de confirmação a cada exceção tornaria a conferência de 300 bens inviável.
+    <br><br>
+    <b>Três sinais simultâneos por leitura:</b> cor da faixa, ícone e som distinto. O técnico está olhando o
+    armário, não a tela — o som é o canal primário, e a cor confirma quando ele olha.
+    <br><br>
+    <b>O QR de pareamento fixa a sala.</b> O celular não escolhe onde está: a localização vem do token
+    (RN-19). Trocar de sala exige novo pareamento, o que evita o erro clássico de continuar registrando na
+    área anterior.
+    <br><br>
+    <b>“Pausar e sair” não perde nada.</b> O estado vive em <code>inventario_item</code>, não em memória
+    (RNF-18). Fechar o aplicativo e retomar amanhã devolve exatamente este ponto.
+  </div>
+</div>
+
+<!-- ══════════ CELULAR ══════════ -->
+<div>
+  <div class="section-title">Página móvel — consulta e coleta <span class="badge b-teal">novo</span></div>
+  <div class="fones">
+    <div class="fone">
+      <div class="fone-rot">Sem pareamento — consulta</div>
+      <div class="fone-corpo">
+        <div class="fone-barra"><span>09:42</span><span>Wi-Fi ▮▮▮</span></div>
+        <div class="fone-topo"><div class="a">Centro de Uronefrologia</div><div class="b">Patrimônio</div></div>
+        <div class="fone-conteudo">
+          <div class="fc-tombo">PAT-0031</div>
+          <div class="fc-desc">Armário de aço 2 portas</div>
+          <div class="fc-linha"><span class="k">Marca</span><span>Pandin PA-90</span></div>
+          <div class="fc-linha"><span class="k">Localização</span><span>Almoxarifado — Sala 2</span></div>
+          <div class="fc-linha"><span class="k">Situação</span><span>Ativo</span></div>
+          <div style="font-size:10px;color:#ABA9A2;margin-top:14px;line-height:1.5">
+            Dados atualizados do sistema. Para registrar em conferência, peça o pareamento na estação.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fone">
+      <div class="fone-rot">Pareado — pronto para registrar</div>
+      <div class="fone-corpo">
+        <div class="fone-barra"><span>09:43</span><span>Wi-Fi ▮▮▮</span></div>
+        <div class="fone-topo"><div class="a">Conferindo · Almoxarifado — Sala 2</div>
+          <div class="b">Sessão #14 · João Silva</div></div>
+        <div class="fone-conteudo">
+          <div class="fc-tombo">PAT-0033</div>
+          <div class="fc-desc">Mesa de apoio inox</div>
+          <div class="fc-linha"><span class="k">Esperado</span><span>Almoxarifado — Sala 2</span></div>
+          <div class="fc-linha"><span class="k">Situação</span><span>Ativo</span></div>
+          <div class="fc-linha"><span class="k">Progresso</span><span>26 / 42 conferidos</span></div>
+          <button class="fc-btn pri">Registrar na conferência</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="fone">
+      <div class="fone-rot">Registrado</div>
+      <div class="fone-corpo">
+        <div class="fone-barra"><span>09:43</span><span>Wi-Fi ▮▮▮</span></div>
+        <div class="fone-topo"><div class="a">Conferindo · Almoxarifado — Sala 2</div>
+          <div class="b">Sessão #14 · João Silva</div></div>
+        <div class="fone-conteudo">
+          <div class="fc-msg ok"><div class="ic">✓</div><div class="t">Encontrado</div>
+            <div class="s">PAT-0033 registrado às 09:43</div></div>
+          <div style="text-align:center;font-size:12px;color:var(--cinza-m);margin-top:16px">
+            <b style="color:var(--cinza-t);font-size:15px">27 / 42</b><br>conferidos</div>
+          <div style="font-size:11px;color:#ABA9A2;text-align:center;margin-top:18px;line-height:1.5">
+            Aponte a câmera na próxima etiqueta</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fone">
+      <div class="fone-rot">Divergência de local</div>
+      <div class="fone-corpo">
+        <div class="fone-barra"><span>09:44</span><span>Wi-Fi ▮▮▮</span></div>
+        <div class="fone-topo"><div class="a">Conferindo · Almoxarifado — Sala 2</div>
+          <div class="b">Sessão #14 · João Silva</div></div>
+        <div class="fone-conteudo">
+          <div class="fc-msg at"><div class="ic">!</div><div class="t">Fora do lugar</div>
+            <div class="s">PAT-0113 — Bebedouro<br>Esperado em Recepção — Sala 1</div></div>
+          <div style="font-size:11px;color:var(--cinza-m);text-align:center;margin-top:16px;line-height:1.55">
+            Registrado como divergência.<br>A localização será ajustada no fechamento,
+            <b>se a gestora confirmar</b>.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="nota">
+    <b>A câmera nativa faz a leitura, não o navegador (AD-15).</b> Navegadores móveis só liberam a câmera em
+    HTTPS ou localhost — a página em HTTP na rede local jamais conseguiria. Como o QR contém uma URL, o
+    aparelho apenas abre um link, sem pedir permissão nenhuma.
+    <br><br>
+    <b>Sem pareamento a página é só leitura.</b> É o uso do dia a dia: qualquer pessoa aponta a câmera e vê o
+    que é aquele armário, com dados vivos do banco.
+    <br><br>
+    <b>A tela pareada anuncia a sala no topo, sempre visível.</b> Se o técnico mudou de sala e esqueceu de
+    reparear, ele vê o erro antes de registrar dezenas de leituras erradas.
+  </div>
+</div>
+
+<!-- ══════════ T-26 · ESTÁGIO 3 ══════════ -->
+<div>
+  <div class="section-title">T-26 · Estágio 3: fechamento e divergências <span class="badge b-teal">novo</span></div>
+  <div class="window">
+    <div class="win-titlebar"><span>SCE — Controle de Patrimônio <span class="win-modo">Patrimônio</span></span>
+      <div class="win-controls"><div class="wc"></div><div class="wc"></div><div class="wc"></div></div></div>
+    <div class="app-layout" style="min-height:640px">
+      <div class="sidebar">
+        <div class="sidebar-user"><div class="su-name">Ana Costa</div><div class="su-role"><span>Administrador</span></div></div>
+        <div class="modo-tag"><div class="mt-dot"></div><div class="mt-txt">Controle de Patrimônio</div></div>
+        <div class="menu-group">
+          <div class="menu-label">Bens</div>
+          <div class="menu-item"><div class="menu-icon"></div> Bens patrimoniais</div>
+          <div class="menu-item"><div class="menu-icon"></div> Cadastrar bem</div>
+          <div class="menu-item"><div class="menu-icon"></div> Movimentar / Baixar</div>
+          <div class="menu-item"><div class="menu-icon"></div> Etiquetas</div>
+          <div class="menu-label">Inventário</div>
+          <div class="menu-item active"><div class="menu-icon"></div> Sessões <span class="pill">fechar</span></div>
+        </div>
+        <div class="sidebar-bottom"><button class="btn-modo"><div class="menu-icon"></div> ‹ Voltar ao Estoque</button>
+          <div class="rodape"><button class="btn-sair">Trocar senha &nbsp;·&nbsp; Sair</button></div></div>
+      </div>
+      <div class="conteudo">
+        <div class="cab"><h1>Fechar — Almoxarifado ago/26</h1>
+          <span class="trilha"><b>Patrimônio</b> › Inventário › Fechamento</span>
+          <div class="acoes"><button class="btn">‹ Voltar à coleta</button>
+            <button class="btn">Baixar XLSX parcial</button></div></div>
+        <div class="corpo">
+          <div class="stepper">
+            <div class="step done"><div class="num">✓</div><div class="lb">Abertura</div></div>
+            <div class="step-liga done"></div>
+            <div class="step done"><div class="num">✓</div><div class="lb">Coleta</div></div>
+            <div class="step-liga done"></div>
+            <div class="step on"><div class="num">3</div><div class="lb">Fechamento</div></div>
+          </div>
+
+          <div class="resumo-grid">
+            <div class="rc"><div class="k">Esperados</div><div class="v neutro">42</div></div>
+            <div class="rc ok"><div class="k">Encontrados</div><div class="v">36</div></div>
+            <div class="rc at"><div class="k">Divergentes</div><div class="v">3</div></div>
+            <div class="rc er"><div class="k">Não localizados</div><div class="v">3</div></div>
+            <div class="rc at"><div class="k">Sobras</div><div class="v">2</div></div>
+          </div>
+
+          <div class="alerta amber"><div class="ico"></div>
+            <div><b>3 divergências aguardam decisão.</b> Nenhuma localização é alterada automaticamente. O
+            fechamento só é liberado depois que todas tiverem uma escolha.</div></div>
+
+          <div class="grupo-tit">Divergências de localização <span class="badge b-amber">decisão obrigatória</span></div>
+          <table class="dados">
+            <tr><th style="width:96px">Tombo</th><th>Descrição</th><th style="width:160px">Cadastrado em</th>
+              <th style="width:160px">Encontrado em</th><th style="width:180px">Ajustar cadastro?</th></tr>
+            <tr><td class="tombo">PAT-0113</td><td>Bebedouro industrial</td>
+              <td>Recepção — Sala 1</td><td><b>Almoxarifado — Sala 2</b></td>
+              <td><div class="escolha"><span class="op on">Sim</span><span class="op">Não</span></div></td></tr>
+            <tr><td class="tombo">PAT-0087</td><td>Cadeira fixa para espera</td>
+              <td>Consultório 2</td><td><b>Almoxarifado — Sala 2</b></td>
+              <td><div class="escolha"><span class="op on">Sim</span><span class="op">Não</span></div></td></tr>
+            <tr><td class="tombo">PAT-0102</td><td>Suporte de soro rodízio</td>
+              <td>Coleta — Sala 3</td><td><b>Almoxarifado — Sala 2</b></td>
+              <td><div class="escolha"><span class="op">Sim</span><span class="op on nao">Não</span></div></td></tr>
+          </table>
+
+          <div class="grupo-tit">Não localizados <span class="badge b-red">irão para “Em apuração”</span></div>
+          <table class="dados">
+            <tr><th style="width:96px">Tombo</th><th>Descrição</th><th style="width:200px">Última localização</th>
+              <th style="width:180px">Situação após fechar</th></tr>
+            <tr><td class="tombo">PAT-0035</td><td>Estante modular 4 prateleiras</td><td>Almoxarifado — Sala 2</td>
+              <td><span class="badge b-amber">Em apuração</span></td></tr>
+            <tr><td class="tombo">PAT-0044</td><td>Balança de piso</td><td>Almoxarifado — Sala 2</td>
+              <td><span class="badge b-amber">Em apuração</span></td></tr>
+            <tr><td class="tombo">PAT-0047</td><td>Arquivo de aço 4 gavetas</td><td>Almoxarifado — Sala 2</td>
+              <td><span class="badge b-amber">Em apuração</span></td></tr>
+          </table>
+
+          <div class="grupo-tit">Sobras <span class="badge b-gray">sem ação automática</span></div>
+          <table class="dados">
+            <tr><th style="width:140px">Código lido</th><th>Tipo</th><th>Observação</th><th style="width:110px"></th></tr>
+            <tr><td class="tombo">PAT-0201</td><td><span class="badge b-amber">Fora de escopo</span></td>
+              <td>Pertence à sessão “Recepção — ago/26”, ainda aberta</td>
+              <td><span style="color:var(--petroleo-m);font-size:11px;font-weight:600">Descartar</span></td></tr>
+            <tr><td class="tombo">7891234567890</td><td><span class="badge b-red">Não cadastrado</span></td>
+              <td>Código sem correspondência — provável leitura de produto de estoque</td>
+              <td><span style="color:var(--petroleo-m);font-size:11px;font-weight:600">Descartar</span></td></tr>
+          </table>
+
+          <div class="form-rodape">
+            <button class="btn">Cancelar sessão</button>
+            <div class="dir"><button class="btn">Salvar decisões</button>
+              <button class="btn btn-pri">Fechar sessão e gerar relatório</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="nota">
+    <b>“Não” é uma escolha, não a ausência de escolha.</b> Recusar o ajuste mantém o cadastro e registra a
+    recusa — é o caso do bem emprestado que voltará ao lugar. Deixar em branco não é permitido: a RN-14 exige
+    decisão explícita para toda divergência.
+    <br><br>
+    <b>Não localizado nunca vira baixa.</b> A coluna “Situação após fechar” mostra “Em apuração” e não oferece
+    alternativa (RN-15). Baixa por extravio é decisão de gestão, registrada em T-25 com motivo e documento.
+    <br><br>
+    <b>Sobras não geram ação automática.</b> Cadastrar um bem desconhecido exige dados que a conferência não
+    tem. “Descartar” existe para bipagem acidental — a única exclusão física do módulo, justificada porque
+    sobra é anotação de campo, não fato patrimonial.
+    <br><br>
+    <b>A primeira sobra revela a RN-18 em ação:</b> PAT-0201 pertence a outra sessão aberta. Ele foi registrado
+    como sobra aqui <i>e</i> marcado como divergente na sessão de origem — sem isso, fecharia lá como “não
+    localizado” mesmo tendo sido encontrado.
+  </div>
+</div>
+
+<!-- ══════════ T-27 ══════════ -->
+<div>
+  <div class="section-title">T-27 · Relatórios de patrimônio <span class="badge b-teal">novo</span></div>
+  <div class="window">
+    <div class="win-titlebar"><span>SCE — Controle de Patrimônio <span class="win-modo">Patrimônio</span></span>
+      <div class="win-controls"><div class="wc"></div><div class="wc"></div><div class="wc"></div></div></div>
+    <div class="app-layout" style="min-height:470px">
+      <div class="sidebar">
+        <div class="sidebar-user"><div class="su-name">Ana Costa</div><div class="su-role"><span>Administrador</span></div></div>
+        <div class="modo-tag"><div class="mt-dot"></div><div class="mt-txt">Controle de Patrimônio</div></div>
+        <div class="menu-group">
+          <div class="menu-label">Bens</div>
+          <div class="menu-item"><div class="menu-icon"></div> Bens patrimoniais</div>
+          <div class="menu-item"><div class="menu-icon"></div> Cadastrar bem</div>
+          <div class="menu-item"><div class="menu-icon"></div> Movimentar / Baixar</div>
+          <div class="menu-item"><div class="menu-icon"></div> Etiquetas</div>
+          <div class="menu-label">Inventário</div>
+          <div class="menu-item"><div class="menu-icon"></div> Sessões</div>
+          <div class="menu-label">Consulta</div>
+          <div class="menu-item active"><div class="menu-icon"></div> Relatórios</div>
+        </div>
+        <div class="sidebar-bottom"><button class="btn-modo"><div class="menu-icon"></div> ‹ Voltar ao Estoque</button>
+          <div class="rodape"><button class="btn-sair">Trocar senha &nbsp;·&nbsp; Sair</button></div></div>
+      </div>
+      <div class="conteudo">
+        <div class="cab"><h1>Relatórios</h1><span class="trilha"><b>Patrimônio</b> › Relatórios</span></div>
+        <div class="corpo">
+          <div class="card">
+            <div class="form-sec">Relatório</div>
+            <div class="radio-linha" style="flex-wrap:wrap">
+              <div class="radio-op on" style="flex:1 1 30%"><div class="t"><span class="r"></span> Bens por localização</div>
+                <div class="d">Acervo agrupado por setor e sala.</div></div>
+              <div class="radio-op" style="flex:1 1 30%"><div class="t"><span class="r"></span> Divergências de sessão</div>
+                <div class="d">Resultado completo de uma campanha.</div></div>
+              <div class="radio-op" style="flex:1 1 30%"><div class="t"><span class="r"></span> Histórico de movimentação</div>
+                <div class="d">Trajetória dos bens em um período.</div></div>
+            </div>
+            <div class="grid2" style="margin-top:16px">
+              <div class="campo"><label>Localização</label><select><option>Todas</option>
+                <option>Almoxarifado — Sala 2</option></select></div>
+              <div class="campo"><label>Situação</label><select><option>Ativos</option>
+                <option>Em apuração</option><option>Baixados</option><option>Todas</option></select></div>
+            </div>
+            <div class="form-rodape">
+              <div class="dir"><button class="btn">Enviar por e-mail</button>
+                <button class="btn btn-pri">Gerar XLSX</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="nota">
+    Geração via <code>XlsxBuilder</code> do MOD-03 — mesma marca d'água e formatação dos relatórios de estoque,
+    sem código novo de planilha. O envio por e-mail reaproveita o <code>GmailClient</code> do MOD-04.
+    O relatório de divergências fica disponível durante a coleta (parcial) e após o fechamento (final).
+  </div>
+</div>
+
+</div>
+</body>
+</html>

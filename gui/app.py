@@ -11,6 +11,7 @@ from datetime import datetime
 
 from gui.componentes.tema import (
     COR_AZUL, COR_AZUL_M, COR_SIDEBAR, COR_SIDEBAR_H, COR_SIDEBAR_A,
+    COR_PETROLEO, COR_PETROLEO_M, COR_SIDEBAR_PATRIM, COR_SIDEBAR_PATRIM_H, COR_SIDEBAR_PATRIM_A,
     COR_CINZA_E, COR_TEXTO, COR_VERMELHO,
 )
 
@@ -21,6 +22,8 @@ from Modulo_04_notificacoes.scheduler import NotificacaoScheduler
 from gui.telas.t01_login import TelaLogin
 from tkinter import messagebox
 from Modulo_01_autenticacao import SessionManager
+from Modulo_05_admin import ConfigService
+from gui.componentes.troca_modo import TrocaModoOverlay
 from gui.telas.t02_inicio import TelaInicio
 from gui.telas.t03_produtos import TelaProdutos
 from gui.telas.t21_troca_senha import TelaTrocaSenha
@@ -38,6 +41,9 @@ from gui.telas.t15_usuarios import TelaUsuarios
 from gui.telas.t17_gmail    import TelaGmail
 from gui.telas.t18_backup   import TelaBackup
 from gui.telas.t19_log      import TelaLog
+from gui.telas.t23_bens_patrimoniais import TelaBensPatrimoniais
+from gui.telas.t24_cadastro_bem      import TelaCadastroBem
+from gui.telas.t25_movimentacao_baixa import TelaMovimentacaoBaixa
 
 # tema global
 ctk.set_appearance_mode("light")
@@ -126,8 +132,14 @@ class SCEApp(ctk.CTk):
         # Estado dee sessão
         self.usuario_logado = None #objeto do usuário logado
 
+        # Estado do subsistema ativo (Estoque/Patrimônio) — ver _alternar_modo.
+        self._modo = "estoque"
+        self._memoria_tela = {"estoque": "inicio", "patrimonio": "bens_patrimoniais"}
+        self._ultimo_destino = "inicio"
+
         self.bind_all("<Button-1>", self._remover_foco_global)
-        
+        self.bind_all("<Control-m>", lambda e: self._alternar_modo())
+
         self.iniciar_scheduler()
         self.session_timer = None
 
@@ -180,31 +192,72 @@ class SCEApp(ctk.CTk):
     def _construir_layout_principal(self):
         """Monta a estrutura de 3 faixas, titlebar, conteudo(sidebar + main)"""
         for w in self.winfo_children():
-            w.destroy() 
-        #titlebar
-        self._titlebar = TitleBar(self, usuario=self.usuario_logado, )
-        self._titlebar.pack(fill="x")
+            w.destroy()
+        self._modo = "estoque"
 
         #corpo: sidebar + main
-        corpo= ctk.CTkFrame(self, fg_color=COR_CINZA_E)
-        corpo.pack(fill="both", expand=True)
-        corpo.grid_columnconfigure(1, weight=1)
-        corpo.grid_rowconfigure(0, weight=1)
+        self._corpo = ctk.CTkFrame(self, fg_color=COR_CINZA_E)
+        self._corpo.grid_columnconfigure(1, weight=1)
+        self._corpo.grid_rowconfigure(0, weight=1)
 
-        self._sidebar = Sidebar(corpo, usuario=self.usuario_logado, on_navigate=self._navegar,on_logout=self.logout)
-        self._sidebar.grid(row=0, column=0, sticky="nsw")
-
-        self._area_conteudo = ctk.CTkFrame(corpo, fg_color=COR_CINZA_E)
+        self._area_conteudo = ctk.CTkFrame(self._corpo, fg_color=COR_CINZA_E)
         self._area_conteudo.grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
 
+        self._reconstruir_chrome()
+
         #exibe tela inicial por padrão
-        self._navegar("inicio")
+        self._navegar(self._memoria_tela[self._modo])
+
+    def _reconstruir_chrome(self):
+        """Reconstrói titlebar + sidebar para o modo (Estoque/Patrimônio) atual."""
+        if getattr(self, "_titlebar", None):
+            self._titlebar.destroy()
+        if getattr(self, "_sidebar", None):
+            self._sidebar.destroy()
+        self._corpo.pack_forget()
+
+        self._titlebar = TitleBar(self, usuario=self.usuario_logado, modo=self._modo)
+        self._titlebar.pack(fill="x")
+
+        self._corpo.pack(fill="both", expand=True)
+
+        self._sidebar = Sidebar(
+            self._corpo, usuario=self.usuario_logado, on_navigate=self._navegar,
+            on_logout=self.logout, modo=self._modo, on_trocar_modo=self._alternar_modo,
+        )
+        self._sidebar.grid(row=0, column=0, sticky="nsw")
+
+    def _alternar_modo(self):
+        """Troca entre os subsistemas Estoque e Patrimônio (Ctrl+M ou botão da sidebar)."""
+        if not self.usuario_logado:
+            return
+
+        indo_patrimonio = self._modo == "estoque"
+        self._memoria_tela[self._modo] = self._ultimo_destino
+        novo_modo = "patrimonio" if indo_patrimonio else "estoque"
+
+        def trocar():
+            self._modo = novo_modo
+            self._reconstruir_chrome()
+            self._navegar(self._memoria_tela[self._modo])
+
+        try:
+            animacao_ligada = ConfigService.get("ui_animacao_transicao") != "0"
+        except Exception:
+            animacao_ligada = True
+
+        if animacao_ligada:
+            overlay = TrocaModoOverlay(self)
+            overlay.animar(indo_patrimonio, trocar)
+        else:
+            trocar()
 
     def _navegar(self, destino: str):
         """troca o conteudo da area principal pela tela indicada """
         self.resetar_timer_sessao()
+        self._ultimo_destino = destino
         self._limpar_area_conteudo()
-        
+
         tela = self._resolver_tela(destino)
         if tela:
             tela.pack(fill="both", expand=True)
@@ -274,11 +327,21 @@ class SCEApp(ctk.CTk):
         
         if destino == "log":
             return TelaLog(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
-        
-    
+
+        # MOD-07 — Patrimônio
+        if destino == "bens_patrimoniais":
+            return TelaBensPatrimoniais(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+
+        if destino in ("novo_bem", "editar_bem"):
+            return TelaCadastroBem(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, bem_id=extra)
+
+        if destino == "movimentar_bem":
+            return TelaMovimentacaoBaixa(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, bem_id=extra)
+
     def _on_navigate_com_extra(self, destino: str, extra=None):
         """Versão do _navegar que aceita parâmetro extra(ex: produto_id)"""
         self.resetar_timer_sessao()
+        self._ultimo_destino = destino
         self._limpar_area_conteudo()
         tela= self._resolver_tela(destino, extra= extra)
         if tela:
@@ -348,12 +411,15 @@ class SCEApp(ctk.CTk):
 class TitleBar(ctk.CTkFrame):
     """Barra de titulo superior- CP-01"""
 
-    def __init__(self, master, usuario):
-        super().__init__(master, fg_color=COR_AZUL, height=36, corner_radius=0)
+    def __init__(self, master, usuario, modo: str = "estoque"):
+        cor_fundo = COR_PETROLEO if modo == "patrimonio" else COR_AZUL
+        texto_titulo = ("Sistema de Controle de Patrimônio - Centro de Uro-nefrologia" if modo == "patrimonio"
+                        else "Sistema de Controle de Estoque - Centro de Uro-nefrologia")
+        super().__init__(master, fg_color=cor_fundo, height=36, corner_radius=0)
         self.pack_propagate(False)
-        
+
         ctk.CTkLabel(
-            self, text= "Sistema de Controle de Estoque - Centro de Uro-nefrologia",
+            self, text= texto_titulo,
             text_color="white", font=ctk.CTkFont(size=14, weight="bold")
         ).pack(side="left", padx=8)
 
@@ -385,7 +451,7 @@ class TitleBar(ctk.CTkFrame):
     
 class Sidebar(ctk.CTkFrame):
     """Menu lateral com itens por perfil - CP-02"""
-    MENU= [
+    MENU_ESTOQUE = [
         ("__label__"        ,"Estoque",                       None),
         ("inicio"           ,"Início",                        ["tecnico", "admin","ti"]),
         ("produtos"         ,"Produtos",                      ["ti", "tecnico", "admin"]),
@@ -408,8 +474,20 @@ class Sidebar(ctk.CTkFrame):
         ("log"              ,"Log de Operações" ,             ["ti"]),
     ]
 
-    def __init__(self, master, usuario, on_navigate, on_logout):
-        super().__init__(master, fg_color=COR_SIDEBAR, width=200,corner_radius=0)
+    # MOD-07 — Sprint 9 só entrega T-23/T-24; T-25 é aberta a partir de T-23
+    # ("Abrir" na linha do bem, com bem_id), não por item de menu próprio.
+    # Etiquetas/Localizações/Configurações ficam de fora do menu até terem
+    # tela (S10/S11) — mesmo padrão já usado aqui para "Importar NF-e".
+    MENU_PATRIMONIO = [
+        ("__label__"          ,"Bens",              None),
+        ("bens_patrimoniais"  ,"Bens patrimoniais", ["tecnico", "admin", "ti"]),
+        ("novo_bem"           ,"Cadastrar bem",      ["tecnico", "admin", "ti"]),
+    ]
+
+    def __init__(self, master, usuario, on_navigate, on_logout, modo: str = "estoque", on_trocar_modo=None):
+        self._modo = modo
+        cor_fundo = COR_SIDEBAR_PATRIM if modo == "patrimonio" else COR_SIDEBAR
+        super().__init__(master, fg_color=cor_fundo, width=200,corner_radius=0)
         self.pack_propagate(False)
         self._on_navigate = on_navigate
         self._usuario=usuario
@@ -417,6 +495,10 @@ class Sidebar(ctk.CTkFrame):
         self._botoes = {}
         self._ativo= None
         self._on_logout= on_logout
+        self._on_trocar_modo = on_trocar_modo
+        self._menu = self.MENU_PATRIMONIO if modo == "patrimonio" else self.MENU_ESTOQUE
+        self._cor_hover = COR_SIDEBAR_PATRIM_H if modo == "patrimonio" else COR_SIDEBAR_H
+        self._cor_ativo = COR_SIDEBAR_PATRIM_A if modo == "patrimonio" else COR_SIDEBAR_A
         self._construir()
 
     def _construir(self):
@@ -452,7 +534,7 @@ class Sidebar(ctk.CTkFrame):
         self._menu_scroll.pack(fill="both", expand=True, side="top")
 
         label_pendente= None
-        for item in self.MENU:
+        for item in self._menu:
             destino, label, perfis = item
 
             if destino == "__label__":
@@ -477,7 +559,7 @@ class Sidebar(ctk.CTkFrame):
                     anchor="w",
                     fg_color="transparent",
                     text_color="white",
-                    hover_color=COR_SIDEBAR_H,
+                    hover_color=self._cor_hover,
                     height=32,
                     corner_radius=6,
                     font=ctk.CTkFont(size=12),
@@ -486,19 +568,19 @@ class Sidebar(ctk.CTkFrame):
                 )
                 btn.pack(fill="x", padx=6, pady=1)
                 self._botoes[destino] = btn
-        
+
         frame_rodape= ctk.CTkFrame(self, fg_color="transparent")
         frame_rodape.pack(fill="x", padx=14, pady=16, side="bottom")
         frame_rodape.grid_columnconfigure((0,1), weight=1)
 
         #botão troca senha
         btn_senha= ctk.CTkButton(frame_rodape, text="Trocar senha",
-                                 fg_color="transparent", text_color="#888780", height=30, 
+                                 fg_color="transparent", text_color="#888780", height=30,
                                  font=ctk.CTkFont(size=11),
                                  command=lambda:self._on_navigate("troca_senha"))
         btn_senha.grid(row=0,column=0, padx=(0,4), sticky="ew")
 
-        #botão sair 
+        #botão sair
         btn_sair= ctk.CTkButton(
             frame_rodape, text="Sair",width=50, height=24,
             fg_color="transparent",text_color="#888780",
@@ -506,15 +588,27 @@ class Sidebar(ctk.CTkFrame):
         )
         btn_sair.grid(row=0,column=1,padx=(4,0), sticky="ew")
 
+        # Botão de troca de subsistema — acima de "Trocar senha · Sair",
+        # separado por borda superior (packed depois, side="bottom" empilha
+        # por cima do que já foi packed no rodapé).
+        if self._on_trocar_modo:
+            texto_troca = "‹ Voltar ao Estoque" if self._modo == "patrimonio" else "Ir para Patrimônio  ›"
+            btn_modo = ctk.CTkButton(
+                self, text=texto_troca, anchor="w",
+                fg_color=self._cor_hover, hover_color=self._cor_ativo,
+                text_color="white", height=38, corner_radius=0,
+                font=ctk.CTkFont(size=12, weight="bold"),
+                command=self._on_trocar_modo,
+            )
+            btn_modo.pack(fill="x", side="bottom")
 
- 
     def _clicar(self, destino: str):
-        # Remove destaque anterior 
+        # Remove destaque anterior
         if self._ativo and self._ativo in self._botoes:
             self._botoes[self._ativo].configure(fg_color="transparent")
         # Destaca ativo
         self._ativo = destino
-        self._botoes[destino].configure(fg_color=COR_SIDEBAR_A)
+        self._botoes[destino].configure(fg_color=self._cor_ativo)
         self._on_navigate(destino)
 
 

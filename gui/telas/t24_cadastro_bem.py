@@ -143,7 +143,7 @@ class TelaCadastroBem(ctk.CTkFrame):
 
     def _carregar_preview_tombo(self):
         try:
-            tombo = self._servico.previsualizar_tombo()
+            tombo = self._servico.previsualizar_tombo(self._usuario.id)
             self._lbl_tombo.configure(text=tombo)
             self._lbl_tombo_dica.configure(
                 text="Gerado automaticamente ao salvar\nSequência contínua · imutável")
@@ -154,7 +154,7 @@ class TelaCadastroBem(ctk.CTkFrame):
 
     def _carregar_localizacoes(self, localizacao_atual_id: int = None):
         try:
-            self._localizacoes = self._servico.listar_localizacoes()
+            self._localizacoes = self._servico.listar_localizacoes(self._usuario.id)
         except Exception as exc:
             logger.error("Erro ao carregar localizações: %s", exc)
             self._banner.erro(f"Erro ao carregar localizações: {exc}")
@@ -178,7 +178,7 @@ class TelaCadastroBem(ctk.CTkFrame):
 
     def _preencher_bem(self, bem_id: int):
         try:
-            bem = self._servico.obter_bem(bem_id)
+            bem = self._servico.obter_bem(self._usuario.id, bem_id)
         except PatrimonioError as exc:
             logger.error("Erro ao carregar bem %s: %s", bem_id, exc)
             self._banner.erro(str(exc))

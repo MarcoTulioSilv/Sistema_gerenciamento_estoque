@@ -158,11 +158,11 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
 
     def _carregar(self):
         try:
-            self._localizacoes = self._servico.listar_localizacoes()
+            self._localizacoes = self._servico.listar_localizacoes(self._usuario.id)
             labels = ["Todas as localizações"] + [loc.nome_completo for loc in self._localizacoes]
             self._opt_localizacao.configure(values=labels)
 
-            self._bens = self._servico.listar_bens(FiltroBens(apenas_ativos=False))
+            self._bens = self._servico.listar_bens(self._usuario.id, FiltroBens(apenas_ativos=False))
         except PatrimonioError as exc:
             logger.error("Erro ao carregar bens patrimoniais: %s", exc)
             self._banner.erro(str(exc))

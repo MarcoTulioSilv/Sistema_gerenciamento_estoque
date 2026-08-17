@@ -50,8 +50,13 @@ class PatrimonioService:
     """Fachada de MOD-07 para bens patrimoniais e etiquetagem."""
 
     # ─── Consulta ───────────────────────────────────────────────────────────
+    #
+    # RNF-19 (v1.8): a verificação de acesso ao subsistema ocorre no serviço,
+    # não só na tela. Por isso os métodos de consulta abaixo passaram a
+    # exigir usuario_id, mesmo os que não têm restrição de perfil — a GUI já
+    # oculta o caminho, mas o serviço não confia nela.
 
-    def listar_bens(self, filtro: FiltroBens | None = None) -> list:
+    def listar_bens(self, usuario_id: int, filtro: FiltroBens | None = None) -> list:
         """
         Lista bens conforme filtro. Devolve entidades BemPatrimonial já
         desanexadas da sessão (expunge_all no repo).
@@ -59,38 +64,48 @@ class PatrimonioService:
         Usada por T-23. Sem filtro, devolve apenas bens ativos — a listagem
         padrão não deve mostrar baixados, que só aparecem sob filtro
         explícito.
+
+        Raises:
+            PermissaoNegadaError
         """
+        self._resolver_usuario_autorizado(usuario_id)
         return BemRepo.listar(filtro)
 
-    def obter_bem(self, bem_id: int):
+    def obter_bem(self, usuario_id: int, bem_id: int):
         """
         Raises:
-            BemNaoEncontradoError
+            BemNaoEncontradoError, PermissaoNegadaError
         """
+        self._resolver_usuario_autorizado(usuario_id)
         bem = BemRepo.buscar_por_id(bem_id)
         if not bem:
             raise BemNaoEncontradoError(f"Bem {bem_id} não encontrado.")
         return bem
 
-    def obter_por_tombo(self, tombo: str):
+    def obter_por_tombo(self, usuario_id: int, tombo: str):
         """
         Busca pelo tombo, aceitando o valor com ou sem espaços em volta e
         insensível a caixa.
 
         Raises:
-            BemNaoEncontradoError
+            BemNaoEncontradoError, PermissaoNegadaError
         """
+        self._resolver_usuario_autorizado(usuario_id)
         bem = BemRepo.buscar_por_tombo(tombo)
         if not bem:
             raise BemNaoEncontradoError(f"Tombo '{tombo}' não encontrado.")
         return bem
 
-    def historico_bem(self, bem_id: int) -> list:
+    def historico_bem(self, usuario_id: int, bem_id: int) -> list:
         """
         Movimentações do bem em ordem cronológica, incluindo o cadastro
         inicial e a baixa. Histórico é append-only (RN-11): nunca há o que
         editar aqui, só o que ler.
+
+        Raises:
+            PermissaoNegadaError
         """
+        self._resolver_usuario_autorizado(usuario_id)
         return BemRepo.historico(bem_id)
 
     def consultar_publico(self, tombo: str) -> BemPublico:
@@ -135,7 +150,9 @@ class PatrimonioService:
             LocalizacaoNaoEncontradaError
             MascaraTomboInvalidaError
             TomboDuplicadoError
+            PermissaoNegadaError
         """
+        self._resolver_usuario_autorizado(usuario_id)
         try:
             with get_session() as s:
                 loc = s.get(Localizacao, dados.localizacao_id)
@@ -163,9 +180,11 @@ class PatrimonioService:
         contrário a alteração escaparia do histórico.
 
         Raises:
-            BemNaoEncontradoError, BemBaixadoError, MovimentacaoInvalidaError
+            BemNaoEncontradoError, BemBaixadoError, MovimentacaoInvalidaError,
+            PermissaoNegadaError
         """
-        bem = self.obter_bem(bem_id)
+        self._resolver_usuario_autorizado(usuario_id)
+        bem = self.obter_bem(usuario_id, bem_id)
         if bem.situacao == SituacaoBemEnum.baixado:
             raise BemBaixadoError(f"Bem {bem.tombo} está baixado e não pode ser editado.")
         if dados.localizacao_id != bem.localizacao_id:
@@ -191,9 +210,11 @@ class PatrimonioService:
 
         Raises:
             BemNaoEncontradoError, BemBaixadoError,
-            LocalizacaoNaoEncontradaError, MovimentacaoInvalidaError
+            LocalizacaoNaoEncontradaError, MovimentacaoInvalidaError,
+            PermissaoNegadaError
         """
-        bem = self.obter_bem(bem_id)
+        self._resolver_usuario_autorizado(usuario_id)
+        bem = self.obter_bem(usuario_id, bem_id)
         if bem.situacao == SituacaoBemEnum.baixado:
             raise BemBaixadoError(f"Bem {bem.tombo} está baixado e não pode ser transferido.")
         if localizacao_destino_id == bem.localizacao_id:
@@ -224,9 +245,9 @@ class PatrimonioService:
         Raises:
             BemNaoEncontradoError, BaixaJaRegistradaError, PermissaoNegadaError
         """
-        self._exigir_permissao(usuario_id, "baixar_bem")
+        self._resolver_usuario_autorizado(usuario_id, "baixar_bem")
 
-        bem = self.obter_bem(bem_id)
+        bem = self.obter_bem(usuario_id, bem_id)
         if bem.situacao == SituacaoBemEnum.baixado:
             raise BaixaJaRegistradaError(f"Bem {bem.tombo} já possui baixa registrada.")
 
@@ -239,8 +260,14 @@ class PatrimonioService:
 
     # ─── Localizações ───────────────────────────────────────────────────────
 
-    def listar_localizacoes(self, apenas_ativas: bool = True) -> list:
-        """Localizações para combos de tela e escopo de sessão."""
+    def listar_localizacoes(self, usuario_id: int, apenas_ativas: bool = True) -> list:
+        """
+        Localizações para combos de tela e escopo de sessão.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id)
         return LocalizacaoRepo.listar(apenas_ativas)
 
     def cadastrar_localizacao(self, setor: str, sala: str, usuario_id: int,
@@ -249,7 +276,7 @@ class PatrimonioService:
         Raises:
             PermissaoNegadaError  (somente ti)
         """
-        self._exigir_permissao(usuario_id, "cadastrar_localizacao")
+        self._resolver_usuario_autorizado(usuario_id, "cadastrar_localizacao")
         loc = LocalizacaoRepo.criar(setor, sala, descricao)
         logger.info("Localização cadastrada: id=%s usuario_id=%s", loc.id, usuario_id)
         return loc
@@ -260,7 +287,7 @@ class PatrimonioService:
         Raises:
             LocalizacaoNaoEncontradaError, PermissaoNegadaError
         """
-        self._exigir_permissao(usuario_id, "editar_localizacao")
+        self._resolver_usuario_autorizado(usuario_id, "editar_localizacao")
         if not LocalizacaoRepo.buscar_por_id(localizacao_id):
             raise LocalizacaoNaoEncontradaError(f"Localização {localizacao_id} não encontrada.")
 
@@ -280,7 +307,7 @@ class PatrimonioService:
             LocalizacaoNaoEncontradaError, LocalizacaoEmUsoError,
             PermissaoNegadaError
         """
-        self._exigir_permissao(usuario_id, "desativar_localizacao")
+        self._resolver_usuario_autorizado(usuario_id, "desativar_localizacao")
 
         loc = LocalizacaoRepo.buscar_por_id(localizacao_id)
         if not loc:
@@ -296,7 +323,7 @@ class PatrimonioService:
 
     # ─── Tombo ──────────────────────────────────────────────────────────────
 
-    def previsualizar_tombo(self) -> str:
+    def previsualizar_tombo(self, usuario_id: int) -> str:
         """
         Número do próximo tombo, para exibição em T-24 (não faz parte do
         contrato original — adicionado a pedido do usuário para T-24 mostrar
@@ -305,7 +332,11 @@ class PatrimonioService:
         NÃO reserva o número: é uma leitura sem lock (ver
         TomboGenerator.previsualizar). Se outra estação cadastrar um bem
         entre a exibição e o salvamento, o tombo final pode diferir deste.
+
+        Raises:
+            PermissaoNegadaError
         """
+        self._resolver_usuario_autorizado(usuario_id)
         return TomboGenerator.previsualizar()
 
     # ─── Etiquetas (Sprint 10) ───────────────────────────────────────────────
@@ -369,11 +400,31 @@ class PatrimonioService:
     # ─── Interno ──────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _exigir_permissao(usuario_id: int, recurso: str) -> None:
+    def _resolver_usuario_autorizado(usuario_id: int, recurso: str | None = None):
+        """
+        Checagem em duas camadas, nesta ordem:
+          1. Acesso ao SUBSISTEMA (RF-39/RN-21) — TI sempre passa; demais
+             perfis exigem acesso_patrimonio=True, concedido só pelo TI.
+          2. Se `recurso` for informado, a permissão de PERFIL para essa
+             ação específica dentro do subsistema (PermissionGuard),
+             igual ao que já valia antes do controle de acesso da v1.8.
+
+        Devolve o DadosUsuario resolvido, para o chamador reaproveitar
+        (ex.: perfil) sem uma segunda consulta.
+
+        Raises:
+            PermissaoNegadaError
+        """
         usuario = UsuarioService.buscar(usuario_id)
         if not usuario:
             raise PermissaoNegadaError(f"Usuário {usuario_id} não encontrado.")
-        if not PermissionGuard.pode_acessar(usuario.perfil.value, recurso):
+        if not usuario.pode_acessar_patrimonio:
+            raise PermissaoNegadaError(
+                "Você não tem permissão para acessar o módulo de Patrimônio. "
+                "Solicite ao TI."
+            )
+        if recurso and not PermissionGuard.pode_acessar(usuario.perfil.value, recurso):
             raise PermissaoNegadaError(
                 f"Perfil '{usuario.perfil.value}' não tem permissão para '{recurso}'."
             )
+        return usuario

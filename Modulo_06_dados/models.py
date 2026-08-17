@@ -2,7 +2,8 @@
 MOD-06 · mod06_dados · models.py
 Modelos SQLAlchemy do schema sce_db.
 MOD-01 a MOD-06: DDL v1.4 (reverse-engineered da producao).
-MOD-07 Patrimonio: migracao 007_patrimonio.sql (ERS v1.7 / DAS v1.4).
+MOD-07 Patrimonio: migracoes 007_patrimonio.sql e 008_patrimonio_v2.sql
+(ERS v1.8 / DAS v1.5).
 """
 import enum
 from datetime import datetime, date
@@ -12,6 +13,7 @@ from sqlalchemy import (
     Integer, String, Enum, Boolean, DateTime, Date,
     Numeric, Time, ForeignKey, Text, func, Index, Computed, CHAR
 )
+from sqlalchemy.dialects.mysql import MEDIUMBLOB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -84,10 +86,26 @@ class Usuario(Base):
     senha_hash:  Mapped[str]      = mapped_column(String(255), nullable=False)
     perfil:      Mapped[PerfilEnum] = mapped_column(Enum(PerfilEnum), nullable=False)
     ativo:       Mapped[bool]     = mapped_column(Boolean, nullable=False, default=True)
+    # MOD-07 · RF-39 / RN-21 — permissao ORTOGONAL ao perfil (AD-23).
+    # Primeira permissao do SCE que nao deriva de `perfil`. DEFAULT False faz
+    # a migracao falhar para o lado seguro: apos aplica-la, somente o perfil
+    # `ti` acessa o subsistema, ate que a permissao seja concedida.
+    acesso_patrimonio: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     criado_em:   Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
 
     movimentacoes: Mapped[list["Movimentacao"]] = relationship(back_populates="usuario")
     configuracoes: Mapped[list["Configuracao"]] = relationship(back_populates="atualizado_por_usuario")
+
+    @property
+    def pode_acessar_patrimonio(self) -> bool:
+        """
+        RN-21 — o perfil TI acessa por definicao; os demais dependem da
+        permissao explicita, concedida somente pelo TI (RN-22).
+
+        Conveniencia de leitura. NAO substitui a verificacao no service: a
+        entidade pode estar desanexada e desatualizada em relacao ao banco.
+        """
+        return self.perfil == PerfilEnum.ti or self.acesso_patrimonio
 
     def __repr__(self):
         return f"<Usuario {self.login} [{self.perfil}]>"
@@ -374,6 +392,8 @@ class BemPatrimonial(Base):
     movimentacoes: Mapped[list["MovimentacaoBem"]]  = relationship(back_populates="bem", order_by="MovimentacaoBem.data_hora")
     baixa:         Mapped["BaixaBem | None"]        = relationship(back_populates="bem", uselist=False)
     itens_inventario: Mapped[list["InventarioItem"]] = relationship(back_populates="bem")
+    manutencoes:   Mapped[list["ManutencaoBem"]]    = relationship(
+        back_populates="bem", order_by="ManutencaoBem.data_manutencao")
 
     __table_args__ = (
         Index('uq_bem_tombo', 'tombo', unique=True),
@@ -492,6 +512,20 @@ class BaixaBem(Base):
     Baixa lógica e irreversível pela interface (RN-12). O UNIQUE em bem_id é
     o que impede baixa dupla — a garantia está no banco, não na camada de
     serviço.
+
+    ANEXO OBRIGATORIO (RF-30, v1.8): `documento_id` e NOT NULL. A chave
+    estrangeira parte DAQUI para `baixa_documento`, e nao o contrario — e
+    essa direcao que torna a obrigatoriedade verificavel pelo banco em
+    qualquer caminho de escrita (AD-22). Com o vinculo no sentido inverso, o
+    NOT NULL garantiria apenas que um documento existente aponte para uma
+    baixa, nunca que toda baixa tenha documento.
+
+    Ordem de gravacao na transacao: insere `baixa_documento`, obtem o id,
+    insere `baixa_bem`. Falha em qualquer ponto desfaz os dois.
+
+    A coluna `documento` (texto livre) permanece como referencia a ata,
+    termo ou processo — nao e substituta do anexo nem dos numeros de MTR e
+    laudo.
     """
     __tablename__ = "baixa_bem"
 
@@ -499,16 +533,25 @@ class BaixaBem(Base):
     bem_id:         Mapped[int]              = mapped_column(Integer, ForeignKey("bem_patrimonial.id"), nullable=False)
     motivo:         Mapped[MotivoBaixaEnum]  = mapped_column(Enum(MotivoBaixaEnum), nullable=False)
     documento:      Mapped[str | None]       = mapped_column(String(120), nullable=True)
+    numero_mtr:     Mapped[str | None]       = mapped_column(String(60),  nullable=True)
+    numero_laudo:   Mapped[str | None]       = mapped_column(String(60),  nullable=True)
+    documento_id:   Mapped[int]              = mapped_column(Integer, ForeignKey("baixa_documento.id"), nullable=False)
     data_baixa:     Mapped[date]             = mapped_column(Date, nullable=False)
     observacao:     Mapped[str | None]       = mapped_column(String(500), nullable=True)
     usuario_id:     Mapped[int]              = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
     registrado_em:  Mapped[datetime]         = mapped_column(DateTime, nullable=False, default=func.now())
 
-    bem:     Mapped["BemPatrimonial"] = relationship(back_populates="baixa")
-    usuario: Mapped["Usuario"]        = relationship(foreign_keys=[usuario_id])
+    bem:       Mapped["BemPatrimonial"] = relationship(back_populates="baixa")
+    usuario:   Mapped["Usuario"]        = relationship(foreign_keys=[usuario_id])
+    # lazy="raise" impede carga acidental do BLOB: qualquer acesso a este
+    # relacionamento sem carga explicita levanta erro em vez de trazer
+    # megabytes em silencio. Use joinedload/selectinload ao abrir o anexo.
+    documento_pdf: Mapped["BaixaDocumento"] = relationship(
+        foreign_keys=[documento_id], lazy="raise")
 
     __table_args__ = (
         Index('uq_baixa_bem', 'bem_id', unique=True),
+        Index('uq_baixa_documento_id', 'documento_id', unique=True),
         Index('idx_baixa_data', 'data_baixa'),
         Index('idx_baixa_usuario', 'usuario_id'),
     )
@@ -645,6 +688,99 @@ class ColetaToken(Base):
 
     def __repr__(self):
         return f"<ColetaToken sessao {self.inventario_id} | {self.dispositivo_label} | revogado={self.revogado}>"
+
+
+class BaixaDocumento(Base):
+    """
+    Tabela: baixa_documento — MOD-07 (v1.8)
+
+    Anexo PDF da baixa, armazenado como BLOB no banco (AD-22).
+
+    TABELA SEPARADA de `baixa_bem` por decisao de desempenho: com o BLOB na
+    mesma tabela, toda consulta a baixas arrastaria os PDFs junto — o
+    relatorio de bens baixados no ano traria dezenas de megabytes para a
+    memoria do cliente sem necessidade. Aqui `baixa_bem` permanece leve e o
+    conteudo e buscado apenas quando o usuario abre o documento.
+
+    NAO ha coluna `baixa_id`: o vinculo e declarado em
+    `baixa_bem.documento_id`, e essa direcao e o que permite o NOT NULL.
+
+    `conteudo` usa MEDIUMBLOB (16 MB) e nao BLOB (64 KB) — um PDF
+    digitalizado de poucas paginas ja ultrapassa 64 KB com folga. O limite
+    efetivo e o menor entre `baixa_anexo_max_mb` (configuracao) e o
+    `max_allowed_packet` do servidor MySQL (R-14).
+
+    `sha256` permite verificar integridade e detectar anexo corrompido sem
+    abrir o arquivo.
+    """
+    __tablename__ = "baixa_documento"
+
+    id:             Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nome_original:  Mapped[str]      = mapped_column(String(160), nullable=False)
+    tamanho_bytes:  Mapped[int]      = mapped_column(Integer, nullable=False)
+    sha256:         Mapped[str]      = mapped_column(CHAR(64), nullable=False)
+    conteudo:       Mapped[bytes]    = mapped_column(MEDIUMBLOB, nullable=False)
+    anexado_em:     Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+    anexado_por:    Mapped[int]      = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
+
+    usuario: Mapped["Usuario"] = relationship(foreign_keys=[anexado_por])
+
+    __table_args__ = (
+        Index('idx_baixa_doc_sha256', 'sha256'),
+        Index('idx_baixa_doc_usuario', 'anexado_por'),
+    )
+
+    def __repr__(self):
+        return f"<BaixaDocumento {self.nome_original} | {self.tamanho_bytes} bytes>"
+
+
+class ManutencaoBem(Base):
+    """
+    Tabela: manutencao_bem — MOD-07 (v1.8 · RF-38)
+
+    Historico de manutencoes realizadas no bem. Tabela SOMENTE INCREMENTAL
+    (RN-23): novo registro nao substitui os anteriores, e registros
+    existentes nao sao editados nem excluidos.
+
+    NENHUM campo de manutencao existe em `bem_patrimonial` (AD-24). Manter a
+    ultima manutencao copiada la introduziria risco de dessincronia sem
+    beneficio. A data exibida na listagem T-23 sai de agregacao em consulta
+    unica:
+
+        SELECT b.*, m.ultima
+          FROM bem_patrimonial b
+          LEFT JOIN (SELECT bem_id, MAX(data_manutencao) AS ultima
+                       FROM manutencao_bem GROUP BY bem_id) m
+            ON m.bem_id = b.id
+
+    O indice (bem_id, data_manutencao) cobre essa agregacao — o plano de
+    execucao usa varredura solta do indice, sem tocar na tabela — e tambem a
+    listagem cronologica da T-29.
+
+    Manutencao NAO gera linha em `movimentacao_bem`: o ENUM de `tipo`
+    daquela tabela permanece restrito a cadastro, transferencia, ajuste de
+    inventario e baixa. As duas tabelas de historico tem propositos
+    distintos e nao se misturam.
+    """
+    __tablename__ = "manutencao_bem"
+
+    id:               Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bem_id:           Mapped[int]      = mapped_column(Integer, ForeignKey("bem_patrimonial.id"), nullable=False)
+    data_manutencao:  Mapped[date]     = mapped_column(Date, nullable=False)
+    descricao:        Mapped[str]      = mapped_column(String(500), nullable=False)
+    usuario_id:       Mapped[int]      = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
+    registrado_em:    Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+
+    bem:     Mapped["BemPatrimonial"] = relationship(back_populates="manutencoes")
+    usuario: Mapped["Usuario"]        = relationship(foreign_keys=[usuario_id])
+
+    __table_args__ = (
+        Index('idx_manut_bem_data', 'bem_id', 'data_manutencao'),
+        Index('idx_manut_usuario', 'usuario_id'),
+    )
+
+    def __repr__(self):
+        return f"<ManutencaoBem bem {self.bem_id} | {self.data_manutencao}>"
 
 
 class SchemaMigracao(Base):

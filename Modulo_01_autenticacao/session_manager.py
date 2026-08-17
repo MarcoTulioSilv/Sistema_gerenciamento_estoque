@@ -50,3 +50,8 @@ class SessionManager:
         if cls._usuario_atual:
             return cls._usuario_atual.perfil.value
         return None
+
+    @classmethod
+    def pode_acessar_patrimonio(cls) -> bool:
+        """RF-39/RN-21 — TI sempre acessa; demais perfis exigem permissão explícita."""
+        return bool(cls._usuario_atual and cls._usuario_atual.pode_acessar_patrimonio)

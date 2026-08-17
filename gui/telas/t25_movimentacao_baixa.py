@@ -263,8 +263,8 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
 
     def _carregar(self):
         try:
-            self._bem = self._servico.obter_bem(self._bem_id)
-            self._localizacoes = self._servico.listar_localizacoes()
+            self._bem = self._servico.obter_bem(self._usuario.id, self._bem_id)
+            self._localizacoes = self._servico.listar_localizacoes(self._usuario.id)
         except PatrimonioError as exc:
             logger.error("Erro ao carregar bem %s: %s", self._bem_id, exc)
             self._banner.erro(str(exc))
@@ -336,7 +336,7 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
             w.destroy()
 
         try:
-            historico = self._servico.historico_bem(self._bem_id)
+            historico = self._servico.historico_bem(self._usuario.id, self._bem_id)
         except PatrimonioError as exc:
             self._banner.erro(str(exc))
             return

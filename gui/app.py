@@ -233,6 +233,14 @@ class SCEApp(ctk.CTk):
             return
 
         indo_patrimonio = self._modo == "estoque"
+
+        # RF-39/RN-21 — acesso ao Patrimônio exige permissão explícita (TI
+        # sempre passa). Ponto único de checagem: cobre tanto o botão da
+        # sidebar (que já se oculta sem permissão) quanto o atalho Ctrl+M.
+        # Sair do Patrimônio (indo_patrimonio=False) nunca é bloqueado.
+        if indo_patrimonio and not self.usuario_logado.pode_acessar_patrimonio:
+            return
+
         self._memoria_tela[self._modo] = self._ultimo_destino
         novo_modo = "patrimonio" if indo_patrimonio else "estoque"
 
@@ -591,7 +599,10 @@ class Sidebar(ctk.CTkFrame):
         # Botão de troca de subsistema — acima de "Trocar senha · Sair",
         # separado por borda superior (packed depois, side="bottom" empilha
         # por cima do que já foi packed no rodapé).
-        if self._on_trocar_modo:
+        # RF-39/RN-21 — entrar no Patrimônio exige permissão explícita (TI
+        # sempre tem); voltar ao Estoque nunca é bloqueado.
+        mostrar_botao_modo = self._modo == "patrimonio" or self._usuario.pode_acessar_patrimonio
+        if self._on_trocar_modo and mostrar_botao_modo:
             texto_troca = "‹ Voltar ao Estoque" if self._modo == "patrimonio" else "Ir para Patrimônio  ›"
             btn_modo = ctk.CTkButton(
                 self, text=texto_troca, anchor="w",

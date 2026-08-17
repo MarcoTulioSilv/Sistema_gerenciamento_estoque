@@ -30,6 +30,8 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+from datetime import datetime
+from urllib.parse import urlparse, parse_qs
 
 from sqlalchemy.exc import IntegrityError
 
@@ -46,16 +48,20 @@ from .excecoes import (
     LocalizacaoNaoEncontradaError, LocalizacaoEmUsoError,
     MovimentacaoInvalidaError, TomboDuplicadoError, PermissaoNegadaError,
     AnexoObrigatorioError, AnexoInvalidoError, AnexoExcedidoError,
+    ImpressoraIndisponivelError, PayloadExcedidoError, CodigoIlegivelError,
 )
 from .bem_repo import BemRepo
 from .localizacao_repo import LocalizacaoRepo
 from .manutencao_repo import ManutencaoRepo
 from .documento_baixa_repo import DocumentoBaixaRepo
 from .tombo_generator import TomboGenerator
+from . import etiqueta_builder
+from .etiqueta_builder import EtiquetaBuilderError
 
 _ASSINATURA_PDF = b"%PDF-"
 _LIMITE_MB_PADRAO = 10
 _LIMITE_NOME_ANEXO = 160  # baixa_documento.nome_original é VARCHAR(160)
+_CAPACIDADE_QR_V3_M_BYTES = 42  # capacidade de dados (byte mode) do QR versão 3 / ECC M
 
 logger = logging.getLogger(__name__)
 
@@ -463,31 +469,94 @@ class PatrimonioService:
         self._resolver_usuario_autorizado(usuario_id)
         return TomboGenerator.previsualizar()
 
-    # ─── Etiquetas (Sprint 10) ───────────────────────────────────────────────
+    # ─── Etiquetas ────────────────────────────────────────────────────────────
 
-    def gerar_etiquetas(self, bens_ids: list[int], saida: SaidaEtiqueta,
-                        caminho_destino: str | None = None) -> ResultadoEtiquetas:
+    def listar_impressoras(self, usuario_id: int) -> list[str]:
+        """
+        Impressoras instaladas na estação, para o seletor usado antes de
+        `gerar_etiquetas(saida=impressora_cabo, ...)`. Regra 1: a GUI não
+        importa etiqueta_builder diretamente, só este serviço.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id)
+        return etiqueta_builder.listar_impressoras()
+
+    def gerar_etiquetas(self, bens_ids: list[int], saida: SaidaEtiqueta, usuario_id: int,
+                        caminho_destino: str | None = None,
+                        nome_impressora: str | None = None) -> ResultadoEtiquetas:
         """
         Gera e emite etiquetas em lote (RF-28), a partir da seleção por
         caixa de seleção em T-23.
 
-        As quatro saídas consomem a MESMA definição de layout em milímetros
-        (AD-17) — é o que garante que a etiqueta térmica e o arquivo
-        enviado à gráfica saiam dimensionalmente idênticos:
-
-            impressora_rede   socket TCP na porta configurada
-            impressora_cabo   spooler do Windows em modo RAW
-            arquivo_unitario  vetorial 100×50 mm, uma etiqueta por página
-            arquivo_folha     A4 em grade, com marcas de corte
+        `impressora_rede` não está disponível nesta rodada (decisão de
+        escopo) — recusada com ImpressoraIndisponivelError, não implementada
+        pela metade. `impressora_cabo` exige `nome_impressora` (lista via
+        etiqueta_builder.listar_impressoras()). Saídas em arquivo ignoram
+        `caminho_destino` e sempre gravam num diretório temporário,
+        devolvido em `ResultadoEtiquetas.caminho_arquivo` — a tela decide
+        depois se copia para outro lugar (mesmo padrão de XlsxBuilder/T-11).
 
         Bem baixado é recusado: etiqueta de bem baixado colada em campo
-        gera leitura fantasma na próxima conferência.
+        gera leitura fantasma na próxima conferência. Em qualquer saída
+        bem-sucedida, marca etiqueta_impressa_em nos bens envolvidos.
 
         Raises:
-            BemNaoEncontradoError, BemBaixadoError,
+            BemNaoEncontradoError, BemBaixadoError, PermissaoNegadaError,
             ImpressoraIndisponivelError, PayloadExcedidoError
         """
-        raise NotImplementedError
+        self._resolver_usuario_autorizado(usuario_id)
+
+        if not bens_ids:
+            raise BemNaoEncontradoError("Nenhum bem selecionado.")
+
+        bens = []
+        for bem_id in bens_ids:
+            bem = BemRepo.buscar_por_id(bem_id)
+            if not bem:
+                raise BemNaoEncontradoError(f"Bem {bem_id} não encontrado.")
+            if bem.situacao == SituacaoBemEnum.baixado:
+                raise BemBaixadoError(
+                    f"Bem {bem.tombo} está baixado — etiqueta de bem baixado colada "
+                    "em campo gera leitura fantasma na próxima conferência."
+                )
+            bens.append(bem)
+
+        host = ConfigService.get("coleta_host")
+        porta = ConfigService.get("coleta_porta")
+
+        caminho_arquivo = None
+        try:
+            if saida == SaidaEtiqueta.impressora_rede:
+                raise ImpressoraIndisponivelError(
+                    "Impressão em rede não está disponível nesta versão — use a impressora local (a cabo)."
+                )
+            elif saida == SaidaEtiqueta.impressora_cabo:
+                if not nome_impressora:
+                    raise ImpressoraIndisponivelError("Selecione uma impressora.")
+                zpl = etiqueta_builder.gerar_zpl(bens, host, porta)
+                etiqueta_builder.imprimir_cabo(zpl, nome_impressora)
+            elif saida == SaidaEtiqueta.arquivo_unitario:
+                pdf = etiqueta_builder.gerar_pdf_unitario(bens, host, porta)
+                caminho_arquivo = self._gravar_arquivo_temp(pdf, "unitario")
+            elif saida == SaidaEtiqueta.arquivo_folha:
+                pdf = etiqueta_builder.gerar_pdf_folha(bens, host, porta)
+                caminho_arquivo = self._gravar_arquivo_temp(pdf, "folha")
+            else:
+                raise ImpressoraIndisponivelError(f"Saída '{saida}' não suportada.")
+        except EtiquetaBuilderError as exc:
+            raise PayloadExcedidoError(str(exc)) from exc
+
+        agora = datetime.utcnow()
+        BemRepo.marcar_etiqueta_impressa([b.id for b in bens], agora)
+
+        logger.info("Etiquetas geradas: saida=%s quantidade=%s usuario_id=%s",
+                    saida.value, len(bens), usuario_id)
+        return ResultadoEtiquetas(
+            saida=saida, quantidade=len(bens), caminho_arquivo=caminho_arquivo,
+            tombos=[b.tombo for b in bens],
+        )
 
     def montar_payload_qr(self, tombo: str) -> str:
         """
@@ -500,7 +569,16 @@ class PatrimonioService:
         Raises:
             PayloadExcedidoError
         """
-        raise NotImplementedError
+        host = ConfigService.get("coleta_host")
+        porta = ConfigService.get("coleta_porta")
+        payload = etiqueta_builder.montar_payload(tombo, host, porta)
+        if len(payload.encode("utf-8")) > _CAPACIDADE_QR_V3_M_BYTES:
+            raise PayloadExcedidoError(
+                f"Payload do QR ('{payload}') excede a capacidade da versão "
+                f"{etiqueta_builder.QR_VERSAO}/ECC {etiqueta_builder.QR_ERROR.upper()} "
+                f"({_CAPACIDADE_QR_V3_M_BYTES} bytes)."
+            )
+        return payload
 
     def resolver_codigo(self, codigo_lido: str) -> str:
         """
@@ -508,9 +586,9 @@ class PatrimonioService:
 
         Aceita, nesta ordem:
           1. URL completa do serviço  → extrai o parâmetro t
-          2. Tombo puro               → vindo do Code 128 ou digitado
-          3. Sequência numérica       → aplica a máscara configurada,
+          2. Sequência numérica       → aplica a máscara configurada,
                                         permitindo digitar "1" para PAT-0001
+          3. Tombo puro               → vindo do Code 128 ou digitado
 
         Existe porque as três vias de coleta (leitor 2D, leitor 1D e
         digitação) entregam formatos diferentes para o mesmo bem, e
@@ -519,9 +597,47 @@ class PatrimonioService:
         Raises:
             CodigoIlegivelError
         """
-        raise NotImplementedError
+        codigo = (codigo_lido or "").strip()
+        if not codigo:
+            raise CodigoIlegivelError("Código vazio.")
+
+        if codigo.lower().startswith(("http://", "https://")):
+            valores = parse_qs(urlparse(codigo).query).get("t")
+            if not valores or not valores[0].strip():
+                raise CodigoIlegivelError(f"URL sem o parâmetro 't': '{codigo}'")
+            return valores[0].strip()
+
+        if codigo.isdigit():
+            mascara = ConfigService.get("patrimonio_mascara_tombo")
+            if not mascara:
+                raise CodigoIlegivelError("Máscara de tombo não configurada.")
+            try:
+                return TomboGenerator.aplicar_mascara(mascara, int(codigo))
+            except Exception as exc:
+                raise CodigoIlegivelError(
+                    f"Não foi possível aplicar a máscara ao código '{codigo}': {exc}"
+                ) from exc
+
+        return codigo
 
     # ─── Interno ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _gravar_arquivo_temp(conteudo: bytes, prefixo: str) -> str:
+        """
+        Grava um arquivo de etiquetas gerado num diretório temporário e
+        devolve o caminho — mesmo padrão de XlsxBuilder/T-11: o serviço
+        nunca abre diálogo de "salvar como", a tela decide depois.
+        """
+        import tempfile
+        from pathlib import Path
+
+        pasta = Path(tempfile.gettempdir()) / "SCU-Uronefrologia" / "etiquetas"
+        pasta.mkdir(parents=True, exist_ok=True)
+        nome = f"etiquetas_{prefixo}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        caminho = pasta / nome
+        caminho.write_bytes(conteudo)
+        return str(caminho)
 
     @staticmethod
     def _tratar_nome_anexo(nome: str) -> str:

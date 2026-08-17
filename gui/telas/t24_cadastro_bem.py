@@ -6,7 +6,8 @@ import logging
 import customtkinter as ctk
 
 from gui.componentes.form_widgets import Campo, SecaoFormulario, FeedbackBanner
-from Modulo_07_patrimonio import PatrimonioService, DadosBem, PatrimonioError
+from gui.componentes.seletor_impressora import SeletorImpressora
+from Modulo_07_patrimonio import PatrimonioService, DadosBem, PatrimonioError, SaidaEtiqueta
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,8 @@ class TelaCadastroBem(ctk.CTkFrame):
         self._bem_id = bem_id
         self._servico = PatrimonioService()
         self._localizacoes = []
+        self._painel_impressora = None
+        self._bem_id_para_imprimir = None
         self._construir()
         if self._bem_id:
             self._preencher_bem(self._bem_id)
@@ -131,9 +134,11 @@ class TelaCadastroBem(ctk.CTkFrame):
         direita = ctk.CTkFrame(rodape, fg_color="transparent")
         direita.pack(side="right")
 
-        ctk.CTkButton(direita, text="Salvar e imprimir etiqueta (em breve)",
-                      width=230, height=34, state="disabled",
-                      fg_color=COR_CINZA_B, text_color="#AAAAAA").pack(side="left", padx=(0, 8))
+        ctk.CTkButton(direita, text="Salvar e imprimir etiqueta",
+                      width=210, height=34,
+                      fg_color=COR_BRANCO, text_color=COR_PETROLEO_M,
+                      border_width=1, border_color="#B9DCD8", hover_color=COR_CINZA_E,
+                      command=self._salvar_e_imprimir).pack(side="left", padx=(0, 8))
 
         ctk.CTkButton(direita, text="Salvar", width=140, height=34,
                       fg_color=COR_PETROLEO_M, hover_color=COR_PETROLEO,
@@ -202,28 +207,31 @@ class TelaCadastroBem(ctk.CTkFrame):
 
     # ── Submit ────────────────────────────────────────────────────────────────
 
-    def _salvar(self):
+    def _montar_dados(self):
+        """Valida o formulário e devolve DadosBem, ou None se inválido (já mostra o erro no banner)."""
         if not self._descricao.validar():
-            return
+            return None
 
         loc_label = self._opt_localizacao.get()
         localizacao = next((loc for loc in self._localizacoes if loc.nome_completo == loc_label), None)
         if not localizacao:
             self._banner.erro("Selecione uma localização válida.")
-            return
+            return None
 
-        data_aquisicao = self._parse_data(self._data_aquisicao.get())
-        valor_aquisicao = self._parse_valor(self._valor_aquisicao.get())
-
-        dados = DadosBem(
+        return DadosBem(
             descricao=self._descricao.get(),
             localizacao_id=localizacao.id,
             marca_modelo=self._marca_modelo.get() or None,
-            data_aquisicao=data_aquisicao,
-            valor_aquisicao=valor_aquisicao,
+            data_aquisicao=self._parse_data(self._data_aquisicao.get()),
+            valor_aquisicao=self._parse_valor(self._valor_aquisicao.get()),
             nota_fiscal=self._nota_fiscal.get() or None,
             observacao=self._observacao.get("1.0", "end").strip() or None,
         )
+
+    def _salvar(self):
+        dados = self._montar_dados()
+        if dados is None:
+            return
 
         try:
             if self._bem_id:
@@ -238,6 +246,65 @@ class TelaCadastroBem(ctk.CTkFrame):
         except Exception as exc:
             logger.error("Erro ao salvar bem: %s", exc)
             self._banner.erro(f"Erro ao salvar: {exc}")
+
+    # ── Salvar e imprimir etiqueta ───────────────────────────────────────────────
+
+    def _salvar_e_imprimir(self):
+        dados = self._montar_dados()
+        if dados is None:
+            return
+
+        try:
+            if self._bem_id:
+                self._servico.editar_bem(self._bem_id, dados, usuario_id=self._usuario.id)
+                self._bem_id_para_imprimir = self._bem_id
+            else:
+                bem = self._servico.cadastrar_bem(dados, usuario_id=self._usuario.id)
+                self._bem_id_para_imprimir = bem.id
+        except PatrimonioError as exc:
+            self._banner.erro(str(exc))
+            return
+        except Exception as exc:
+            logger.error("Erro ao salvar bem: %s", exc)
+            self._banner.erro(f"Erro ao salvar: {exc}")
+            return
+
+        if self._painel_impressora:
+            self._painel_impressora.destroy()
+        self._painel_impressora = SeletorImpressora(
+            self, servico=self._servico, usuario=self._usuario,
+            on_confirmar=self._ao_confirmar_impressora,
+            on_cancelar=self._ao_cancelar_impressao,
+        )
+        self._painel_impressora.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.45, relheight=0.5)
+
+    def _ao_cancelar_impressao(self):
+        if self._painel_impressora:
+            self._painel_impressora.destroy()
+            self._painel_impressora = None
+        self._on_navigate("bens_patrimoniais")
+
+    def _ao_confirmar_impressora(self, nome_impressora: str):
+        if self._painel_impressora:
+            self._painel_impressora.destroy()
+            self._painel_impressora = None
+        try:
+            self._servico.gerar_etiquetas(
+                [self._bem_id_para_imprimir], SaidaEtiqueta.impressora_cabo,
+                usuario_id=self._usuario.id, nome_impressora=nome_impressora)
+            self._banner.sucesso("Bem salvo e etiqueta enviada para impressão.")
+        except PatrimonioError as exc:
+            self._banner.erro(f"Bem salvo, mas falhou ao imprimir: {exc}")
+        except Exception as exc:
+            logger.error("Erro ao imprimir etiqueta: %s", exc)
+            self._banner.erro(f"Bem salvo, mas falhou ao imprimir: {exc}")
+        self._on_navigate("bens_patrimoniais")
+
+    def limpar_memoria(self):
+        """Chamado pelo app.py ao sair da tela — fecha painéis flutuantes abertos."""
+        if self._painel_impressora is not None:
+            self._painel_impressora.destroy()
+            self._painel_impressora = None
 
     @staticmethod
     def _parse_data(texto: str):

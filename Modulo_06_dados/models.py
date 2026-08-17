@@ -384,6 +384,9 @@ class BemPatrimonial(Base):
     nota_fiscal:      Mapped[str | None]       = mapped_column(String(60),  nullable=True)
     localizacao_id:   Mapped[int]              = mapped_column(Integer, ForeignKey("localizacao.id"), nullable=False)
     situacao:         Mapped[SituacaoBemEnum]  = mapped_column(Enum(SituacaoBemEnum), nullable=False, default=SituacaoBemEnum.ativo)
+    # RF-28/AP-07 (v1.8 pós-manutenção): sem número de série, a etiqueta é a
+    # única identidade física do bem. NULL = nunca impressa.
+    etiqueta_impressa_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     observacao:       Mapped[str | None]       = mapped_column(String(500), nullable=True)
     criado_em:        Mapped[datetime]         = mapped_column(DateTime, nullable=False, default=func.now())
     criado_por:       Mapped[int]              = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)

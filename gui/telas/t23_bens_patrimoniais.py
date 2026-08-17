@@ -4,12 +4,15 @@ Tela T-23 — Listagem de bens patrimoniais, filtros e seleção (MOD-07).
 Padrão de scroll infinito de t10_posicao_estoque.py (CTkScrollableFrame).
 """
 import logging
+import shutil
 import customtkinter as ctk
 
 from datetime import date
+from tkinter import filedialog
 
 from gui.componentes.form_widgets import FeedbackBanner
-from Modulo_07_patrimonio import PatrimonioService, FiltroBens, PatrimonioError
+from gui.componentes.seletor_impressora import SeletorImpressora
+from Modulo_07_patrimonio import PatrimonioService, FiltroBens, PatrimonioError, SaidaEtiqueta
 from Modulo_05_admin import ConfigService
 
 logger = logging.getLogger(__name__)
@@ -47,6 +50,7 @@ _FILTRO_SITUACAO = {
 }
 
 _FILTRO_MANUTENCAO = ["Todas", "Sem registro", "Há mais de N meses"]
+_FILTRO_ETIQUETA = ["Todas", "Nunca impressa"]
 
 
 class TelaBensPatrimoniais(ctk.CTkFrame):
@@ -66,6 +70,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         self._lista_filtrada_atual = []
         self._carregando_pagina = False
         self._timer_scroll = None
+        self._painel_impressora = None
         self._construir()
         self._carregar()
         self._monitorar_scroll()
@@ -115,6 +120,13 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
             command=lambda _: self._filtrar())
         self._opt_manutencao.pack(side="left", padx=(0, 8))
 
+        self._opt_etiqueta = ctk.CTkOptionMenu(
+            filt, values=_FILTRO_ETIQUETA,
+            width=150, height=32, corner_radius=6,
+            fg_color=COR_BRANCO, button_color=COR_PETROLEO_M, text_color="#161614",
+            command=lambda _: self._filtrar())
+        self._opt_etiqueta.pack(side="left", padx=(0, 8))
+
         ctk.CTkButton(filt, text="limpar", width=70, height=32,
                       fg_color=COR_BRANCO, text_color="#161614",
                       border_width=1, border_color=COR_CINZA_B,
@@ -129,12 +141,20 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         self._lbl_selecao = ctk.CTkLabel(self._barra_selecao, text="", text_color="#14504C",
                                          font=ctk.CTkFont(size=11, weight="bold"))
         self._lbl_selecao.pack(side="left", padx=12, pady=8)
-        ctk.CTkButton(self._barra_selecao, text="Imprimir na térmica (em breve)", width=190,
-                      height=26, state="disabled", fg_color=COR_CINZA_B,
-                      text_color="#AAAAAA", font=ctk.CTkFont(size=10)).pack(side="left", padx=(0, 6))
-        ctk.CTkButton(self._barra_selecao, text="Gerar arquivo (em breve)", width=160,
-                      height=26, state="disabled", fg_color=COR_CINZA_B,
-                      text_color="#AAAAAA", font=ctk.CTkFont(size=10)).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(self._barra_selecao, text="Imprimir na térmica", width=150,
+                      height=26, fg_color=COR_BRANCO, text_color=COR_PETROLEO_M,
+                      border_width=1, border_color="#B9DCD8", font=ctk.CTkFont(size=10),
+                      command=self._imprimir_termica).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(self._barra_selecao, text="Arquivo individual", width=140,
+                      height=26, fg_color=COR_BRANCO, text_color=COR_PETROLEO_M,
+                      border_width=1, border_color="#B9DCD8", font=ctk.CTkFont(size=10),
+                      command=lambda: self._gerar_arquivo(SaidaEtiqueta.arquivo_unitario)
+                      ).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(self._barra_selecao, text="Folha A4", width=100,
+                      height=26, fg_color=COR_BRANCO, text_color=COR_PETROLEO_M,
+                      border_width=1, border_color="#B9DCD8", font=ctk.CTkFont(size=10),
+                      command=lambda: self._gerar_arquivo(SaidaEtiqueta.arquivo_folha)
+                      ).pack(side="left", padx=(0, 6))
         ctk.CTkButton(self._barra_selecao, text="Limpar seleção", width=110, height=26,
                       fg_color=COR_BRANCO, text_color="#161614",
                       border_width=1, border_color=COR_CINZA_B,
@@ -200,6 +220,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         situacao_opt = self._opt_situacao.get()
         situacao_alvo, _ = _FILTRO_SITUACAO.get(situacao_opt, (None, False))
         manutencao_opt = self._opt_manutencao.get()
+        etiqueta_opt = self._opt_etiqueta.get()
         hoje = date.today()
 
         filtrados = []
@@ -209,6 +230,8 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
             if loc_label != "Todas as localizações" and (not bem.localizacao or bem.localizacao.nome_completo != loc_label):
                 continue
             if situacao_alvo and bem.situacao.value != situacao_alvo:
+                continue
+            if etiqueta_opt == "Nunca impressa" and bem.etiqueta_impressa_em is not None:
                 continue
             if manutencao_opt == "Sem registro" and ultima_manutencao is not None:
                 continue
@@ -256,6 +279,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         self._opt_localizacao.set("Todas as localizações")
         self._opt_situacao.set("Ativos")
         self._opt_manutencao.set("Todas")
+        self._opt_etiqueta.set("Todas")
         self._filtrar()
 
     def _agendar_filtro(self, event=None):
@@ -353,8 +377,13 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
                          corner_radius=6, padx=6, pady=2, width=_COLUNAS[4][1], height=24
                          ).grid(row=0, column=5, padx=6, pady=6)
 
-            ctk.CTkLabel(row, text="—", text_color="#888780",
-                         font=ctk.CTkFont(size=10), width=_COLUNAS[5][1], anchor="center"
+            if bem.etiqueta_impressa_em:
+                txt_etiqueta, cor_etiqueta = "Impressa", ("#F1EFE8", "#5F5E5A")
+            else:
+                txt_etiqueta, cor_etiqueta = "Nunca", ("#FAEEDA", "#854F0B")
+            ctk.CTkLabel(row, text=txt_etiqueta, fg_color=cor_etiqueta[0], text_color=cor_etiqueta[1],
+                         font=ctk.CTkFont(size=9, weight="bold"),
+                         corner_radius=6, padx=6, pady=2, width=_COLUNAS[5][1], height=24
                          ).grid(row=0, column=6, padx=6, pady=6)
 
             if ultima_manutencao:
@@ -379,8 +408,78 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
             text=f"{mostrados} de {total} bem(ns)" +
                  (f" · {len(self._selecionados)} selecionado(s)" if self._selecionados else ""))
 
+    # ── Etiquetas ─────────────────────────────────────────────────────────────
+
+    def _imprimir_termica(self):
+        if not self._selecionados:
+            self._banner.erro("Selecione ao menos um bem.")
+            return
+        if self._painel_impressora:
+            self._painel_impressora.destroy()
+        self._painel_impressora = SeletorImpressora(
+            self, servico=self._servico, usuario=self._usuario,
+            on_confirmar=self._ao_confirmar_impressora,
+            on_cancelar=self._fechar_seletor_impressora,
+        )
+        self._painel_impressora.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.45, relheight=0.5)
+
+    def _fechar_seletor_impressora(self):
+        if self._painel_impressora:
+            self._painel_impressora.destroy()
+            self._painel_impressora = None
+
+    def _ao_confirmar_impressora(self, nome_impressora: str):
+        self._fechar_seletor_impressora()
+        try:
+            resultado = self._servico.gerar_etiquetas(
+                list(self._selecionados), SaidaEtiqueta.impressora_cabo,
+                usuario_id=self._usuario.id, nome_impressora=nome_impressora)
+            self._banner.sucesso(f"{resultado.quantidade} etiqueta(s) enviada(s) para '{nome_impressora}'.")
+            self._limpar_selecao()
+            self._carregar()
+        except PatrimonioError as exc:
+            self._banner.erro(str(exc))
+        except Exception as exc:
+            logger.error("Erro ao imprimir etiquetas: %s", exc)
+            self._banner.erro(f"Erro ao imprimir: {exc}")
+
+    def _gerar_arquivo(self, saida: SaidaEtiqueta):
+        if not self._selecionados:
+            self._banner.erro("Selecione ao menos um bem.")
+            return
+        try:
+            resultado = self._servico.gerar_etiquetas(
+                list(self._selecionados), saida, usuario_id=self._usuario.id)
+        except PatrimonioError as exc:
+            self._banner.erro(str(exc))
+            return
+        except Exception as exc:
+            logger.error("Erro ao gerar etiquetas: %s", exc)
+            self._banner.erro(f"Erro ao gerar: {exc}")
+            return
+
+        sufixo = "individual" if saida == SaidaEtiqueta.arquivo_unitario else "folha_a4"
+        destino = filedialog.asksaveasfilename(
+            defaultextension=".pdf", filetypes=[("PDF", "*.pdf")],
+            initialfile=f"etiquetas_{sufixo}.pdf")
+        if destino:
+            try:
+                shutil.copy(resultado.caminho_arquivo, destino)
+                self._banner.sucesso(f"{resultado.quantidade} etiqueta(s) salva(s) em {destino}.")
+            except OSError as exc:
+                self._banner.erro(f"Erro ao salvar arquivo: {exc}")
+        else:
+            self._banner.sucesso(
+                f"{resultado.quantidade} etiqueta(s) geradas — arquivo temporário em {resultado.caminho_arquivo}.")
+
+        self._limpar_selecao()
+        self._carregar()
+
     def limpar_memoria(self):
         """Chamado pelo app.py ao sair da tela para esvaziar a RAM."""
+        if self._painel_impressora is not None:
+            self._painel_impressora.destroy()
+            self._painel_impressora = None
         if self._bens is not None:
             self._bens.clear()
             self._bens = None

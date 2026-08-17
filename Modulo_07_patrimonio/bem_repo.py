@@ -276,3 +276,15 @@ class BemRepo:
                      .all())
             s.expunge_all()
             return itens
+
+    @staticmethod
+    def marcar_etiqueta_impressa(bem_ids: list[int], quando: datetime) -> None:
+        # RF-28/AP-07 — atualização em lote após gerar_etiquetas ter sucesso.
+        # Não é movimentação (RN-11): emitir etiqueta não move nem altera o
+        # bem, só registra que a identidade física foi impressa.
+        if not bem_ids:
+            return
+        with get_session() as s:
+            (s.query(BemPatrimonial)
+             .filter(BemPatrimonial.id.in_(bem_ids))
+             .update({BemPatrimonial.etiqueta_impressa_em: quando}, synchronize_session=False))

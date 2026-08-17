@@ -3,12 +3,20 @@ gui.telas.t25_movimentacao_baixa.py
 Tela T-25 — Movimentação, baixa e histórico de um bem patrimonial (MOD-07).
 """
 import logging
+import os
+import tempfile
 from datetime import date, datetime
+from pathlib import Path
+from tkinter import filedialog
 
 import customtkinter as ctk
 
 from gui.componentes.form_widgets import Campo, FeedbackBanner
-from Modulo_07_patrimonio import PatrimonioService, DadosBem, PatrimonioError
+from Modulo_07_patrimonio import (
+    PatrimonioService, DadosBem, DadosBaixa, PatrimonioError,
+    AnexoObrigatorioError, AnexoInvalidoError, AnexoExcedidoError,
+)
+from gui.telas.t29_historico_manutencao import PainelHistoricoManutencao
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +53,10 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
         self._localizacoes = []
         self._aba_atual = "transferir"
         self._pode_baixar = usuario.perfil.value in ("admin", "ti")
+        self._anexo_bytes: bytes | None = None
+        self._anexo_nome: str | None = None
+        self._card_baixa_info = None
+        self._painel_manutencao = None
         self._construir()
         self._carregar()
 
@@ -71,8 +83,9 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
         corpo.grid_rowconfigure(0, weight=1)
 
         # ── Coluna esquerda: abas + formulários ─────────────────────────────────
-        esquerda = ctk.CTkScrollableFrame(corpo, fg_color="transparent")
-        esquerda.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        self._esquerda = ctk.CTkScrollableFrame(corpo, fg_color="transparent")
+        self._esquerda.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        esquerda = self._esquerda
 
         self._abas_frame = ctk.CTkFrame(esquerda, fg_color="transparent")
         self._abas_frame.pack(fill="x", pady=(0, 8))
@@ -178,8 +191,32 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
         self._campo_data_baixa.grid(row=0, column=1, rowspan=2, sticky="ew", padx=(0, 8))
         self._campo_data_baixa.set(date.today().strftime("%d/%m/%Y"))
 
-        self._campo_documento = Campo(grid, "Documento", placeholder="Ata, termo, processo", largura=140)
+        self._campo_documento = Campo(grid, "Referência (ata/termo/processo)", largura=140)
         self._campo_documento.grid(row=0, column=2, rowspan=2, sticky="ew")
+
+        grid2 = ctk.CTkFrame(card, fg_color="transparent")
+        grid2.pack(fill="x", padx=16, pady=(8, 0))
+        grid2.grid_columnconfigure((0, 1), weight=1)
+
+        self._campo_mtr = Campo(grid2, "Número MTR", largura=140)
+        self._campo_mtr.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+        self._campo_laudo = Campo(grid2, "Número do laudo", largura=140)
+        self._campo_laudo.grid(row=0, column=1, sticky="ew")
+
+        anexo_frame = ctk.CTkFrame(card, fg_color=COR_CINZA_E, corner_radius=6)
+        anexo_frame.pack(fill="x", padx=16, pady=(12, 8))
+        ctk.CTkLabel(anexo_frame, text="Anexo em PDF*", text_color="#5F5E5A",
+                     font=ctk.CTkFont(size=11, weight="bold"), anchor="w").pack(anchor="w", padx=10, pady=(8, 4))
+        linha_anexo = ctk.CTkFrame(anexo_frame, fg_color="transparent")
+        linha_anexo.pack(fill="x", padx=10, pady=(0, 10))
+        ctk.CTkButton(linha_anexo, text="Selecionar arquivo…", width=140, height=28,
+                      fg_color=COR_BRANCO, text_color="#3d3d3a",
+                      border_width=1, border_color=COR_CINZA_B, hover_color=COR_CINZA_E,
+                      font=ctk.CTkFont(size=11), command=self._selecionar_anexo_pdf).pack(side="left")
+        self._lbl_anexo = ctk.CTkLabel(linha_anexo, text="Nenhum arquivo selecionado.",
+                                       text_color="#888780", font=ctk.CTkFont(size=11))
+        self._lbl_anexo.pack(side="left", padx=10)
 
         rodape = ctk.CTkFrame(card, fg_color="transparent")
         rodape.pack(fill="x", padx=16, pady=(8, 16))
@@ -240,6 +277,12 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
         self._linhas_resumo_frame = ctk.CTkFrame(master, fg_color="transparent")
         self._linhas_resumo_frame.pack(fill="x", padx=16, pady=(0, 14))
 
+        ctk.CTkButton(master, text="Histórico de manutenção", height=28,
+                      fg_color=COR_BRANCO, text_color=COR_PETROLEO_M,
+                      border_width=1, border_color=COR_CINZA_B,
+                      hover_color=COR_CINZA_E, font=ctk.CTkFont(size=11),
+                      command=self._abrir_historico_manutencao).pack(fill="x", padx=16, pady=(0, 14))
+
     def _mostrar_aba(self, nome: str):
         if self._bem and self._bem.situacao.value == "baixado":
             return
@@ -270,6 +313,12 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
             self._banner.erro(str(exc))
             return
 
+        try:
+            historico_manut = self._servico.historico_manutencao(self._usuario.id, self._bem_id)
+            self._ultima_manutencao = historico_manut[-1].data_manutencao if historico_manut else None
+        except PatrimonioError:
+            self._ultima_manutencao = None
+
         self._lbl_titulo.configure(text=f"{self._bem.tombo} — {self._bem.descricao}")
         self._preencher_resumo()
         self._preencher_historico()
@@ -281,6 +330,7 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
                 self._frame_baixar.pack_forget()
             self._frame_editar.pack_forget()
             self._lbl_baixado.pack(anchor="w", pady=(0, 12))
+            self._mostrar_info_baixa()
             return
 
         # Combo de destino: todas as localizações, exceto a atual.
@@ -320,6 +370,8 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
             ("Aquisição", bem.data_aquisicao.strftime("%d/%m/%Y") if bem.data_aquisicao else "—"),
             ("Valor", f"R$ {bem.valor_aquisicao:.2f}" if bem.valor_aquisicao is not None else "—"),
             ("Nota fiscal", bem.nota_fiscal or "—"),
+            ("Última manutenção",
+             self._ultima_manutencao.strftime("%d/%m/%Y") if self._ultima_manutencao else "Nunca"),
         ]
         for i, (k, v) in enumerate(linhas):
             linha = ctk.CTkFrame(self._linhas_resumo_frame, fg_color="transparent")
@@ -393,10 +445,22 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
             logger.error("Erro ao transferir bem: %s", exc)
             self._banner.erro(f"Erro ao transferir: {exc}")
 
+    def _selecionar_anexo_pdf(self):
+        caminho = filedialog.askopenfilename(
+            title="Selecionar anexo da baixa", filetypes=[("PDF", "*.pdf")])
+        if not caminho:
+            return
+        try:
+            with open(caminho, "rb") as f:
+                self._anexo_bytes = f.read()
+            self._anexo_nome = os.path.basename(caminho)
+            self._lbl_anexo.configure(text=self._anexo_nome, text_color="#3d3d3a")
+        except OSError as exc:
+            self._banner.erro(f"Erro ao ler arquivo: {exc}")
+
     def _confirmar_baixa(self):
         motivo = _MOTIVOS_BAIXA.get(self._opt_motivo_baixa.get())
         data_texto = self._campo_data_baixa.get()
-        documento = self._campo_documento.get() or None
 
         try:
             data_baixa = datetime.strptime(data_texto, "%d/%m/%Y").date()
@@ -404,17 +468,132 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
             self._banner.erro("Data da baixa inválida. Use dd/mm/aaaa.")
             return
 
+        dados = DadosBaixa(
+            motivo=motivo,
+            data_baixa=data_baixa,
+            anexo_conteudo=self._anexo_bytes or b"",
+            anexo_nome=self._anexo_nome or "",
+            numero_mtr=self._campo_mtr.get() or None,
+            numero_laudo=self._campo_laudo.get() or None,
+            documento=self._campo_documento.get() or None,
+        )
+
         try:
-            self._servico.baixar_bem(
-                self._bem_id, motivo=motivo, data_baixa=data_baixa,
-                usuario_id=self._usuario.id, documento=documento)
+            self._servico.baixar_bem(self._bem_id, dados, usuario_id=self._usuario.id)
             self._banner.sucesso("Baixa registrada com sucesso.")
             self._carregar()
-        except PatrimonioError as exc:
+        except (AnexoObrigatorioError, AnexoInvalidoError, AnexoExcedidoError, PatrimonioError) as exc:
             self._banner.erro(str(exc))
         except Exception as exc:
             logger.error("Erro ao baixar bem: %s", exc)
             self._banner.erro(f"Erro ao baixar: {exc}")
+
+    def _mostrar_info_baixa(self):
+        if self._card_baixa_info:
+            self._card_baixa_info.destroy()
+            self._card_baixa_info = None
+
+        try:
+            baixa = self._servico.obter_baixa(self._usuario.id, self._bem_id)
+        except PatrimonioError as exc:
+            self._banner.erro(str(exc))
+            return
+
+        card = ctk.CTkFrame(self._esquerda, fg_color=COR_BRANCO, corner_radius=8,
+                            border_width=1, border_color=COR_CINZA_B)
+        card.pack(fill="x", pady=(0, 12))
+
+        motivo_label = next((k for k, v in _MOTIVOS_BAIXA.items() if v == baixa.motivo.value), baixa.motivo.value)
+        linhas = [
+            ("Motivo", motivo_label),
+            ("Data da baixa", baixa.data_baixa.strftime("%d/%m/%Y")),
+            ("Número MTR", baixa.numero_mtr or "—"),
+            ("Número do laudo", baixa.numero_laudo or "—"),
+            ("Referência", baixa.documento or "—"),
+        ]
+        for k, v in linhas:
+            linha = ctk.CTkFrame(card, fg_color="transparent")
+            linha.pack(fill="x", padx=16, pady=3)
+            ctk.CTkLabel(linha, text=k, text_color="#888780", font=ctk.CTkFont(size=11),
+                         width=120, anchor="w").pack(side="left")
+            ctk.CTkLabel(linha, text=v, text_color="#3d3d3a", font=ctk.CTkFont(size=11),
+                         anchor="w").pack(side="left")
+
+        botoes_doc = ctk.CTkFrame(card, fg_color="transparent")
+        botoes_doc.pack(fill="x", padx=16, pady=(8, 16))
+        ctk.CTkButton(botoes_doc, text="Visualizar documento", height=30,
+                      fg_color=COR_PETROLEO_M, hover_color=COR_PETROLEO,
+                      font=ctk.CTkFont(size=11),
+                      command=self._visualizar_documento_pdf).pack(side="left", fill="x", expand=True, padx=(0, 6))
+        ctk.CTkButton(botoes_doc, text="Baixar (PDF)", height=30,
+                      fg_color=COR_BRANCO, text_color=COR_PETROLEO_M,
+                      border_width=1, border_color=COR_CINZA_B, hover_color=COR_CINZA_E,
+                      font=ctk.CTkFont(size=11),
+                      command=self._baixar_documento_pdf).pack(side="left", fill="x", expand=True, padx=(6, 0))
+
+        self._card_baixa_info = card
+
+    def _visualizar_documento_pdf(self):
+        # Abre no visualizador padrão do Windows — sem depender de biblioteca
+        # nova para renderizar PDF dentro da janela do SCE. Mesmo padrão de
+        # arquivo temporário já usado em XlsxBuilder para relatórios.
+        try:
+            documento = self._servico.obter_documento_baixa(self._usuario.id, self._bem_id)
+        except PatrimonioError as exc:
+            self._banner.erro(str(exc))
+            return
+
+        try:
+            pasta_tmp = Path(tempfile.gettempdir()) / "SCU-Uronefrologia" / "patrimonio"
+            pasta_tmp.mkdir(exist_ok=True, parents=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            caminho_tmp = pasta_tmp / f"baixa_{self._bem.tombo}_{ts}.pdf"
+            caminho_tmp.write_bytes(documento.conteudo)
+            os.startfile(caminho_tmp)
+        except OSError as exc:
+            logger.error("Erro ao abrir documento de baixa: %s", exc)
+            self._banner.erro(f"Erro ao abrir documento: {exc}")
+
+    def _baixar_documento_pdf(self):
+        try:
+            documento = self._servico.obter_documento_baixa(self._usuario.id, self._bem_id)
+        except PatrimonioError as exc:
+            self._banner.erro(str(exc))
+            return
+
+        destino = filedialog.asksaveasfilename(
+            defaultextension=".pdf", filetypes=[("PDF", "*.pdf")],
+            initialfile=documento.nome_original)
+        if not destino:
+            return
+        try:
+            with open(destino, "wb") as f:
+                f.write(documento.conteudo)
+            self._banner.sucesso("Documento salvo com sucesso.")
+        except OSError as exc:
+            self._banner.erro(f"Erro ao salvar arquivo: {exc}")
+
+    def _abrir_historico_manutencao(self):
+        if not self._bem:
+            return
+        if self._painel_manutencao:
+            self._painel_manutencao.destroy()
+        self._painel_manutencao = PainelHistoricoManutencao(
+            self, servico=self._servico, usuario=self._usuario, bem=self._bem,
+            on_fechar=self._fechar_historico_manutencao)
+        self._painel_manutencao.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.55, relheight=0.75)
+
+    def _fechar_historico_manutencao(self):
+        if self._painel_manutencao:
+            self._painel_manutencao.destroy()
+            self._painel_manutencao = None
+        self._carregar()
+
+    def limpar_memoria(self):
+        """Chamado pelo app.py ao sair da tela — fecha painéis flutuantes abertos."""
+        if self._painel_manutencao:
+            self._painel_manutencao.destroy()
+            self._painel_manutencao = None
 
     def _confirmar_edicao(self):
         if not self._campo_descricao.validar():

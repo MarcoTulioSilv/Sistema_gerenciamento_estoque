@@ -2,7 +2,7 @@
 from .patrimonio_service import PatrimonioService
 from .dto import (
     ClassificacaoLeitura, SeveridadeLeitura, CodigoAviso, SaidaEtiqueta,
-    FiltroBens, DadosBem, ContextoColeta, AjusteConfirmado,
+    FiltroBens, DadosBem, DadosManutencao, DadosBaixa, ContextoColeta, AjusteConfirmado,
     ResultadoLeitura, ResumoSessao, Aviso, ResultadoAbertura,
     ResultadoEtiquetas, BemPublico,
 )
@@ -14,12 +14,13 @@ from .excecoes import (
     EscopoConflitanteError, AjusteNaoConfirmadoError, TokenInvalidoError,
     TokenExpiradoError, TokenRevogadoError, CodigoIlegivelError,
     EtiquetaError, ImpressoraIndisponivelError, PayloadExcedidoError, PermissaoNegadaError,
+    AnexoObrigatorioError, AnexoInvalidoError, AnexoExcedidoError,
 )
 
 __all__ = [
     "PatrimonioService",
     "ClassificacaoLeitura", "SeveridadeLeitura", "CodigoAviso", "SaidaEtiqueta",
-    "FiltroBens", "DadosBem", "ContextoColeta", "AjusteConfirmado",
+    "FiltroBens", "DadosBem", "DadosManutencao", "DadosBaixa", "ContextoColeta", "AjusteConfirmado",
     "ResultadoLeitura", "ResumoSessao", "Aviso", "ResultadoAbertura",
     "ResultadoEtiquetas", "BemPublico",
     "PatrimonioError",
@@ -29,4 +30,5 @@ __all__ = [
     "EscopoConflitanteError", "AjusteNaoConfirmadoError", "TokenInvalidoError",
     "TokenExpiradoError", "TokenRevogadoError", "CodigoIlegivelError",
     "EtiquetaError", "ImpressoraIndisponivelError", "PayloadExcedidoError", "PermissaoNegadaError",
+    "AnexoObrigatorioError", "AnexoInvalidoError", "AnexoExcedidoError",
 ]

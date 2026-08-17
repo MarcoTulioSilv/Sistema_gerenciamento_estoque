@@ -44,6 +44,7 @@ from gui.telas.t19_log      import TelaLog
 from gui.telas.t23_bens_patrimoniais import TelaBensPatrimoniais
 from gui.telas.t24_cadastro_bem      import TelaCadastroBem
 from gui.telas.t25_movimentacao_baixa import TelaMovimentacaoBaixa
+from gui.telas.t28_localizacoes      import TelaLocalizacoes
 
 # tema global
 ctk.set_appearance_mode("light")
@@ -346,6 +347,9 @@ class SCEApp(ctk.CTk):
         if destino == "movimentar_bem":
             return TelaMovimentacaoBaixa(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, bem_id=extra)
 
+        if destino == "localizacoes":
+            return TelaLocalizacoes(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+
     def _on_navigate_com_extra(self, destino: str, extra=None):
         """Versão do _navegar que aceita parâmetro extra(ex: produto_id)"""
         self.resetar_timer_sessao()
@@ -482,14 +486,17 @@ class Sidebar(ctk.CTkFrame):
         ("log"              ,"Log de Operações" ,             ["ti"]),
     ]
 
-    # MOD-07 — Sprint 9 só entrega T-23/T-24; T-25 é aberta a partir de T-23
-    # ("Abrir" na linha do bem, com bem_id), não por item de menu próprio.
-    # Etiquetas/Localizações/Configurações ficam de fora do menu até terem
-    # tela (S10/S11) — mesmo padrão já usado aqui para "Importar NF-e".
+    # MOD-07 — T-25 é aberta a partir de T-23 ("Abrir" na linha do bem, com
+    # bem_id) e T-29 a partir de T-25, não por item de menu próprio.
+    # Etiquetas/Configurações ficam de fora do menu até terem tela (S10/S11)
+    # — mesmo padrão já usado aqui para "Importar NF-e". Localizações (T-28,
+    # Sprint 10 Bloco 4) é exclusiva do TI (RF-27).
     MENU_PATRIMONIO = [
         ("__label__"          ,"Bens",              None),
         ("bens_patrimoniais"  ,"Bens patrimoniais", ["tecnico", "admin", "ti"]),
         ("novo_bem"           ,"Cadastrar bem",      ["tecnico", "admin", "ti"]),
+        ("__label__"          ,"Acesso restrito",    None),
+        ("localizacoes"       ,"Localizações",       ["ti"]),
     ]
 
     def __init__(self, master, usuario, on_navigate, on_logout, modo: str = "estoque", on_trocar_modo=None):

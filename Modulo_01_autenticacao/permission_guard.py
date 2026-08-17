@@ -54,6 +54,9 @@ _PERMISSOES: dict[str,list[str]]={
     "cadastrar_localizacao":  ["ti"],
     "editar_localizacao":     ["ti"],
     "desativar_localizacao":  ["ti"],
+    # MOD-07 — Patrimônio v1.8 (Sprint 10, Bloco 4)
+    "localizacoes":          ["ti"],                     # T-28 — RF-27
+    "registrar_manutencao":  ["tecnico", "admin", "ti"],  # RF-38
 }
 
 class PermissionGuard:

@@ -157,3 +157,20 @@ class PermissaoNegadaError(PatrimonioError):
     ocultar a ação, mas o serviço não confia na tela. O serviço de coleta
     HTTP depende exclusivamente desta checagem, pois não passa pela GUI.
     """
+
+
+# ─── Anexo de baixa (v1.8) ──────────────────────────────────────────────────
+
+class AnexoObrigatorioError(PatrimonioError):
+    """Baixa sem anexo de PDF (RF-30 revisado, RNF-20)."""
+
+
+class AnexoInvalidoError(PatrimonioError):
+    """
+    Arquivo selecionado não é um PDF válido — verificado pela assinatura
+    dos bytes (%PDF-), não pela extensão do nome.
+    """
+
+
+class AnexoExcedidoError(PatrimonioError):
+    """Anexo acima do limite configurado em baixa_anexo_max_mb."""

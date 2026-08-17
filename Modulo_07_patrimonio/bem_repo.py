@@ -10,7 +10,7 @@ from sqlalchemy.orm import joinedload
 
 from Modulo_06_dados import (
     get_session, get_read_session,
-    BemPatrimonial, Localizacao, MovimentacaoBem, BaixaBem,
+    BemPatrimonial, Localizacao, MovimentacaoBem, BaixaBem, ManutencaoBem,
     SituacaoBemEnum, TipoMovimentacaoBemEnum, MotivoBaixaEnum,
 )
 from .dto import FiltroBens, DadosBem
@@ -157,43 +157,110 @@ class BemRepo:
 
     @staticmethod
     def baixar(
+        session,
         bem_id: int,
         motivo: MotivoBaixaEnum,
         data_baixa: date,
+        documento_id: int,
         usuario_id: int,
         documento: str | None = None,
+        numero_mtr: str | None = None,
+        numero_laudo: str | None = None,
         observacao: str | None = None,
     ) -> BemPatrimonial | None:
-        with get_session() as s:
-            bem = s.get(BemPatrimonial, bem_id)
-            if not bem:
-                return None
+        """
+        Participa da MESMA sessão já aberta pelo chamador — mesma transação
+        de DocumentoBaixaRepo.criar (RNF-20/AD-22): sem baixa sem anexo, sem
+        anexo órfão. `documento_id` já vem resolvido (o anexo é inserido
+        antes, pelo serviço).
+        """
+        bem = session.get(BemPatrimonial, bem_id)
+        if not bem:
+            return None
 
-            baixa = BaixaBem(
-                bem_id=bem.id,
-                motivo=motivo,
-                documento=documento,
-                data_baixa=data_baixa,
-                observacao=observacao,
-                usuario_id=usuario_id,
-                registrado_em=datetime.utcnow(),
+        baixa = BaixaBem(
+            bem_id=bem.id,
+            motivo=motivo,
+            documento=documento,
+            numero_mtr=numero_mtr,
+            numero_laudo=numero_laudo,
+            documento_id=documento_id,
+            data_baixa=data_baixa,
+            observacao=observacao,
+            usuario_id=usuario_id,
+            registrado_em=datetime.utcnow(),
+        )
+        session.add(baixa)
+
+        bem.situacao = SituacaoBemEnum.baixado
+
+        mov = MovimentacaoBem(
+            bem_id=bem.id,
+            tipo=TipoMovimentacaoBemEnum.baixa,
+            motivo=motivo.value,
+            usuario_id=usuario_id,
+            data_hora=datetime.utcnow(),
+        )
+        session.add(mov)
+        session.flush()
+        _ = bem.localizacao
+        session.expunge(bem)
+        return bem
+
+    @staticmethod
+    def buscar_baixa(bem_id: int) -> BaixaBem | None:
+        """Dados da baixa (motivo, MTR, laudo etc.) de um bem já baixado — para exibição em T-25."""
+        with get_read_session() as s:
+            baixa = s.query(BaixaBem).filter_by(bem_id=bem_id).first()
+            if baixa:
+                s.expunge(baixa)
+            return baixa
+
+    @staticmethod
+    def listar_com_ultima_manutencao(
+        filtro: FiltroBens | None = None,
+    ) -> list[tuple[BemPatrimonial, date | None]]:
+        """
+        Mesma filtragem de listar(), mas em par com a data da última
+        manutenção — LEFT JOIN com MAX(data_manutencao) agrupado, consulta
+        única (RNF-21/AD-24), sem subconsulta por linha.
+        """
+        filtro = filtro or FiltroBens()
+        with get_read_session() as s:
+            ultima = (
+                s.query(
+                    ManutencaoBem.bem_id.label("bem_id"),
+                    func.max(ManutencaoBem.data_manutencao).label("ultima"),
+                )
+                .group_by(ManutencaoBem.bem_id)
+                .subquery()
             )
-            s.add(baixa)
 
-            bem.situacao = SituacaoBemEnum.baixado
+            q = (s.query(BemPatrimonial, ultima.c.ultima)
+                 .options(joinedload(BemPatrimonial.localizacao))
+                 .outerjoin(ultima, ultima.c.bem_id == BemPatrimonial.id))
 
-            mov = MovimentacaoBem(
-                bem_id=bem.id,
-                tipo=TipoMovimentacaoBemEnum.baixa,
-                motivo=motivo.value,
-                usuario_id=usuario_id,
-                data_hora=datetime.utcnow(),
-            )
-            s.add(mov)
-            s.flush()
-            _ = bem.localizacao
-            s.expunge(bem)
-            return bem
+            if filtro.texto:
+                alvo = f"%{filtro.texto.strip()}%"
+                q = q.filter(or_(
+                    BemPatrimonial.tombo.ilike(alvo),
+                    BemPatrimonial.descricao.ilike(alvo),
+                ))
+            if filtro.localizacao_id is not None:
+                q = q.filter(BemPatrimonial.localizacao_id == filtro.localizacao_id)
+            if filtro.situacao:
+                q = q.filter(BemPatrimonial.situacao == SituacaoBemEnum(filtro.situacao))
+            elif filtro.apenas_ativos:
+                q = q.filter(BemPatrimonial.situacao == SituacaoBemEnum.ativo)
+
+            q = q.order_by(BemPatrimonial.tombo)
+            if filtro.limite:
+                q = q.limit(filtro.limite)
+
+            linhas = q.all()
+            for bem, _ in linhas:
+                s.expunge(bem)
+            return [(bem, ultima_data) for bem, ultima_data in linhas]
 
     @staticmethod
     def historico(bem_id: int) -> list[MovimentacaoBem]:

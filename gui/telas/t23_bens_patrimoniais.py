@@ -6,8 +6,11 @@ Padrão de scroll infinito de t10_posicao_estoque.py (CTkScrollableFrame).
 import logging
 import customtkinter as ctk
 
+from datetime import date
+
 from gui.componentes.form_widgets import FeedbackBanner
 from Modulo_07_patrimonio import PatrimonioService, FiltroBens, PatrimonioError
+from Modulo_05_admin import ConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +30,13 @@ _SITUACAO_COR = {
 }
 
 _COLUNAS = [
-    ("Tombo",           110),
-    ("Descrição",       220),
-    ("Marca / modelo",  150),
-    ("Localização",     170),
-    ("Situação",        110),
-    ("Etiqueta",         90),
+    ("Tombo",              110),
+    ("Descrição",          200),
+    ("Marca / modelo",     140),
+    ("Localização",        150),
+    ("Situação",           100),
+    ("Etiqueta",            80),
+    ("Última manutenção",  130),
 ]
 
 _FILTRO_SITUACAO = {
@@ -41,6 +45,8 @@ _FILTRO_SITUACAO = {
     "Baixados": ("baixado", False),
     "Todas": (None, False),
 }
+
+_FILTRO_MANUTENCAO = ["Todas", "Sem registro", "Há mais de N meses"]
 
 
 class TelaBensPatrimoniais(ctk.CTkFrame):
@@ -102,6 +108,13 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
             command=lambda _: self._filtrar())
         self._opt_situacao.pack(side="left", padx=(0, 8))
 
+        self._opt_manutencao = ctk.CTkOptionMenu(
+            filt, values=_FILTRO_MANUTENCAO,
+            width=170, height=32, corner_radius=6,
+            fg_color=COR_BRANCO, button_color=COR_PETROLEO_M, text_color="#161614",
+            command=lambda _: self._filtrar())
+        self._opt_manutencao.pack(side="left", padx=(0, 8))
+
         ctk.CTkButton(filt, text="limpar", width=70, height=32,
                       fg_color=COR_BRANCO, text_color="#161614",
                       border_width=1, border_color=COR_CINZA_B,
@@ -158,11 +171,17 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
 
     def _carregar(self):
         try:
+            self._meses_alerta = int(ConfigService.get("manutencao_alerta_meses") or "12")
+        except (ValueError, TypeError):
+            self._meses_alerta = 12
+
+        try:
             self._localizacoes = self._servico.listar_localizacoes(self._usuario.id)
             labels = ["Todas as localizações"] + [loc.nome_completo for loc in self._localizacoes]
             self._opt_localizacao.configure(values=labels)
 
-            self._bens = self._servico.listar_bens(self._usuario.id, FiltroBens(apenas_ativos=False))
+            self._bens = self._servico.listar_bens_com_manutencao(
+                self._usuario.id, FiltroBens(apenas_ativos=False))
         except PatrimonioError as exc:
             logger.error("Erro ao carregar bens patrimoniais: %s", exc)
             self._banner.erro(str(exc))
@@ -180,16 +199,25 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         loc_label = self._opt_localizacao.get()
         situacao_opt = self._opt_situacao.get()
         situacao_alvo, _ = _FILTRO_SITUACAO.get(situacao_opt, (None, False))
+        manutencao_opt = self._opt_manutencao.get()
+        hoje = date.today()
 
         filtrados = []
-        for bem in self._bens:
+        for bem, ultima_manutencao in self._bens:
             if busca and busca not in bem.tombo.lower() and busca not in bem.descricao.lower():
                 continue
             if loc_label != "Todas as localizações" and (not bem.localizacao or bem.localizacao.nome_completo != loc_label):
                 continue
             if situacao_alvo and bem.situacao.value != situacao_alvo:
                 continue
-            filtrados.append(bem)
+            if manutencao_opt == "Sem registro" and ultima_manutencao is not None:
+                continue
+            if manutencao_opt == "Há mais de N meses":
+                if ultima_manutencao is not None:
+                    meses_desde = (hoje.year - ultima_manutencao.year) * 12 + (hoje.month - ultima_manutencao.month)
+                    if meses_desde < self._meses_alerta:
+                        continue
+            filtrados.append((bem, ultima_manutencao))
 
         self._lista_filtrada_atual = filtrados
         self._pagina_atual = 0
@@ -227,6 +255,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         self._entry_busca.delete(0, "end")
         self._opt_localizacao.set("Todas as localizações")
         self._opt_situacao.set("Ativos")
+        self._opt_manutencao.set("Todas")
         self._filtrar()
 
     def _agendar_filtro(self, event=None):
@@ -246,7 +275,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
     def _alternar_selecao_pagina(self):
         marcar = bool(self._chk_todos.get())
         visiveis = self._lista_filtrada_atual[:self._pagina_atual * self._itens_por_pagina]
-        for bem in visiveis:
+        for bem, _ in visiveis:
             if marcar:
                 self._selecionados.add(bem.id)
             else:
@@ -292,7 +321,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
             self._lbl_rodape.configure(text="")
             return
 
-        for i, bem in enumerate(bens):
+        for i, (bem, ultima_manutencao) in enumerate(bens):
             bg = COR_BRANCO if i % 2 == 0 else COR_CINZA_E
             row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
             row.pack(fill="x")
@@ -327,6 +356,14 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
             ctk.CTkLabel(row, text="—", text_color="#888780",
                          font=ctk.CTkFont(size=10), width=_COLUNAS[5][1], anchor="center"
                          ).grid(row=0, column=6, padx=6, pady=6)
+
+            if ultima_manutencao:
+                txt_manut, cor_manut = ultima_manutencao.strftime("%d/%m/%Y"), "#3d3d3a"
+            else:
+                txt_manut, cor_manut = "Nunca", "#854F0B"
+            ctk.CTkLabel(row, text=txt_manut, text_color=cor_manut,
+                         font=ctk.CTkFont(size=11), width=_COLUNAS[6][1], anchor="w"
+                         ).grid(row=0, column=7, padx=6, pady=6, sticky="w")
 
             ctk.CTkButton(
                 row, text="Abrir", width=64, height=26,

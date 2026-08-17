@@ -15,33 +15,47 @@ REGRAS ARQUITETURAIS QUE VALEM PARA TODO MÉTODO AQUI
 
 MATRIZ DE PERMISSÃO (perfis reais do banco: tecnico, admin, ti)
     consultar / cadastrar / editar / etiquetar / transferir : tecnico, admin, ti
+    registrar/consultar manutenção                          : tecnico, admin, ti
     baixar_bem                                              : admin, ti
-    cadastrar/editar/desativar localização                  : ti
+    cadastrar/editar/desativar localização (T-28)           : ti
     configurar máscara de tombo                             : ti
+
+Todo método acima também exige acesso ao subsistema (RF-39/RN-21), checado
+por _resolver_usuario_autorizado antes de qualquer checagem de perfil — ver
+Bloco 3 do Sprint 10.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
-from datetime import date
+import os
 
 from sqlalchemy.exc import IntegrityError
 
 from Modulo_06_dados import get_session, Localizacao, SituacaoBemEnum, MotivoBaixaEnum
 from Modulo_01_autenticacao import PermissionGuard
-from Modulo_05_admin import UsuarioService
+from Modulo_05_admin import UsuarioService, ConfigService
 
 from .dto import (
-    BemPublico, DadosBem, FiltroBens, ResultadoEtiquetas, SaidaEtiqueta,
+    BemPublico, DadosBem, DadosBaixa, DadosManutencao,
+    FiltroBens, ResultadoEtiquetas, SaidaEtiqueta,
 )
 from .excecoes import (
     BemNaoEncontradoError, BemBaixadoError, BaixaJaRegistradaError,
     LocalizacaoNaoEncontradaError, LocalizacaoEmUsoError,
     MovimentacaoInvalidaError, TomboDuplicadoError, PermissaoNegadaError,
+    AnexoObrigatorioError, AnexoInvalidoError, AnexoExcedidoError,
 )
 from .bem_repo import BemRepo
 from .localizacao_repo import LocalizacaoRepo
+from .manutencao_repo import ManutencaoRepo
+from .documento_baixa_repo import DocumentoBaixaRepo
 from .tombo_generator import TomboGenerator
+
+_ASSINATURA_PDF = b"%PDF-"
+_LIMITE_MB_PADRAO = 10
+_LIMITE_NOME_ANEXO = 160  # baixa_documento.nome_original é VARCHAR(160)
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +84,18 @@ class PatrimonioService:
         """
         self._resolver_usuario_autorizado(usuario_id)
         return BemRepo.listar(filtro)
+
+    def listar_bens_com_manutencao(self, usuario_id: int, filtro: FiltroBens | None = None) -> list:
+        """
+        Mesma listagem de listar_bens, em par com a data da última
+        manutenção de cada bem — usada só por T-23 (coluna "Última
+        manutenção"). Consulta única (RNF-21/AD-24), sem N+1 por linha.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id)
+        return BemRepo.listar_com_ultima_manutencao(filtro)
 
     def obter_bem(self, usuario_id: int, bem_id: int):
         """
@@ -119,7 +145,11 @@ class PatrimonioService:
         Raises:
             BemNaoEncontradoError
         """
-        bem = self.obter_por_tombo(tombo)
+        # Caminho público (RE-15/RF-37): NÃO passa por _resolver_usuario_autorizado
+        # nem por obter_por_tombo (que agora exige usuario_id) — vai direto ao repo.
+        bem = BemRepo.buscar_por_tombo(tombo)
+        if not bem:
+            raise BemNaoEncontradoError(f"Tombo '{tombo}' não encontrado.")
         return BemPublico(
             tombo=bem.tombo,
             descricao=bem.descricao,
@@ -229,21 +259,25 @@ class PatrimonioService:
                      bem_id, localizacao_destino_id, usuario_id)
         return bem
 
-    def baixar_bem(self, bem_id: int, motivo: str, data_baixa: date,
-                   usuario_id: int, documento: str | None = None,
-                   observacao: str | None = None):
+    def baixar_bem(self, bem_id: int, dados: DadosBaixa, usuario_id: int):
         """
-        Baixa patrimonial (RF-30). Perfis admin e ti apenas.
+        Baixa patrimonial (RF-30 revisado, v1.8). Perfis admin e ti apenas.
 
-        Em transação única: insere baixa_bem, muda situacao para 'baixado' e
-        grava movimentacao_bem tipo='baixa'.
+        Anexo em PDF obrigatório (RNF-20/AD-22): validado ANTES de abrir
+        transação (assinatura de arquivo, não extensão; tamanho contra
+        baixa_anexo_max_mb). Em transação única: insere baixa_documento,
+        obtém o id, insere baixa_bem referenciando-o, muda situacao para
+        'baixado' e grava movimentacao_bem tipo='baixa' — nessa ordem
+        exata (DAS v1.5 §5.8). Falha em qualquer ponto desfaz tudo: sem
+        documento órfão, sem baixa sem anexo.
 
         Irreversível pela interface (RN-12). O registro do bem permanece
         para auditoria e sai do escopo de sessões futuras. Reverter exige
         intervenção no banco, deliberadamente.
 
         Raises:
-            BemNaoEncontradoError, BaixaJaRegistradaError, PermissaoNegadaError
+            BemNaoEncontradoError, BaixaJaRegistradaError, PermissaoNegadaError,
+            AnexoObrigatorioError, AnexoInvalidoError, AnexoExcedidoError
         """
         self._resolver_usuario_autorizado(usuario_id, "baixar_bem")
 
@@ -251,12 +285,91 @@ class PatrimonioService:
         if bem.situacao == SituacaoBemEnum.baixado:
             raise BaixaJaRegistradaError(f"Bem {bem.tombo} já possui baixa registrada.")
 
-        bem = BemRepo.baixar(
-            bem_id, motivo=MotivoBaixaEnum(motivo), data_baixa=data_baixa,
-            usuario_id=usuario_id, documento=documento, observacao=observacao,
-        )
+        if not dados.anexo_conteudo:
+            raise AnexoObrigatorioError("O anexo em PDF é obrigatório para registrar a baixa.")
+        if not dados.anexo_conteudo.startswith(_ASSINATURA_PDF):
+            raise AnexoInvalidoError("O arquivo selecionado não é um PDF válido.")
+        limite_mb = int(ConfigService.get("baixa_anexo_max_mb") or _LIMITE_MB_PADRAO)
+        if len(dados.anexo_conteudo) > limite_mb * 1024 * 1024:
+            raise AnexoExcedidoError(f"O anexo excede o limite de {limite_mb} MB.")
+
+        sha256 = hashlib.sha256(dados.anexo_conteudo).hexdigest()
+        nome_tratado = self._tratar_nome_anexo(dados.anexo_nome)
+
+        with get_session() as s:
+            documento = DocumentoBaixaRepo.criar(
+                s, conteudo=dados.anexo_conteudo, nome_original=nome_tratado,
+                sha256=sha256, tamanho_bytes=len(dados.anexo_conteudo),
+                usuario_id=usuario_id,
+            )
+            bem = BemRepo.baixar(
+                s, bem_id=bem_id, motivo=MotivoBaixaEnum(dados.motivo),
+                data_baixa=dados.data_baixa, documento_id=documento.id,
+                usuario_id=usuario_id, documento=dados.documento,
+                numero_mtr=dados.numero_mtr, numero_laudo=dados.numero_laudo,
+                observacao=dados.observacao,
+            )
+
         logger.info("Bem baixado: id=%s usuario_id=%s", bem_id, usuario_id)
         return bem
+
+    def obter_baixa(self, usuario_id: int, bem_id: int):
+        """
+        Dados da baixa (motivo, data, MTR, laudo) de um bem já baixado,
+        para exibição em T-25.
+
+        Raises:
+            BemNaoEncontradoError, PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id)
+        baixa = BemRepo.buscar_baixa(bem_id)
+        if not baixa:
+            raise BemNaoEncontradoError(f"Bem {bem_id} não possui baixa registrada.")
+        return baixa
+
+    def obter_documento_baixa(self, usuario_id: int, bem_id: int):
+        """
+        Anexo (PDF) da baixa de um bem, para download em T-25.
+
+        Raises:
+            BemNaoEncontradoError, PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id)
+        documento = DocumentoBaixaRepo.buscar_por_bem_id(bem_id)
+        if not documento:
+            raise BemNaoEncontradoError(f"Bem {bem_id} não possui documento de baixa.")
+        return documento
+
+    # ─── Manutenção (RF-38, v1.8) ────────────────────────────────────────────
+
+    def registrar_manutencao(self, bem_id: int, dados: DadosManutencao, usuario_id: int):
+        """
+        Registra manutenção realizada em um bem (RF-38). Append-only
+        (RN-23) — não altera bem_patrimonial nem gera movimentacao_bem: são
+        históricos com propósitos distintos que não se misturam (AD-24).
+
+        Raises:
+            BemNaoEncontradoError, BemBaixadoError, PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id, "registrar_manutencao")
+        bem = self.obter_bem(usuario_id, bem_id)
+        if bem.situacao == SituacaoBemEnum.baixado:
+            raise BemBaixadoError(f"Bem {bem.tombo} está baixado e não pode receber manutenção.")
+
+        manutencao = ManutencaoRepo.criar(bem_id, dados, usuario_id)
+        logger.info("Manutenção registrada: bem_id=%s usuario_id=%s", bem_id, usuario_id)
+        return manutencao
+
+    def historico_manutencao(self, usuario_id: int, bem_id: int) -> list:
+        """
+        Manutenções do bem em ordem cronológica (T-29). Append-only, igual
+        historico_bem: só há o que ler.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id)
+        return ManutencaoRepo.listar_por_bem(bem_id)
 
     # ─── Localizações ───────────────────────────────────────────────────────
 
@@ -269,6 +382,17 @@ class PatrimonioService:
         """
         self._resolver_usuario_autorizado(usuario_id)
         return LocalizacaoRepo.listar(apenas_ativas)
+
+    def listar_localizacoes_com_contagem(self, usuario_id: int, apenas_ativas: bool = True) -> list:
+        """
+        Localizações em par com a contagem de bens ativos lotados — só T-28
+        (tela exclusiva do TI). Consulta única, sem N+1 por linha.
+
+        Raises:
+            PermissaoNegadaError  (somente ti, mesma tela)
+        """
+        self._resolver_usuario_autorizado(usuario_id, "localizacoes")
+        return LocalizacaoRepo.listar_com_contagem_bens(apenas_ativas)
 
     def cadastrar_localizacao(self, setor: str, sala: str, usuario_id: int,
                               descricao: str | None = None):
@@ -398,6 +522,26 @@ class PatrimonioService:
         raise NotImplementedError
 
     # ─── Interno ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _tratar_nome_anexo(nome: str) -> str:
+        """
+        Sanitiza o nome do anexo antes de gravar: remove separadores de
+        caminho (defesa extra — o nome já deveria vir só do basename) e
+        trunca para caber em baixa_documento.nome_original (VARCHAR(160)),
+        preservando a extensão. Sem isso, um nome real — gerado por
+        scanner ou por um caminho de rede longo, por exemplo — pode
+        estourar a coluna e falhar com "Data too long", já que o banco
+        roda em STRICT_TRANS_TABLES.
+        """
+        nome = os.path.basename(nome.replace("\\", "/")).strip()
+        if not nome:
+            return "documento.pdf"
+        if len(nome) <= _LIMITE_NOME_ANEXO:
+            return nome
+        raiz, ext = os.path.splitext(nome)
+        ext = ext[:20]  # extensão absurdamente longa não é extensão de verdade
+        return raiz[: _LIMITE_NOME_ANEXO - len(ext)] + ext
 
     @staticmethod
     def _resolver_usuario_autorizado(usuario_id: int, recurso: str | None = None):

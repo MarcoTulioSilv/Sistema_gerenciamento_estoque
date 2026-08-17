@@ -89,7 +89,9 @@ def _checar_e_perguntar() -> None:
 
 
 def main():
-    logger.info("Iniciando SCE V1.0.0")
+    versao=Path(__file__).parent / "sce_version.txt"
+    versao_txt=versao.read_text(encoding="utf-8").strip()
+    logger.info("Iniciando SCE V%s",versao_txt)
     _checar_e_perguntar()
     logger.info("Pasta de log: %s", pasta_log)
 

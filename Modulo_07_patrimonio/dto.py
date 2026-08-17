@@ -110,6 +110,33 @@ class DadosBem:
     observacao: str | None = None
 
 
+@dataclass
+class DadosManutencao:
+    """Payload de registro de manutenção realizada em um bem (RF-38, RN-23)."""
+    data_manutencao: date
+    descricao: str
+
+
+@dataclass
+class DadosBaixa:
+    """
+    Payload de baixa patrimonial (RF-30, v1.8).
+
+    O anexo em PDF é obrigatório (validado no serviço antes de qualquer
+    escrita, RNF-20) — `anexo_conteudo`/`anexo_nome` não têm default.
+    `documento` é a referência textual livre (ata/termo/processo) já
+    existente antes da v1.8, independente do anexo e do MTR/laudo.
+    """
+    motivo: str
+    data_baixa: date
+    anexo_conteudo: bytes
+    anexo_nome: str
+    numero_mtr: str | None = None
+    numero_laudo: str | None = None
+    documento: str | None = None
+    observacao: str | None = None
+
+
 @dataclass(frozen=True)
 class ContextoColeta:
     """

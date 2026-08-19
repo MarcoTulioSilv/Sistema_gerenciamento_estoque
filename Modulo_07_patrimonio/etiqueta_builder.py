@@ -264,7 +264,7 @@ def _desenhar_etiqueta(c, bem, host: str, porta: str, origem_x_mm: float,
     c.drawString((origem_x_mm + POS_TEXTO_X_MM) * MM, y_nome_pt, NOME_CLINICA)
 
     c.setFont("Helvetica-Bold", TOMBO_FONTE_MM * MM)
-    y_tombo_pt = (altura_pagina_mm - origem_y_topo_mm - POS_TOMBO_Y_MM) * MM
+    y_tombo_pt = (altura_pagina_mm - origem_y_topo_mm - POS_TOMBO_Y_MM-2) * MM
     c.drawString((origem_x_mm + POS_TEXTO_X_MM) * MM, y_tombo_pt, bem.tombo)
 
 

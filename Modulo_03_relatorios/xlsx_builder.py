@@ -659,3 +659,97 @@ class XlsxBuilder:
         Path(caminho).write_bytes(_bytes_final)
         logger.info("Relatório consumo médio gerado: %s (%d linhas)", caminho, len(dados))
         return caminho
+
+    # ── 6. Sessão de inventário (MOD-07) ────────────────────────────────────
+
+    @staticmethod
+    def relatorio_inventario(inventario, resumo, itens: list, sobras: list) -> Path:
+        """
+        Relatório de uma sessão de inventário (RF-34). Abas: resumo,
+        encontrados, divergências, não localizados, sobras — os itens já
+        vêm classificados por InventarioService, este método só distribui
+        pelas abas.
+        """
+        wb = Workbook()
+        st = _wb_styles()
+
+        ws_resumo = wb.active
+        ws_resumo.title = "Resumo"
+        ws_resumo.merge_cells('A1:B1')
+        cell_p = ws_resumo['A1']
+        cell_p.value = f"Inventário #{inventario.id} — {inventario.descricao}"
+        cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=12)
+        cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+        escopo_label = (
+            "Geral" if inventario.escopo.value == "geral"
+            else (inventario.localizacao.nome_completo if inventario.localizacao else "—")
+        )
+        linhas_resumo = [
+            ("Escopo", escopo_label),
+            ("Status", resumo.status.replace("_", " ").title()),
+            ("Aberto em", inventario.aberto_em.strftime("%d/%m/%Y %H:%M")),
+            ("Total esperado", resumo.total_esperado),
+            ("Encontrados", resumo.encontrados),
+            ("Divergentes", resumo.divergentes),
+            ("Não localizados", resumo.nao_localizados),
+            ("Sobras", resumo.sobras),
+        ]
+        _aplicar_header(ws_resumo, [("Indicador", 30), ("Valor", 40)], st, row_idx=2)
+        for i, (rotulo, valor) in enumerate(linhas_resumo, 3):
+            _aplicar_linha(ws_resumo, i, [rotulo, valor], st)
+        ws_resumo.freeze_panes = "A3"
+
+        def _sheet_itens(titulo: str, lista, fill=None, font=None):
+            ws = wb.create_sheet(titulo)
+            colunas = [
+                ("Tombo", 16), ("Descrição", 45), ("Localização esperada", 28),
+                ("Localização encontrada", 28), ("Conferido em", 18),
+                ("Conferido por", 22), ("Observação", 40),
+            ]
+            _aplicar_header(ws, colunas, st, row_idx=1)
+            for i, item in enumerate(lista, 2):
+                _aplicar_linha(ws, i, [
+                    item.bem.tombo,
+                    item.bem.descricao,
+                    item.localizacao_esperada.nome_completo if item.localizacao_esperada else "—",
+                    item.localizacao_encontrada.nome_completo if item.localizacao_encontrada else "—",
+                    item.conferido_em.strftime("%d/%m/%Y %H:%M") if item.conferido_em else "—",
+                    item.conferido_por_usuario.nome if item.conferido_por_usuario else "—",
+                    item.observacao or "",
+                ], st, fill=fill, font=font)
+            ws.freeze_panes = "A2"
+            return ws
+
+        encontrados      = [i for i in itens if i.status.value == "encontrado"]
+        divergentes      = [i for i in itens if i.status.value == "divergente_local"]
+        nao_localizados  = [i for i in itens if i.status.value == "nao_localizado"]
+
+        _sheet_itens("Encontrados", encontrados)
+        _sheet_itens("Divergências", divergentes, fill=st["af"], font=st["aft"])
+        _sheet_itens("Não localizados", nao_localizados, fill=st["vf"], font=st["vft"])
+
+        ws_sobras = wb.create_sheet("Sobras")
+        colunas_sobras = [
+            ("Código lido", 24), ("Tipo", 20), ("Localização", 28),
+            ("Registrado em", 18), ("Registrado por", 22), ("Descrição livre", 40),
+        ]
+        _aplicar_header(ws_sobras, colunas_sobras, st, row_idx=1)
+        for i, sobra in enumerate(sobras, 2):
+            _aplicar_linha(ws_sobras, i, [
+                sobra.codigo_lido,
+                sobra.tipo.value.replace("_", " ").title(),
+                sobra.localizacao.nome_completo if sobra.localizacao else "—",
+                sobra.registrado_em.strftime("%d/%m/%Y %H:%M"),
+                sobra.registrado_por_usuario.nome if sobra.registrado_por_usuario else "—",
+                sobra.descricao_livre or "",
+            ], st, fill=st["af"], font=st["aft"])
+        ws_sobras.freeze_panes = "A2"
+
+        _buf = _io_bg.BytesIO()
+        wb.save(_buf)
+        _bytes_final = _aplicar_background(_buf.getvalue())
+        caminho = XlsxBuilder._nome_arquivo("inventario")
+        Path(caminho).write_bytes(_bytes_final)
+        logger.info("Relatório de inventário gerado: %s (inventario_id=%s)", caminho, inventario.id)
+        return caminho

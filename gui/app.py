@@ -9,6 +9,8 @@ from customtkinter.windows.widgets.core_widget_classes.dropdown_menu import Drop
 from customtkinter.windows.widgets.ctk_button import CTkButton
 from datetime import datetime
 
+from trio import Path
+
 from gui.componentes.tema import (
     COR_AZUL, COR_AZUL_M, COR_SIDEBAR, COR_SIDEBAR_H, COR_SIDEBAR_A,
     COR_PETROLEO, COR_PETROLEO_M, COR_SIDEBAR_PATRIM, COR_SIDEBAR_PATRIM_H, COR_SIDEBAR_PATRIM_A,
@@ -45,6 +47,7 @@ from gui.telas.t23_bens_patrimoniais import TelaBensPatrimoniais
 from gui.telas.t24_cadastro_bem      import TelaCadastroBem
 from gui.telas.t25_movimentacao_baixa import TelaMovimentacaoBaixa
 from gui.telas.t28_localizacoes      import TelaLocalizacoes
+from gui.telas.t26_inventario        import TelaInventario
 
 # tema global
 ctk.set_appearance_mode("light")
@@ -88,7 +91,9 @@ class SCEApp(ctk.CTk):
         if sys.platform.startswith("win"):
             try:
                 import ctypes
-                myappid = 'uronefrologia.sce.v1.0.1' # Uma string única (ID) para o seu app
+                versao=Path(__file__).parent / "sce_version.txt"
+                versao_txt=versao.read_text(encoding="utf-8").strip()
+                myappid = 'uronefrologia.sce.%s' % versao_txt # Uma string única (ID) para o seu app
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
             except Exception as e:
                 logger.error("Erro ao definir App ID no Windows: %s", e)
@@ -350,6 +355,9 @@ class SCEApp(ctk.CTk):
         if destino == "localizacoes":
             return TelaLocalizacoes(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
 
+        if destino == "inventario":
+            return TelaInventario(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+
     def _on_navigate_com_extra(self, destino: str, extra=None):
         """Versão do _navegar que aceita parâmetro extra(ex: produto_id)"""
         self.resetar_timer_sessao()
@@ -495,6 +503,7 @@ class Sidebar(ctk.CTkFrame):
         ("__label__"          ,"Bens",              None),
         ("bens_patrimoniais"  ,"Bens patrimoniais", ["tecnico", "admin", "ti"]),
         ("novo_bem"           ,"Cadastrar bem",      ["tecnico", "admin", "ti"]),
+        ("inventario"         ,"Inventário",         ["tecnico", "admin", "ti"]),
         ("__label__"          ,"Acesso restrito",    None),
         ("localizacoes"       ,"Localizações",       ["ti"]),
     ]

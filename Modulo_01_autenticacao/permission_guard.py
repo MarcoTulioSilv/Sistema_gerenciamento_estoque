@@ -57,6 +57,10 @@ _PERMISSOES: dict[str,list[str]]={
     # MOD-07 — Patrimônio v1.8 (Sprint 10, Bloco 4)
     "localizacoes":          ["ti"],                     # T-28 — RF-27
     "registrar_manutencao":  ["tecnico", "admin", "ti"],  # RF-38
+    # MOD-07 — Patrimônio (Sprint 11 — InventarioService / T-26)
+    "abrir_sessao_inventario":   ["admin", "ti"],
+    "fechar_sessao_inventario":  ["admin", "ti"],
+    "cancelar_sessao_inventario":["admin", "ti"],
 }
 
 class PermissionGuard:

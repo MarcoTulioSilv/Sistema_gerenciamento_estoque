@@ -36,9 +36,9 @@ _COLUNAS = [
     ("Tombo",              110),
     ("Descrição",          200),
     ("Marca / modelo",     140),
-    ("Localização",        150),
+    ("Localização",        200),
     ("Situação",           100),
-    ("Etiqueta",            80),
+    ("Etiqueta",            100),
     ("Última manutenção",  130),
 ]
 
@@ -174,7 +174,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         for col, (txt, largura) in enumerate(_COLUNAS, start=1):
             ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
                          font=ctk.CTkFont(size=9, weight="bold"),
-                         width=largura, anchor="w"
+                         width=largura, anchor="center" 
                          ).grid(row=0, column=col, padx=6, pady=5, sticky="w")
         ctk.CTkLabel(hdr, text="", width=70).grid(row=0, column=len(_COLUNAS) + 1, padx=6, pady=5)
 

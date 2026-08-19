@@ -32,3 +32,7 @@ segno==1.6.1            # geração de QR Code
 python-barcode==0.15.1  # geração de Code 128
 reportlab==4.2.5        # PDF vetorial (etiqueta unitária e folha A4)
 pywin32==308            # spooler do Windows em modo RAW (impressão a cabo)
+
+# MOD-07 · Patrimônio — ColetaWebService (serviço HTTP headless de coleta)
+flask==3.1.3             # rotas /p e /parear
+waitress==3.0.2          # servidor WSGI puro-Python (AD-14)

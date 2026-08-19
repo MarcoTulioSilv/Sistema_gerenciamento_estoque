@@ -290,3 +290,4 @@ class BemPublico:
     localizacao: str
     situacao: str
     baixado: bool = False
+    ultima_manutencao: date | None = None

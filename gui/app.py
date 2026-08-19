@@ -93,7 +93,8 @@ class SCEApp(ctk.CTk):
                 import ctypes
                 versao=Path(__file__).parent / "sce_version.txt"
                 versao_txt=versao.read_text(encoding="utf-8").strip()
-                myappid = 'uronefrologia.sce.%s' % versao_txt # Uma string única (ID) para o seu app
+                myappid = 'uronefrologia.sce'
+                 # Uma string única (ID) para o seu app
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
             except Exception as e:
                 logger.error("Erro ao definir App ID no Windows: %s", e)

@@ -156,6 +156,7 @@ class PatrimonioService:
         bem = BemRepo.buscar_por_tombo(tombo)
         if not bem:
             raise BemNaoEncontradoError(f"Tombo '{tombo}' não encontrado.")
+        ultima_manutencao = ManutencaoRepo.buscar_ultima_por_bem(bem.id)
         return BemPublico(
             tombo=bem.tombo,
             descricao=bem.descricao,
@@ -163,6 +164,7 @@ class PatrimonioService:
             localizacao=bem.localizacao.nome_completo,
             situacao=bem.situacao.value,
             baixado=bem.situacao == SituacaoBemEnum.baixado,
+            ultima_manutencao=ultima_manutencao.data_manutencao if ultima_manutencao else None,
         )
 
     # ─── Cadastro e edição ──────────────────────────────────────────────────

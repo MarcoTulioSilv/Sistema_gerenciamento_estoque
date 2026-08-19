@@ -42,3 +42,16 @@ class ManutencaoRepo:
                      .all())
             s.expunge_all()
             return itens
+
+    @staticmethod
+    def buscar_ultima_por_bem(bem_id: int) -> ManutencaoBem | None:
+        # Página pública de consulta (RF-37) só precisa da mais recente —
+        # evita carregar todo o histórico como listar_por_bem faria.
+        with get_read_session() as s:
+            item = (s.query(ManutencaoBem)
+                    .filter(ManutencaoBem.bem_id == bem_id)
+                    .order_by(ManutencaoBem.data_manutencao.desc())
+                    .first())
+            if item:
+                s.expunge(item)
+            return item

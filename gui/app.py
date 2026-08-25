@@ -34,6 +34,7 @@ from gui.telas.t07_entrada_manual import TelaEntradaManual
 #from gui.telas.t08_importar_nfe import TelaImportarNFe
 from gui.telas.t07c_entrada_danfe import TelaEntradaDANFE
 from gui.telas.t09_retirada import TelaRetirada
+from gui.telas.t09b_transferencia import TelaTransferencia
 from gui.telas.t10_posicao_estoque import TelaPosicaoEstoque
 from gui.telas.t22_dashboard import TelaDashboard
 from gui.telas.t11_relatorios import TelaCentralRelatorios
@@ -91,8 +92,6 @@ class SCEApp(ctk.CTk):
         if sys.platform.startswith("win"):
             try:
                 import ctypes
-                versao=Path(__file__).parent / "sce_version.txt"
-                versao_txt=versao.read_text(encoding="utf-8").strip()
                 myappid = 'uronefrologia.sce'
                  # Uma string única (ID) para o seu app
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
@@ -315,7 +314,14 @@ class SCEApp(ctk.CTk):
         
         if destino=="baixa_vencido":
             return TelaRetirada(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, baixa_vencido=True, lotes_vencidos=extra)
-        
+
+        if destino == "transferencia":
+            if isinstance(extra, dict):
+                return TelaTransferencia(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav,
+                                         produto_id=extra.get("produto_id"), centro_origem=extra.get("centro_origem"))
+            return TelaTransferencia(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, produto_id=extra)
+
+
         if destino=="posicao":
             return TelaPosicaoEstoque(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav, produto_id=extra)
         
@@ -480,7 +486,8 @@ class Sidebar(ctk.CTkFrame):
         ("entrada_manual"   ,"Entrada Manual",                ["admin", "tecnico", "ti"]),
         ("importar_nfe"     ,"Importar NF-e",                 []),
         ("entrada_danfe"    ,"Entrada DANFE",                 ["admin", "tecnico", "ti"]),
-        ("retirada"         ,"Retirada/ Transferencia",       ["admin", "tecnico", "ti"]),
+        ("retirada"         ,"Retirada",                      ["admin", "tecnico", "ti"]),
+        ("transferencia"    ,"Transferência entre centros",   ["admin", "tecnico", "ti"]),
         ("__label__"        ,"Consulta",                      None),
         ("posicao"          ,"Posição de Estoque",            ["admin", "tecnico", "ti"]),
         ("dashboard"        ,"Dashboard",                     ["admin", "ti"]),

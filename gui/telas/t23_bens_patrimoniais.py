@@ -12,8 +12,8 @@ from tkinter import filedialog
 
 from gui.componentes.form_widgets import FeedbackBanner
 from gui.componentes.seletor_impressora import SeletorImpressora
+from gui.componentes.tabela_scroll import TabelaScroll
 from Modulo_07_patrimonio import PatrimonioService, FiltroBens, PatrimonioError, SaidaEtiqueta
-from Modulo_05_admin import ConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +33,13 @@ _SITUACAO_COR = {
 }
 
 _COLUNAS = [
-    ("Tombo",              110),
+    ("Tombo",              50),
     ("Descrição",          200),
     ("Marca / modelo",     140),
-    ("Localização",        200),
+    ("Localização",        250),
     ("Situação",           100),
     ("Etiqueta",            100),
-    ("Última manutenção",  130),
+    ("Última manutenção",  60),
 ]
 
 _FILTRO_SITUACAO = {
@@ -49,7 +49,7 @@ _FILTRO_SITUACAO = {
     "Todas": (None, False),
 }
 
-_FILTRO_MANUTENCAO = ["Todas", "Sem registro", "Há mais de N meses"]
+_FILTRO_MANUTENCAO = ["Todas", "Sem registro", "até 3 meses", "até 6 meses", "mais de um ano"]
 _FILTRO_ETIQUETA = ["Todas", "Nunca impressa"]
 
 
@@ -91,14 +91,17 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
 
         # Filtros
         filt = ctk.CTkFrame(self, fg_color="transparent")
-        filt.pack(fill="x", padx=16, pady=(10, 0))
+        filt.pack(fill="x", padx=16, pady=(10))
 
+       
         self._entry_busca = ctk.CTkEntry(
             filt, placeholder_text="Tombo ou descrição",
             height=32, width=240, corner_radius=6)
         self._entry_busca.pack(side="left")
         self._entry_busca.bind("<KeyRelease>", self._agendar_filtro)
 
+        self._place_localizacao = ctk.CTkLabel(filt, text="Localização:  ", text_color="#161614",)
+        self._place_localizacao.pack(side="left", padx=(12, 0))
         self._opt_localizacao = ctk.CTkOptionMenu(
             filt, values=["Todas as localizações"],
             width=190, height=32, corner_radius=6,
@@ -106,23 +109,29 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
             command=lambda _: self._filtrar())
         self._opt_localizacao.pack(side="left", padx=8)
 
-        self._opt_situacao = ctk.CTkOptionMenu(
+        self._place_situacao = ctk.CTkLabel(filt, text="Situação:  ", text_color="#161614")
+        self._place_situacao.pack(side="left", padx=(12, 0))
+        self._opt_situacao = ctk.CTkOptionMenu( 
             filt, values=list(_FILTRO_SITUACAO.keys()),
-            width=150, height=32, corner_radius=6,
+            width=150, height=32, corner_radius=6, anchor="center",
             fg_color=COR_BRANCO, button_color=COR_PETROLEO_M, text_color="#161614",
             command=lambda _: self._filtrar())
         self._opt_situacao.pack(side="left", padx=(0, 8))
-
+    
+        self._place_manutencao = ctk.CTkLabel(filt, text="Manutenção:  ", text_color="#161614")
+        self._place_manutencao.pack(side="left", padx=(12, 0))
         self._opt_manutencao = ctk.CTkOptionMenu(
             filt, values=_FILTRO_MANUTENCAO,
-            width=170, height=32, corner_radius=6,
+            width=170, height=32, corner_radius=6, anchor="center",
             fg_color=COR_BRANCO, button_color=COR_PETROLEO_M, text_color="#161614",
             command=lambda _: self._filtrar())
         self._opt_manutencao.pack(side="left", padx=(0, 8))
 
+        self._place_etiqueta = ctk.CTkLabel(filt, text="Etiqueta:  ", text_color="#161614")
+        self._place_etiqueta.pack(side="left", padx=(12, 0))
         self._opt_etiqueta = ctk.CTkOptionMenu(
             filt, values=_FILTRO_ETIQUETA,
-            width=150, height=32, corner_radius=6,
+            width=150, height=32, corner_radius=6, anchor="center",
             fg_color=COR_BRANCO, button_color=COR_PETROLEO_M, text_color="#161614",
             command=lambda _: self._filtrar())
         self._opt_etiqueta.pack(side="left", padx=(0, 8))
@@ -140,7 +149,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         self._barra_selecao = ctk.CTkFrame(self, fg_color=COR_PETROLEO_L, corner_radius=6)
         self._lbl_selecao = ctk.CTkLabel(self._barra_selecao, text="", text_color="#14504C",
                                          font=ctk.CTkFont(size=11, weight="bold"))
-        self._lbl_selecao.pack(side="left", padx=12, pady=8)
+        self._lbl_selecao.pack(side="left", padx=12, pady=(8))
         ctk.CTkButton(self._barra_selecao, text="Imprimir na térmica", width=150,
                       height=26, fg_color=COR_BRANCO, text_color=COR_PETROLEO_M,
                       border_width=1, border_color="#B9DCD8", font=ctk.CTkFont(size=10),
@@ -161,27 +170,34 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
                       font=ctk.CTkFont(size=10),
                       command=self._limpar_selecao).pack(side="left", padx=(0, 12))
 
-        # Cabeçalho
-        hdr = ctk.CTkFrame(self, fg_color=COR_BRANCO, corner_radius=0,
-                           border_width=1, border_color=COR_CINZA_B)
-        hdr.pack(fill="x", padx=16, pady=(10, 0))
-        hdr.grid_columnconfigure(len(_COLUNAS) + 1, weight=1)
+        # Tabela: cabeçalho (row 0) e linhas de dados (row 1+) compartilham a
+        # MESMA grade (self._tabela.grade) — garante alinhamento de coluna
+        # de verdade, e dá scroll vertical + horizontal juntos (ver
+        # gui/componentes/tabela_scroll.py).
+        self._tabela = TabelaScroll(self, fg_color_grade=COR_BRANCO,
+                                    border_width=1, border_color=COR_CINZA_B, corner_radius=0)
+        self._tabela.pack(fill="both", expand=True, padx=16, pady=(10, 0))
 
-        self._chk_todos = ctk.CTkCheckBox(hdr, text="", width=18, onvalue=True, offvalue=False,
+        grade = self._tabela.grade
+        grade.grid_columnconfigure(0, minsize=36)
+        for col, (txt, largura) in enumerate(_COLUNAS, start=1):
+            grade.grid_columnconfigure(col, minsize=largura)
+        grade.grid_columnconfigure(len(_COLUNAS) + 1, minsize=80)
+        grade.grid_columnconfigure(2, weight=1)  # Descrição — absorve o espaço sobrando
+
+        self._chk_todos = ctk.CTkCheckBox(grade, text="", width=18, onvalue=True, offvalue=False,
                                           command=self._alternar_selecao_pagina)
-        self._chk_todos.grid(row=0, column=0, padx=10, pady=5)
+        self._chk_todos.grid(row=0, column=0, padx=10, pady=8, sticky="w")
 
         for col, (txt, largura) in enumerate(_COLUNAS, start=1):
-            ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
+            ancora = "w" if col == 1 else "center"
+            ctk.CTkLabel(grade, text=txt.upper(), text_color="#888780",
                          font=ctk.CTkFont(size=9, weight="bold"),
-                         width=largura, anchor="center" 
-                         ).grid(row=0, column=col, padx=6, pady=5, sticky="w")
-        ctk.CTkLabel(hdr, text="", width=70).grid(row=0, column=len(_COLUNAS) + 1, padx=6, pady=5)
-
-        self._scroll = ctk.CTkScrollableFrame(
-            self, fg_color=COR_BRANCO,
-            border_width=1, border_color=COR_CINZA_B, corner_radius=0)
-        self._scroll.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+                         anchor=ancora
+                         ).grid(row=0, column=col, padx=8, pady=8)
+        ctk.CTkLabel(grade, text="AÇÃO", text_color="#888780",
+                     font=ctk.CTkFont(size=9, weight="bold"),
+                     ).grid(row=0, column=len(_COLUNAS) + 1, padx=8, pady=8)
 
         self._lbl_rodape = ctk.CTkLabel(
             self, text="", text_color="#888780", font=ctk.CTkFont(size=10))
@@ -190,11 +206,6 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
     # ── Dados ─────────────────────────────────────────────────────────────────
 
     def _carregar(self):
-        try:
-            self._meses_alerta = int(ConfigService.get("manutencao_alerta_meses") or "12")
-        except (ValueError, TypeError):
-            self._meses_alerta = 12
-
         try:
             self._localizacoes = self._servico.listar_localizacoes(self._usuario.id)
             labels = ["Todas as localizações"] + [loc.nome_completo for loc in self._localizacoes]
@@ -235,19 +246,21 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
                 continue
             if manutencao_opt == "Sem registro" and ultima_manutencao is not None:
                 continue
-            if manutencao_opt == "Há mais de N meses":
-                if ultima_manutencao is not None:
-                    meses_desde = (hoje.year - ultima_manutencao.year) * 12 + (hoje.month - ultima_manutencao.month)
-                    if meses_desde < self._meses_alerta:
-                        continue
+            if manutencao_opt in ("até 3 meses", "até 6 meses", "mais de um ano"):
+                if ultima_manutencao is None:
+                    continue
+                meses_desde = (hoje.year - ultima_manutencao.year) * 12 + (hoje.month - ultima_manutencao.month)
+                if manutencao_opt == "até 3 meses" and meses_desde > 3:
+                    continue
+                if manutencao_opt == "até 6 meses" and meses_desde > 6:
+                    continue
+                if manutencao_opt == "mais de um ano" and meses_desde <= 12:
+                    continue
             filtrados.append((bem, ultima_manutencao))
 
         self._lista_filtrada_atual = filtrados
         self._pagina_atual = 0
-
-        for w in self._scroll.winfo_children():
-            w.destroy()
-
+        self._tabela.limpar_linhas(a_partir_da_row=1)
         self._renderizar_proxima_pagina()
 
     def _renderizar_proxima_pagina(self):
@@ -256,7 +269,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         inicio = self._pagina_atual * self._itens_por_pagina
         fim = inicio + self._itens_por_pagina
         bens_pagina = self._lista_filtrada_atual[inicio:fim]
-        self._renderizar(bens_pagina, limpar_tela=False)
+        self._renderizar(bens_pagina, inicio)
 
         self._pagina_atual += 1
         self.after(100, lambda: setattr(self, '_carregando_pagina', False))
@@ -266,7 +279,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
 
         if not self._carregando_pagina and inicio_proxima < len(self._lista_filtrada_atual):
             try:
-                _, bottom = self._scroll._parent_canvas.yview()
+                _, bottom = self._tabela._canvas.yview()
                 if bottom >= 0.95:
                     self._renderizar_proxima_pagina()
             except Exception:
@@ -300,16 +313,12 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         marcar = bool(self._chk_todos.get())
         visiveis = self._lista_filtrada_atual[:self._pagina_atual * self._itens_por_pagina]
         for bem, _ in visiveis:
-            if marcar:
-                self._selecionados.add(bem.id)
-            else:
-                self._selecionados.discard(bem.id)
+            self._alternar_bem(bem.id, marcar)
         self._filtrar_sem_resetar_pagina()
 
     def _filtrar_sem_resetar_pagina(self):
         pagina_atual = self._pagina_atual
-        for w in self._scroll.winfo_children():
-            w.destroy()
+        self._tabela.limpar_linhas(a_partir_da_row=1)
         self._pagina_atual = 0
         while self._pagina_atual < pagina_atual:
             self._renderizar_proxima_pagina()
@@ -333,74 +342,73 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
 
     # ── Renderização ──────────────────────────────────────────────────────────
 
-    def _renderizar(self, bens, limpar_tela=True):
-        if limpar_tela:
-            for w in self._scroll.winfo_children():
-                w.destroy()
+    def _renderizar(self, bens, indice_inicial: int):
+        grade = self._tabela.grade
 
-        if not bens and self._pagina_atual == 0:
-            ctk.CTkLabel(self._scroll, text="Nenhum bem encontrado.",
+        if not bens and indice_inicial == 0:
+            ctk.CTkLabel(grade, text="Nenhum bem encontrado.",
                         text_color=COR_VERM,
-                        font=ctk.CTkFont(size=12)).pack(pady=24)
+                        font=ctk.CTkFont(size=12)
+                        ).grid(row=1, column=0, columnspan=len(_COLUNAS) + 2, pady=24)
             self._lbl_rodape.configure(text="")
             return
 
-        for i, (bem, ultima_manutencao) in enumerate(bens):
+        for offset, (bem, ultima_manutencao) in enumerate(bens):
+            i = indice_inicial + offset
+            row_idx = i + 1  # row 0 é o cabeçalho, na mesma grade
             bg = COR_BRANCO if i % 2 == 0 else COR_CINZA_E
-            row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
-            row.pack(fill="x")
-            row.grid_columnconfigure(len(_COLUNAS) + 1, weight=1)
 
             var = ctk.BooleanVar(value=bem.id in self._selecionados)
-            ctk.CTkCheckBox(row, text="", width=18, variable=var,
+            ctk.CTkCheckBox(grade, text="", width=18, variable=var, bg_color="transparent",
                             command=lambda b=bem.id, v=var: self._alternar_bem(b, v.get())
-                            ).grid(row=0, column=0, padx=10, pady=4)
+                            ).grid(row=row_idx, column=0, padx=10, pady=4, sticky="n")
 
             situacao_label = _SITUACAO_LABEL.get(bem.situacao.value, bem.situacao.value)
             valores = [
                 bem.tombo,
-                bem.descricao[:34],
+                bem.descricao,
                 bem.marca_modelo or "—",
                 bem.localizacao.nome_completo if bem.localizacao else "—",
             ]
             for col, val in enumerate(valores, start=1):
-                largura = _COLUNAS[col - 1][1]
                 cor = COR_PETROLEO if col == 1 else "#3d3d3a"
                 fonte = ctk.CTkFont(size=11, weight="bold", family="Consolas") if col == 1 else ctk.CTkFont(size=11)
-                ctk.CTkLabel(row, text=val, text_color=cor, font=fonte,
-                             width=largura, anchor="w"
-                             ).grid(row=0, column=col, padx=6, pady=6, sticky="w")
+                ctk.CTkLabel(grade, text=val, text_color=cor, font=fonte,
+                             fg_color=bg, anchor="w", corner_radius=5,
+                             ).grid(row=row_idx, column=col, padx=8, pady=6, sticky="nsew")
 
             fg_s, tc_s = _SITUACAO_COR.get(situacao_label, ("#F1EFE8", "#5F5E5A"))
-            ctk.CTkLabel(row, text=situacao_label, fg_color=fg_s, text_color=tc_s,
+            wrap_situacao = ctk.CTkFrame(grade, fg_color="transparent", corner_radius=0)
+            wrap_situacao.grid(row=row_idx, column=5, padx=8, pady=6, sticky="nsew")
+            ctk.CTkLabel(wrap_situacao, text=situacao_label, fg_color=fg_s, text_color=tc_s,
                          font=ctk.CTkFont(size=9, weight="bold"),
-                         corner_radius=6, padx=6, pady=2, width=_COLUNAS[4][1], height=24
-                         ).grid(row=0, column=5, padx=6, pady=6)
+                         corner_radius=6, padx=6, pady=2).pack()
 
             if bem.etiqueta_impressa_em:
                 txt_etiqueta, cor_etiqueta = "Impressa", ("#F1EFE8", "#5F5E5A")
             else:
                 txt_etiqueta, cor_etiqueta = "Nunca", ("#FAEEDA", "#854F0B")
-            ctk.CTkLabel(row, text=txt_etiqueta, fg_color=cor_etiqueta[0], text_color=cor_etiqueta[1],
+            wrap_etiqueta = ctk.CTkFrame(grade, fg_color="transparent", corner_radius=0)
+            wrap_etiqueta.grid(row=row_idx, column=6, padx=8, pady=6, sticky="nsew")
+            ctk.CTkLabel(wrap_etiqueta, text=txt_etiqueta, fg_color=cor_etiqueta[0], text_color=cor_etiqueta[1],
                          font=ctk.CTkFont(size=9, weight="bold"),
-                         corner_radius=6, padx=6, pady=2, width=_COLUNAS[5][1], height=24
-                         ).grid(row=0, column=6, padx=6, pady=6)
+                         corner_radius=6, padx=6, pady=2).pack()
 
             if ultima_manutencao:
                 txt_manut, cor_manut = ultima_manutencao.strftime("%d/%m/%Y"), "#3d3d3a"
             else:
                 txt_manut, cor_manut = "Nunca", "#854F0B"
-            ctk.CTkLabel(row, text=txt_manut, text_color=cor_manut,
-                         font=ctk.CTkFont(size=11), width=_COLUNAS[6][1], anchor="w"
-                         ).grid(row=0, column=7, padx=6, pady=6, sticky="w")
+            ctk.CTkLabel(grade, text=txt_manut, text_color=cor_manut, fg_color="transparent",
+                         font=ctk.CTkFont(size=11), anchor="center"
+                         ).grid(row=row_idx, column=7, padx=8, pady=6)
 
             ctk.CTkButton(
-                row, text="Abrir", width=64, height=26,
+                grade, text="Abrir", width=64, height=26,
                 fg_color=COR_BRANCO, text_color=COR_PETROLEO_M,
                 border_width=1, border_color=COR_CINZA_B,
                 hover_color=COR_CINZA_E, font=ctk.CTkFont(size=11),
                 command=lambda b=bem.id: self._on_navigate("movimentar_bem", extra=b)
-            ).grid(row=0, column=len(_COLUNAS) + 1, padx=6, pady=4, sticky="e")
+            ).grid(row=row_idx, column=len(_COLUNAS) + 1, padx=6, pady=4)
 
         total = len(self._lista_filtrada_atual)
         mostrados = min(self._pagina_atual * self._itens_por_pagina, total)

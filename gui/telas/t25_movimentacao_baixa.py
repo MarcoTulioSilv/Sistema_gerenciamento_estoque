@@ -148,12 +148,12 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
         ctk.CTkLabel(grid, text="Nova localização*", text_color="#5F5E5A",
                      font=ctk.CTkFont(size=11, weight="bold"), anchor="w").grid(row=0, column=1, sticky="w")
         self._opt_destino = ctk.CTkOptionMenu(grid, values=["Carregando..."], width=200, height=32,
-                                              fg_color=COR_CINZA_E, button_color=COR_PETROLEO_M)
+                                              fg_color=COR_CINZA_E, button_color=COR_PETROLEO_M, text_color="#3d3d3a")
         self._opt_destino.grid(row=1, column=1, sticky="ew", pady=(4, 0))
 
         ctk.CTkLabel(card, text="Motivo*", text_color="#5F5E5A",
                      font=ctk.CTkFont(size=11, weight="bold"), anchor="w").pack(anchor="w", padx=16, pady=(10, 3))
-        self._txt_motivo_transf = ctk.CTkTextbox(card, height=50, corner_radius=6, fg_color=COR_CINZA_E)
+        self._txt_motivo_transf = ctk.CTkTextbox(card, height=50, corner_radius=6, fg_color=COR_CINZA_E, text_color="#3d3d3a")
         self._txt_motivo_transf.pack(fill="x", padx=16)
         ctk.CTkLabel(card, text="Fica no histórico permanente do bem e não pode ser editado depois.",
                      text_color="#ABA9A2", font=ctk.CTkFont(size=10), anchor="w").pack(anchor="w", padx=16, pady=(2, 12))
@@ -178,16 +178,16 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
 
         grid = ctk.CTkFrame(card, fg_color="transparent")
         grid.pack(fill="x", padx=16, pady=(0, 8))
-        grid.grid_columnconfigure((0, 1, 2), weight=1)
+        grid.grid_columnconfigure((0, 1, 2), weight=1, minsize=120)
 
         ctk.CTkLabel(grid, text="Motivo*", text_color="#5F5E5A",
-                     font=ctk.CTkFont(size=11, weight="bold"), anchor="w").grid(row=0, column=0, sticky="w")
+                     font=ctk.CTkFont(size=11, weight="bold"), anchor="w").grid(row=0, column=0, sticky="nw", pady=(0,3))
         self._opt_motivo_baixa = ctk.CTkOptionMenu(grid, values=list(_MOTIVOS_BAIXA.keys()),
                                                     width=140, height=32, fg_color=COR_CINZA_E,
-                                                    button_color=COR_PETROLEO_M)
-        self._opt_motivo_baixa.grid(row=1, column=0, sticky="ew", pady=(4, 0), padx=(0, 8))
+                                                    button_color=COR_PETROLEO_M,text_color="#3d3d3a")
+        self._opt_motivo_baixa.grid(row=0, column=0, sticky="sw", pady=(4, 0), padx=(0,8))
 
-        self._campo_data_baixa = Campo(grid, "Data da baixa", largura=120)
+        self._campo_data_baixa = Campo(grid, "Data da baixa", largura=60, placeholder="dd/mm/aaaa")
         self._campo_data_baixa.grid(row=0, column=1, rowspan=2, sticky="ew", padx=(0, 8))
         self._campo_data_baixa.set(date.today().strftime("%d/%m/%Y"))
 

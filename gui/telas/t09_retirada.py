@@ -2,14 +2,20 @@
 gui.telas. t09_retirada.py
 Tela t-09- Registro de retirada multi-lote FEFO
 (UC-06, RF-07, RF-09, RN-08)
+
+Transferência entre centros foi separada para T-09b
+(gui/telas/t09b_transferencia.py) — antes era um toggle aqui dentro
+("Transferir para outro centro?") e usuários esqueciam de ativá-lo, gerando
+baixa registrada como consumo quando na verdade era troca de centro. Esta
+tela agora só faz retirada/consumo.
+
 Dois modos de operação controlados por parâmetros do __init__:
 
   modo normal  (padrão)
         Passo 1 → Escolha do centro de retirada
         Passo 2 → Identificação do produto (EAN ou nome)
-        Passo 3 → Quantidade + toggle de transferência (renderiza subseção)
-        Passo 4 → Plano FEFO calculado e exibido
-        Passo 5 → Confirmação
+        Passo 3 → Seleção manual dos lotes e quantidades
+        Passo 4 → Confirmação
 
   modo baixa_vencido  (baixa_vencido=True)
       - Campo EAN bloqueado, produto já fixado em produto_id.
@@ -92,16 +98,25 @@ class TelaRetirada(ctk.CTkFrame):
     #_________ Construção__________________________________________________________________________
 
     def _construir(self):
-        titulo = "Baixa de produtos vencidos" if self._baixa_vencido else "Registro de retirada"
+        titulo = "Baixa de Produtos Vencidos" if self._baixa_vencido else "Registro de Retirada"
         
         #--------------------Topbar----------------------------------------------------------------
-        topbar= ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44,corner_radius=0)
+        topbar= ctk.CTkFrame(self, fg_color=COR_BRANCO, height=60,corner_radius=0)
         topbar.pack(fill="x")
         topbar.pack_propagate(False)
         ctk.CTkLabel(topbar, text=titulo,
-                     font=ctk.CTkFont(size=13, weight="bold"),
-                     text_color=COR_AZUL).pack(side="left", padx=16, pady=10)
-        
+                     font=ctk.CTkFont(size=25, weight="bold"),
+                     text_color=COR_AZUL).pack( padx=16, pady=10)
+
+        if not self._baixa_vencido:
+            ctk.CTkButton(
+                topbar, text="Transferir entre centros →",
+                width=190, height=28, fg_color=COR_BRANCO, text_color=COR_AZUL_M,
+                border_width=1, border_color=COR_CINZA_B, hover_color=COR_CINZA_E,
+                font=ctk.CTkFont(size=11),
+                command=lambda: self._on_navigate("transferencia"),
+            ).pack(side="right", padx=16, pady=8)
+
         if self._baixa_vencido:
             ctk.CTkLabel(
                 topbar,
@@ -173,50 +188,20 @@ class TelaRetirada(ctk.CTkFrame):
             font=ctk.CTkFont(size=12), justify="left", anchor="w")
         self._lbl_produto.pack(fill="x", padx=12, pady=8)
 
-        #------Passo 3: Quantidade+ toggle de transferência-------------------------------------------
+        #------Passo 3 (só baixa_vencido): Quantidade + cálculo do plano-------------------------------
         self._sec_operacao= SecaoFormulario(self.scroll, titulo="Tipo de operação")
         grid_op= ctk.CTkFrame(self._sec_operacao, fg_color="transparent")
         grid_op.pack(fill="x", padx=14, pady=(4,8))
-        
+
         self._campo_qtd = Campo(grid_op, label="Quantidade a baixar(Vencidos)", obrigatorio=True, tipo="number", placeholder="0")
-        
-        if not self._baixa_vencido:
-            ctk.CTkLabel(grid_op, text="Transferir para outro centro?", 
-                         font=ctk.CTkFont(size=12, weight="bold"), text_color="#3d3d3a").pack(side="left", padx=(0,12))
-            self._toggle_transf_var = ctk.BooleanVar(value=False)
-            self._toggle_transf = ctk.CTkSwitch(grid_op, text="", variable=self._toggle_transf_var,
-                                                width=46, height=24,
-                                                button_color=COR_VERDE_T, progress_color=COR_VERDE_T,
-                                                command=self._ao_mudar_toggle_transf)
-            self._toggle_transf.pack(side="left")
-        else:
+
+        if self._baixa_vencido:
             self._campo_qtd.pack(side="left", padx=(0,24))
-            ctk.CTkButton(grid_op, text="Calcular Baixa", width=140, height=32, 
+            ctk.CTkButton(grid_op, text="Calcular Baixa", width=140, height=32,
                           fg_color=COR_AZUL_M, command= self._calcular_plano).pack(side="left", pady=14)
-            
-        # Subseção de transferência (oculta por padrão)
-        self._sec_transf = ctk.CTkFrame(
-            self._sec_operacao, fg_color="#E6F1FB",
-            corner_radius=6, border_width=1, border_color=COR_AZUL_M)
-        ctk.CTkLabel(self._sec_transf, text="Selecione o centro de destinino:", text_color=COR_AZUL,
-                     font=ctk.CTkFont(size=11), justify="left", anchor="w").pack(fill="x", padx=12, pady=(8, 4))
-   
-        row_t = ctk.CTkFrame(self._sec_transf, fg_color="transparent")
-        row_t.pack(fill="x", padx=12, pady=(0, 10))
 
-        ctk.CTkLabel(row_t, text="Centro de destino",
-                     font=ctk.CTkFont(size=11, weight="bold"),
-                     text_color="#3d3d3a").pack(side="left", padx=(0,8))
-        
-        self._opt_centro_dest = ctk.CTkOptionMenu(
-            row_t, values=list(_CENTROS.values()),
-            width=180, height=30, corner_radius=6,
-            fg_color=COR_BRANCO, button_color=COR_AZUL_M, text_color="#3d3d3a")
-        self._opt_centro_dest.pack(side="left")
-
-
-        #-----Passo 4: Listagem e seleção de Lotes-----------------------------------------------------------
-        self._sec_plano = SecaoFormulario(self.scroll, titulo="4. Selecione os Lotes e Determine as quantidades")
+        #-----Passo 3 (modo normal) / 4 (baixa_vencido): Listagem e seleção de Lotes-------------------
+        self._sec_plano = SecaoFormulario(self.scroll, titulo="Selecione os Lotes e Determine as quantidades")
  
         self._frame_plano = ctk.CTkFrame(
             self._sec_plano, fg_color=COR_CINZA_E, corner_radius=6)
@@ -286,13 +271,6 @@ class TelaRetirada(ctk.CTkFrame):
         # Callback do OptionMenu de centro- revela passo 2
         self._centro_origem = _LABEL_CENTRO.get(label, label.lower())
         self._mostrar_sec_produto()
-        # Atualizar opções de destino excluindo o centro de origem
-        outros = ["— sem transferência —"] + [
-            lb for val, lb in _CENTROS.items() if val != self._centro_origem
-        ]
-        self._opt_centro_dest.configure(values=outros)
-        self._opt_centro_dest.set("— sem transferência —")
-    
         # Limpar produto selecionado caso tenha trocado de centro
         self._limpar_produto()
     
@@ -364,11 +342,11 @@ class TelaRetirada(ctk.CTkFrame):
         )
         self._frame_produto.pack(fill="x", padx=14, pady=(0, 8))
 
-        self._sec_operacao.pack(fill="x", padx=16, pady=(10, 0))
-        if not self._baixa_vencido:
-            self._listar_lotes_para_selecao_manual(lotes_vis)
-        else: 
+        if self._baixa_vencido:
+            self._sec_operacao.pack(fill="x", padx=16, pady=(10, 0))
             self._limpar_plano()
+        else:
+            self._listar_lotes_para_selecao_manual(lotes_vis)
     
     def _preencher_produto_por_id(self, produto_id: int):
         try:
@@ -381,17 +359,8 @@ class TelaRetirada(ctk.CTkFrame):
             logger.error("Erro ao pré-selecionar produto: %s", exc)
     
     # ══════════════════════════════════════════════════════════════════════════
-    # Passo 3 — Toggle de transferência e Seleção manual de lotes
+    # Passo 3 — Seleção manual de lotes
     # ══════════════════════════════════════════════════════════════════════════
-
-    def _ao_mudar_toggle_transf(self):
-        if self._toggle_transf_var.get():
-            self._sec_transf.pack(fill="x", padx=14, pady=(0, 10))
-            self._btn_confirmar.configure(text="Confirmar transferência")
-        else:
-            self._sec_transf.pack_forget()
-            self._btn_confirmar.configure(text="Confirmar retirada")
-    
 
     def _listar_lotes_para_selecao_manual(self, lotes_disponiveis):
         """Renderiza tuplas com Checkbox e Campo de Qtd (desativado por padrão)."""
@@ -562,9 +531,6 @@ class TelaRetirada(ctk.CTkFrame):
 
     def _confirmar(self):
         obs          = self._campo_obs.get().strip() or None
-        eh_transf    = (not self._baixa_vencido
-                        and hasattr(self, "_toggle_transf_var")
-                        and self._toggle_transf_var.get())
         #----- Cenário A: baixa de vencidos-----------------------------------------------------------
         if self._baixa_vencido:
             try:
@@ -615,46 +581,21 @@ class TelaRetirada(ctk.CTkFrame):
             return
         
         self._plano= PlanoManual(self._produto_sel.id, itens_manuais)
-        
-        if eh_transf:
-            centro_dest_lb = self._opt_centro_dest.get()
-            if centro_dest_lb == "— sem transferência —":
-                self._banner.erro("Selecione o centro de destino.")
-                return
-            destino_centro = _LABEL_CENTRO.get(centro_dest_lb, centro_dest_lb.lower())
-            
-            try:
-                EstoqueService.registrar_transferencia(
-                    self._plano, self._usuario.id,
-                    destino_centro      = destino_centro,
-                    observacao          = obs,
-                )
-                unid_o = self._plano.unidade_estoque.capitalize()
-                msg = (f"Transferência: {self._plano.quantidade_pedida} {unid_o} "
-                           f"->'{centro_dest_lb}'.")
-                self._banner.sucesso(msg)
-                self._limpar()
-            except ValueError as exc:
-                self._banner.erro(str(exc),15000)
-                logger.error("Erro na transferência: %s", exc)
-            except Exception as exc:
-                logger.error("Erro na transferência: %s", exc)
-                self._banner.erro(f"Erro ao registrar: {exc}",15000)
+
         #----- Cenário C: Retirada simples-----------------------------------------------------------
-        else: 
-            try:
-                estoque_baixo= EstoqueService.registrar_retirada(
-                    self._plano, self._usuario.id, obs)
-                msg=(f"Retirada registrada: {self._plano.quantidade_pedida} unid."
-                     f"de '{self._produto_sel.nome}'.")
-                if estoque_baixo:
-                    msg+= "\n⚠ Estoque abaixo do mínimo — alerta enviado."
-                self._banner.sucesso(msg)
-                self._limpar()     
-            
-            except Exception as exc:
-                logger.error("Erro na retirada: %s", exc)
-                self._banner.erro(f"Erro ao registrar: {exc}",15000)
+        try:
+            estoque_baixo= EstoqueService.registrar_retirada(
+                self._plano, self._usuario.id, obs)
+            msg=(f"Retirada registrada: {self._plano.quantidade_pedida} unid."
+                 f"de '{self._produto_sel.nome}'.")
+            if estoque_baixo:
+                msg+= "\n⚠ Estoque abaixo do mínimo — alerta enviado."
+            self._banner.sucesso(msg)
+            self._limpar()
+
+        except Exception as exc:
+            logger.error("Erro na retirada: %s", exc)
+            self._banner.erro(f"Erro ao registrar: {exc}",15000)
 
     # ══════════════════════════════════════════════════════════════════════════
     # Helpers
@@ -701,9 +642,6 @@ class TelaRetirada(ctk.CTkFrame):
         self._sec_obs.pack_forget()
         self._row_btns.pack_forget()
         self._btn_confirmar.configure(state="disabled")
-        if not self._baixa_vencido:
-            self._toggle_transf_var.set(False)
-            self._sec_transf.pack_forget()
  
     def _limpar(self):
         """Reset completo para nova operação."""
@@ -734,5 +672,5 @@ class TelaRetirada(ctk.CTkFrame):
         self.update_idletasks()
         
         # 2. Acessa o Canvas interno do CustomTkinter e joga o scroll para o topo (posição 0.0)
-        if hasattr(self, "_scroll") and hasattr(self._scroll, "_parent_canvas"):
-            self._scroll._parent_canvas.yview_moveto(0.0)
+        if hasattr(self, "scroll") and hasattr(self.scroll, "_parent_canvas"):
+            self.scroll._parent_canvas.yview_moveto(0.0)

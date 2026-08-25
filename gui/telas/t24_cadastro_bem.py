@@ -90,11 +90,11 @@ class TelaCadastroBem(ctk.CTkFrame):
 
         self._lbl_localizacao = ctk.CTkLabel(grid1, text="Localização*", text_color="#5F5E5A",
                                              font=ctk.CTkFont(size=11, weight="bold"), anchor="w")
-        self._lbl_localizacao.grid(row=0, column=1, sticky="sw", pady=(0, 3))
+        self._lbl_localizacao.grid(row=0, column=1, sticky="nw", pady=(0, 3))
         self._opt_localizacao = ctk.CTkOptionMenu(
             grid1, values=["Carregando..."], width=220, height=34, corner_radius=6,
             fg_color=COR_CINZA_E, button_color=COR_PETROLEO_M, text_color="#3d3d3a")
-        self._opt_localizacao.grid(row=1, column=1, sticky="ew")
+        self._opt_localizacao.grid(row=0, column=1, sticky="ew",pady=(3, 0))
 
         # ── Seção 2: Aquisição ──────────────────────────────────────────────────
         sec2 = SecaoFormulario(scroll, "Aquisição — todos opcionais")

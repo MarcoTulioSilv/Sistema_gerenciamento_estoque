@@ -41,6 +41,7 @@ _PERMISSOES: dict[str,list[str]]={
     # Ações de negócio (usadas pelos serviços)
     "registrar_entrada":  ["tecnico","admin", "ti"],
     "registrar_retirada": ["tecnico","admin", "ti"],
+    "registrar_transferencia": ["tecnico","admin", "ti"],
     "gerar_relatorio":    ["admin", "ti"],
     "alterar_estoque_minimo": ["admin", "ti"],
     "gerenciar_usuarios": ["ti"],

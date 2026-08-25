@@ -9,6 +9,7 @@ import customtkinter as ctk
 
 from Modulo_02_estoque import EstoqueService
 from gui.componentes.form_widgets import FeedbackBanner
+from gui.componentes.tabela_scroll import TabelaScroll
 
 logger= logging.getLogger(__name__)
 
@@ -116,30 +117,28 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         self._banner= FeedbackBanner(self)
         self._banner.pack(fill="x", padx=16)
         
-        #Cabeçalho
-        hdr=ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=0,
-                         border_width=1, border_color=COR_CINZA_B)
-        hdr.pack(fill="x", padx=16, pady=(10,0))
-        hdr.grid_columnconfigure(7, weight=1)
+        # Tabela: cabeçalho (row 0) e linhas de dados (row 1+) compartilham a
+        # MESMA grade (self._tabela.grade) — garante alinhamento de coluna
+        # de verdade, e dá scroll vertical + horizontal juntos (ver
+        # gui/componentes/tabela_scroll.py).
+        self._tabela = TabelaScroll(self, fg_color_grade=COR_BRANCO,
+                                    border_width=1, border_color=COR_CINZA_B, corner_radius=0)
+        self._tabela.pack(fill="both", expand=True, padx=16, pady=(10, 0))
 
-        for col,(txt, largura) in enumerate(_COLUNAS):
-            if col== 7:
-                ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
-                         font=ctk.CTkFont(size=9, weight="bold"),
-                         width=largura, anchor="center"
-                         ).grid(row=0, column=col, padx=6, pady=5)
-            else:
-                ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
-                         font=ctk.CTkFont(size=9, weight="bold"),
-                         width=largura, anchor="w"
-                         ).grid(row=0, column=col, padx=6, pady=5, sticky="w")
-        ctk.CTkFrame(hdr, width=20, height=0, fg_color="transparent").grid(row=0, column=8)
+        grade = self._tabela.grade
+        for col, (txt, largura) in enumerate(_COLUNAS):
+            grade.grid_columnconfigure(col, minsize=largura)
+        grade.grid_columnconfigure(0, weight=1)  # Produto — absorve o espaço sobrando
 
-        self._scroll=ctk.CTkScrollableFrame(
-            self, fg_color=COR_BRANCO,
-            border_width=1, border_color=COR_CINZA_B, corner_radius=0)
-        self._scroll.pack(fill="both", expand=True, padx=16, pady=(0,16))
-        
+        for col, (txt, largura) in enumerate(_COLUNAS):
+            ancora = "center" if col !=0 else "w"
+            celula = ctk.CTkFrame(grade, fg_color="#FFFFFF", corner_radius=0)
+            celula.grid(row=0, column=col, sticky="nsew")
+            ctk.CTkLabel(celula, text=txt.upper(), text_color="#888780",
+                         font=ctk.CTkFont(size=9, weight="bold"),
+                         anchor=ancora
+                         ).pack(fill="x", expand=True, padx=6, pady=5)
+
         self._lbl_rodape= ctk.CTkLabel(
             self, text="", text_color="#888780", font=ctk.CTkFont(size=10))
         self._lbl_rodape.pack(anchor="w", padx=18, pady=(0,8))
@@ -202,30 +201,27 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         # --- ATIVA A PAGINAÇÃO ---
         self._lista_filtrada_atual = filtrados
         self._pagina_atual = 0
-
-        for w in self._scroll.winfo_children():
-            w.destroy()
-            
+        self._tabela.limpar_linhas(a_partir_da_row=1)
         self._renderizar_proxima_pagina()
-    
+
     def _renderizar_proxima_pagina(self):
-        self._carregando_pagina = True 
-        
+        self._carregando_pagina = True
+
         inicio = self._pagina_atual * self._itens_por_pagina
         fim = inicio + self._itens_por_pagina
-        
+
         lote_linhas = self._lista_filtrada_atual[inicio:fim]
-        self._renderizar(lote_linhas, limpar_tela=False)
-        
+        self._renderizar(lote_linhas, inicio)
+
         self._pagina_atual += 1
         self.after(100, lambda: setattr(self, '_carregando_pagina', False))
 
     def _monitorar_scroll(self):
         inicio_proxima = self._pagina_atual * self._itens_por_pagina
-        
+
         if not self._carregando_pagina and inicio_proxima < len(self._lista_filtrada_atual):
             try:
-                _, bottom = self._scroll._parent_canvas.yview()
+                _, bottom = self._tabela._canvas.yview()
                 if bottom >= 0.95:
                     self._renderizar_proxima_pagina()
             except Exception:
@@ -246,31 +242,27 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         self._opt_situacao.set("Todas as situações")
         self._filtrar()
 
-    def _renderizar(self, linhas, limpar_tela=True):
-        if limpar_tela:
-            for w in self._scroll.winfo_children():
-                w.destroy()
-        
-        if not linhas and self._pagina_atual == 0:
-            ctk.CTkLabel(self._scroll, text="Nenhum lote encontrado.",
+    def _renderizar(self, linhas, indice_inicial: int):
+        grade = self._tabela.grade
+
+        if not linhas and indice_inicial == 0:
+            ctk.CTkLabel(grade, text="Nenhum lote encontrado.",
                         text_color=COR_VERM,
-                        font= ctk.CTkFont(size=12)).pack(pady=24)
+                        font= ctk.CTkFont(size=12)
+                        ).grid(row=1, column=0, columnspan=len(_COLUNAS), pady=24)
             self._lbl_rodape.configure(text="")
             return
-        
-        for i, (dto, situacao) in enumerate(linhas):
-            bg = COR_BRANCO if i % 2 == 0 else COR_CINZA_E
 
-            row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
-            row.pack(fill="x")
-            row.grid_columnconfigure(7, weight=1)
+        for offset, (dto, situacao) in enumerate(linhas):
+            i = indice_inicial + offset
+            row_idx = i + 1  # row 0 é o cabeçalho, na mesma grade
+            bg = COR_BRANCO if i % 2 == 0 else COR_CINZA_E
 
             lote_str= dto.num_lote if dto.num_lote else"S/L"
             venc_str = dto.data_vencimento.strftime("%d/%m/%Y") if dto.data_vencimento else "—"
 
-
             valores = [
-                dto.produto_nome[:28],
+                dto.produto_nome,
                 lote_str,
                 dto.nota_fiscal or "S/N",
                 dto.centro_alocacao.value.capitalize(),
@@ -278,33 +270,30 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
                 str(dto.quantidade_atual),
                 venc_str
             ]
-            
+
             for col, val in enumerate(valores):
-                largura = _COLUNAS[col][1]
-                if col<=3:
-                    ctk.CTkLabel(row, text=val, text_color="#3d3d3a",
-                             font=ctk.CTkFont(size=11), width=largura,
-                             anchor="w").grid(row=0, column=col, padx=6, pady=4, sticky="w")
-                else:   
-                    ctk.CTkLabel(row, text=val, text_color="#3d3d3a",
-                             font=ctk.CTkFont(size=11), width=largura, anchor="center"    
-                             ).grid(row=0, column=col, padx=6, pady=4, sticky="w")
-            
+                ancora = "w" if col <= 3 else "center"
+                ctk.CTkLabel(grade, text=val, text_color="#3d3d3a", fg_color=bg,
+                             font=ctk.CTkFont(size=11), anchor=ancora, corner_radius= 5,
+                             ).grid(row=row_idx, column=col, padx=6, pady=4, sticky="nsew")
+
             # Badge situação
             fg_s, tc_s = _SITUACAO_COR.get(situacao, ("#F1EFE8", "#5F5E5A"))
-            ctk.CTkLabel(row, text=situacao,
+            wrap_situacao = ctk.CTkFrame(grade, fg_color="transparent", corner_radius=0)
+            wrap_situacao.grid(row=row_idx, column=7, padx=6, pady=6, sticky="nsew")
+            ctk.CTkLabel(wrap_situacao, text=situacao,
                          fg_color=fg_s, text_color=tc_s,
                          font=ctk.CTkFont(size=9, weight="bold"),
-                         corner_radius=6, padx=6, pady=2, width=120, height=24
-                         ).grid(row=0, column=7, padx=6, pady=6)
-            
-           #Ações- 
-            acoes = ctk.CTkFrame(row, fg_color="transparent", width=150, height=30)
-            acoes.grid(row=0, column=8, padx=6, pady=4, sticky="e")
-            acoes.grid_propagate(False) 
-            acoes.pack_propagate(False)
-            
+                         corner_radius=6, padx=6, pady=2).pack()
+
+            #Ações — alinhadas à direita, fundo zebrado preenchendo a célula
+            wrap_acoes = ctk.CTkFrame(grade, fg_color="transparent", corner_radius=0)
+            wrap_acoes.grid(row=row_idx, column=8, padx=6, pady=4, sticky="nsew")
+
             if self.permissao:
+                acoes = ctk.CTkFrame(wrap_acoes, fg_color="transparent")
+                acoes.pack(side="right")
+
                 pid = dto.produto_id
                 ctk.CTkButton(
                     acoes, text="Entrada", width=64, height=26,
@@ -335,12 +324,12 @@ class TelaPosicaoEstoque(ctk.CTkFrame):
         )
 
     def _erro_na_tela(self, detalhe:str):
-        for w in self._scroll.winfo_children():
-            w.destroy()
-        ctk.CTkLabel(self._scroll,
+        self._tabela.limpar_linhas(a_partir_da_row=1)
+        ctk.CTkLabel(self._tabela.grade,
                      text=f"Erro ao carregar estoque: \n {detalhe}",
                      text_color= COR_VERM, font=ctk.CTkFont(size=12),
-                     wraplength=600, justify="left").pack(pady=24, padx=16)
+                     wraplength=600, justify="left"
+                     ).grid(row=1, column=0, columnspan=len(_COLUNAS), pady=24, padx=16)
     
     def limpar_memoria(self):
         """Método chamado pelo app.py ao sair da tela para esvaziar a RAM."""

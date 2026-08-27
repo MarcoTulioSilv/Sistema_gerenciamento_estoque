@@ -8,6 +8,7 @@ import threading
 from datetime import date, datetime
 from tkinter import ttk, filedialog, messagebox
 import customtkinter as ctk
+from fuso_horario import formatar
 from gui.componentes.form_widgets import FeedbackBanner
 from Modulo_03_relatorios import RelatorioService
 
@@ -698,7 +699,7 @@ class TelaCentralRelatorios(ctk.CTkFrame):
                               ("a_vencer", self._lbl_ult_venc), ("lotes_vencidos", self._lbl_ult_vencido)]:
                 ag = ags.get(tipo)
                 if ag and ag.ultimo_envio:
-                    lbl.configure(text=f"Último envio: {ag.ultimo_envio.strftime('%d/%m/%Y %H:%M')}")
+                    lbl.configure(text=f"Último envio: {formatar(ag.ultimo_envio, '%d/%m/%Y %H:%M')}")
                 else:
                     lbl.configure(text="Último envio: nunca")
         except Exception as exc:

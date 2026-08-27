@@ -3,7 +3,7 @@ MOD-07 · Modulo_07_patrimonio · manutencao_repo.py
 Repositório de manutenções realizadas em bens (RF-38, v1.8) — acesso via MOD-06.
 """
 import logging
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy.orm import joinedload
 
@@ -55,3 +55,16 @@ class ManutencaoRepo:
             if item:
                 s.expunge(item)
             return item
+
+    @staticmethod
+    def listar_periodo(data_ini: date | None = None, data_fim: date | None = None) -> list[ManutencaoBem]:
+        """Manutenções de TODOS os bens (T-27, RF-35). Sem datas, devolve tudo."""
+        with get_read_session() as s:
+            q = s.query(ManutencaoBem).options(
+                joinedload(ManutencaoBem.bem), joinedload(ManutencaoBem.usuario)
+            )
+            if data_ini and data_fim:
+                q = q.filter(ManutencaoBem.data_manutencao.between(data_ini, data_fim))
+            itens = q.order_by(ManutencaoBem.data_manutencao.desc()).all()
+            s.expunge_all()
+            return itens

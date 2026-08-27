@@ -156,6 +156,23 @@ class ContextoColeta:
 
 
 @dataclass(frozen=True)
+class ConviteColeta:
+    """
+    Dados para renderizar o formulário de cadastro do celular (RF-36).
+
+    Devolvido por InventarioService.resolver_convite a partir do token do
+    QR fixo da sessão. Se a sessão for de escopo `localizacao`, a sala já
+    vem decidida (`localizacao_fixa*`) e o formulário não pergunta nada;
+    se for `geral`, `opcoes_localizacao` alimenta o <select> do celular.
+    """
+    inventario_id: int
+    descricao_sessao: str
+    localizacao_fixa_id: int | None = None
+    localizacao_fixa: str | None = None
+    opcoes_localizacao: tuple[tuple[int, str], ...] = ()
+
+
+@dataclass(frozen=True)
 class AjusteConfirmado:
     """
     Decisão do usuário sobre uma divergência, no fechamento (RN-14).
@@ -196,6 +213,26 @@ class ResultadoLeitura:
         if self.total_esperado == 0:
             return 0.0
         return self.total_conferido / self.total_esperado
+
+
+@dataclass(frozen=True)
+class LeituraRecente:
+    """
+    Uma linha do log "Últimas leituras" (T-26, estágio de coleta).
+
+    Reconstruída a partir do banco (InventarioItem + InventarioSobra), não
+    de estado em memória — é a única forma de refletir leituras feitas por
+    QUALQUER origem (estação OU celular pareado): o processo do
+    ColetaWebService que atende o celular é separado do processo desktop,
+    então o desktop só enxerga essas leituras via consulta, nunca por
+    notificação direta. Cobre encontrado/divergente_local/sobras; não cobre
+    bem_baixado/codigo_ilegivel, que por RNF-13 nunca são gravados.
+    """
+    tombo: str | None
+    descricao_bem: str
+    mensagem: str
+    severidade: SeveridadeLeitura
+    quando: datetime
 
 
 @dataclass(frozen=True)

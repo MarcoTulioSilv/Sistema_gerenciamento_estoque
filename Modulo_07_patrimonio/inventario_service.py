@@ -29,20 +29,22 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from Modulo_06_dados import (
-    get_session, BemPatrimonial, InventarioItem,
+    get_session, BemPatrimonial, InventarioItem, ColetaToken,
     EscopoInventarioEnum, StatusInventarioEnum, StatusItemInventarioEnum, TipoSobraEnum,
     SituacaoBemEnum,
 )
 from Modulo_05_admin import ConfigService
 
 from .dto import (
-    AjusteConfirmado, ClassificacaoLeitura, ContextoColeta, ResultadoAbertura,
-    ResultadoLeitura, ResumoSessao, Aviso, CodigoAviso, SeveridadeLeitura,
+    AjusteConfirmado, ClassificacaoLeitura, ContextoColeta, ConviteColeta,
+    LeituraRecente, ResultadoAbertura, ResultadoLeitura, ResumoSessao, Aviso,
+    CodigoAviso, SeveridadeLeitura,
 )
 from .excecoes import (
     SessaoNaoEncontradaError, SessaoNaoAbertaError, EscopoConflitanteError,
     AjusteNaoConfirmadoError, TokenInvalidoError, TokenExpiradoError,
     TokenRevogadoError, CodigoIlegivelError, LocalizacaoNaoEncontradaError,
+    EscopoFixoError,
 )
 from .autorizacao import resolver_usuario_autorizado
 from .inventario_repo import InventarioRepo
@@ -196,6 +198,40 @@ class InventarioService:
             sobras=contagem["sobras"],
         )
 
+    def listar_leituras_recentes(self, inventario_id: int, limite: int = 8) -> list[LeituraRecente]:
+        """
+        Log "Últimas leituras" de T-26 — reconstruído do banco (itens
+        conferidos + sobras), não de estado em memória do processo desktop.
+        É a única forma de refletir leituras vindas de um celular pareado:
+        essas acontecem inteiramente no processo do ColetaWebService,
+        separado do desktop, que só fica sabendo delas por consulta.
+        """
+        itens = InventarioRepo.listar_conferidos_recentes(inventario_id, limite)
+        sobras = InventarioRepo.listar_sobras_recentes(inventario_id, limite)
+
+        leituras = [
+            LeituraRecente(
+                tombo=item.bem.tombo, descricao_bem=item.bem.descricao,
+                mensagem=("Conferido — na localização esperada." if item.status == StatusItemInventarioEnum.encontrado
+                           else "Encontrado em local diferente do esperado."),
+                severidade=(SeveridadeLeitura.ok if item.status == StatusItemInventarioEnum.encontrado
+                            else SeveridadeLeitura.atencao),
+                quando=item.conferido_em,
+            )
+            for item in itens
+        ] + [
+            LeituraRecente(
+                tombo=None, descricao_bem=sobra.codigo_lido,
+                mensagem=("Código não corresponde a nenhum bem cadastrado." if sobra.tipo == TipoSobraEnum.nao_cadastrado
+                           else "Bem fora do escopo desta sessão."),
+                severidade=SeveridadeLeitura.atencao,
+                quando=sobra.registrado_em,
+            )
+            for sobra in sobras
+        ]
+        leituras.sort(key=lambda l: l.quando, reverse=True)
+        return leituras[:limite]
+
     def cancelar_sessao(self, inventario_id: int, motivo: str, usuario_id: int):
         """
         Cancela sem aplicar ajuste, revoga tokens, libera escopo (vira NULL).
@@ -209,6 +245,7 @@ class InventarioService:
 
         with get_session() as s:
             InventarioRepo.revogar_tokens_sessao(s, inventario_id)
+            InventarioRepo.remover_convite(s, inventario_id)
             InventarioRepo.cancelar_sessao(s, inventario_id, usuario_id)
 
         logger.info("Sessão de inventário cancelada: id=%s motivo=%r usuario_id=%s",
@@ -260,45 +297,144 @@ class InventarioService:
 
             InventarioRepo.marcar_pendentes_como_nao_localizado(s, inventario_id)
             InventarioRepo.revogar_tokens_sessao(s, inventario_id)
+            InventarioRepo.remover_convite(s, inventario_id)
             InventarioRepo.finalizar_sessao(s, inventario_id, usuario_id)
 
         logger.info("Sessão de inventário fechada: id=%s usuario_id=%s", inventario_id, usuario_id)
         return self.resumo_sessao(inventario_id)
 
-    # ─── Pareamento de dispositivo ──────────────────────────────────────────
+    # ─── Convite de pareamento (QR fixo da sessão) ──────────────────────────
 
-    def parear_dispositivo(self, inventario_id: int, localizacao_id: int,
-                           usuario_id: int, dispositivo_label: str | None = None) -> str:
+    def obter_convite(self, inventario_id: int, usuario_id: int) -> str:
         """
-        Cria token e devolve URL do QR (RF-36). Token = 32 bytes base64
-        url-safe (43 chars), sem relação com dado do usuário/sessão.
-        Vale por coleta_token_horas (padrão 12h), revogado no fechamento.
-        Uma linha por aparelho; localização é fixada no token, não pelo
-        celular — trocar de sala exige novo pareamento.
-        Raises: SessaoNaoEncontradaError, SessaoNaoAbertaError, LocalizacaoNaoEncontradaError
+        Devolve a URL do QR fixo da sessão (RF-36 revisado). Idempotente por
+        natureza: sempre a MESMA URL para a mesma sessão, gerada uma única
+        vez — remontar a tela de coleta ou trocar a localização de bipagem
+        do operador na estação não cria nada novo aqui. O convite em si não
+        representa nenhum aparelho: quem cria o ColetaToken real é
+        registrar_dispositivo, chamado a partir do celular.
+        Raises: SessaoNaoEncontradaError, SessaoNaoAbertaError
         """
         resolver_usuario_autorizado(usuario_id)
         inv = self.obter_sessao(inventario_id)
         if not inv.aberta:
             raise SessaoNaoAbertaError(f"Sessão {inventario_id} não está aberta.")
-        if not LocalizacaoRepo.buscar_por_id(localizacao_id):
-            raise LocalizacaoNaoEncontradaError(f"Localização {localizacao_id} não encontrada.")
+
+        convite = InventarioRepo.buscar_convite_sessao(inventario_id)
+        if not convite:
+            with get_session() as s:
+                convite = InventarioRepo.criar_convite(s, inventario_id=inventario_id, usuario_id=usuario_id)
+
+        host = ConfigService.get("coleta_host")
+        porta = ConfigService.get("coleta_porta")
+        return f"http://{host}:{porta}/parear?token={convite.token}"
+
+    def resolver_convite(self, token: str) -> ConviteColeta:
+        """
+        Valida o convite escaneado e monta os dados do formulário de cadastro
+        do celular. Se a sessão for de escopo único, a localização já vem
+        fixada (o formulário não pergunta nada); se for geral, devolve as
+        opções para o próprio celular escolher.
+        Raises: TokenInvalidoError, SessaoNaoAbertaError
+        """
+        convite = InventarioRepo.buscar_convite_por_token(token)
+        if not convite:
+            raise TokenInvalidoError("Convite inválido.")
+        inv = self.obter_sessao(convite.inventario_id)
+        if not inv.aberta:
+            raise SessaoNaoAbertaError(f"Sessão {convite.inventario_id} não está mais aberta.")
+        return self._dados_localizacao_sessao(inv)
+
+    def opcoes_troca_localizacao(self, contexto: ContextoColeta) -> ConviteColeta:
+        """Mesma forma de dados de resolver_convite, a partir de um contexto já
+        pareado — usado pelo GET /localizacao para montar o formulário de
+        troca de sala (RN-19, só sessões de escopo geral têm o que trocar).
+        Raises: SessaoNaoAbertaError
+        """
+        inv = self.obter_sessao(contexto.inventario_id)
+        if not inv.aberta:
+            raise SessaoNaoAbertaError(f"Sessão {contexto.inventario_id} não está mais aberta.")
+        return self._dados_localizacao_sessao(inv)
+
+    @staticmethod
+    def _dados_localizacao_sessao(inv) -> ConviteColeta:
+        if inv.escopo == EscopoInventarioEnum.localizacao and inv.localizacao:
+            return ConviteColeta(
+                inventario_id=inv.id, descricao_sessao=inv.descricao,
+                localizacao_fixa_id=inv.localizacao.id,
+                localizacao_fixa=inv.localizacao.nome_completo,
+            )
+        opcoes = tuple((loc.id, loc.nome_completo) for loc in LocalizacaoRepo.listar())
+        return ConviteColeta(inventario_id=inv.id, descricao_sessao=inv.descricao, opcoes_localizacao=opcoes)
+
+    def buscar_dispositivo_conhecido(self, inventario_id: int, dispositivo_id: str) -> ColetaToken | None:
+        """Token válido já existente para esse aparelho (mesmo dispositivo_id)
+        nesta sessão, se houver — usado pelo GET /parear para reconectar sem
+        formulário nem token novo."""
+        token = InventarioRepo.buscar_token_dispositivo(inventario_id, dispositivo_id)
+        return token if token and token.valido else None
+
+    def registrar_dispositivo(self, convite_token: str, localizacao_id: int | None,
+                              dispositivo_label: str | None, dispositivo_id: str) -> str:
+        """
+        Confirma o cadastro de um aparelho a partir do convite da sessão
+        (RF-36 revisado) — chamado pelo POST /parear do ColetaWebService,
+        sem usuário autenticado; a autoria (usuario_id do ColetaToken) vem
+        de quem gerou o convite no desktop (T-26).
+
+        Sessão de escopo único: ignora o localizacao_id recebido e usa
+        sempre o da sessão (fecha a brecha de um cliente forjar outra sala).
+        Sessão de escopo geral: valida o localizacao_id recebido.
+
+        Idempotente por dispositivo_id: se este aparelho já tiver um token
+        válido nesta sessão, devolve o mesmo token em vez de duplicar.
+        Raises: TokenInvalidoError, SessaoNaoAbertaError, LocalizacaoNaoEncontradaError
+        """
+        convite = InventarioRepo.buscar_convite_por_token(convite_token)
+        if not convite:
+            raise TokenInvalidoError("Convite inválido.")
+        inv = self.obter_sessao(convite.inventario_id)
+        if not inv.aberta:
+            raise SessaoNaoAbertaError(f"Sessão {convite.inventario_id} não está mais aberta.")
+
+        if inv.escopo == EscopoInventarioEnum.localizacao:
+            localizacao_id = inv.localizacao_id
+        elif not localizacao_id or not LocalizacaoRepo.buscar_por_id(localizacao_id):
+            raise LocalizacaoNaoEncontradaError("Selecione uma localização válida.")
+
+        existente = InventarioRepo.buscar_token_dispositivo(convite.inventario_id, dispositivo_id)
+        if existente and existente.valido:
+            return existente.token
 
         horas = float(ConfigService.get("coleta_token_horas") or _HORAS_TOKEN_PADRAO)
         with get_session() as s:
             token = InventarioRepo.criar_token(
-                s, inventario_id=inventario_id, localizacao_conferida_id=localizacao_id,
-                usuario_id=usuario_id, horas_validade=horas,
-                dispositivo_label=dispositivo_label,
+                s, inventario_id=convite.inventario_id, localizacao_conferida_id=localizacao_id,
+                usuario_id=convite.usuario_id, horas_validade=horas,
+                dispositivo_label=dispositivo_label, dispositivo_id=dispositivo_id,
             )
 
-        host = ConfigService.get("coleta_host")
-        porta = ConfigService.get("coleta_porta")
-        url = f"http://{host}:{porta}/parear?token={token.token}"
+        logger.info("Dispositivo cadastrado: inventario_id=%s localizacao_id=%s dispositivo=%r",
+                    convite.inventario_id, localizacao_id, dispositivo_label)
+        return token.token
 
-        logger.info("Dispositivo pareado: inventario_id=%s localizacao_id=%s usuario_id=%s",
-                    inventario_id, localizacao_id, usuario_id)
-        return url
+    def trocar_localizacao(self, contexto: ContextoColeta, localizacao_id: int) -> None:
+        """
+        Atualiza a sala de leitura de um aparelho já pareado, sem revogar ou
+        criar token — só sessões de escopo geral: numa sessão de escopo
+        único a sala é fixa por definição.
+        Raises: SessaoNaoAbertaError, EscopoFixoError, LocalizacaoNaoEncontradaError
+        """
+        inv = self.obter_sessao(contexto.inventario_id)
+        if not inv.aberta:
+            raise SessaoNaoAbertaError(f"Sessão {contexto.inventario_id} não está mais aberta.")
+        if inv.escopo == EscopoInventarioEnum.localizacao:
+            raise EscopoFixoError(f"Esta sessão está fixada em {inv.localizacao.nome_completo}.")
+        if not LocalizacaoRepo.buscar_por_id(localizacao_id):
+            raise LocalizacaoNaoEncontradaError(f"Localização {localizacao_id} não encontrada.")
+
+        with get_session() as s:
+            InventarioRepo.atualizar_localizacao_token(s, contexto.token_id, localizacao_id)
 
     def resolver_token(self, token: str) -> ContextoColeta:
         """
@@ -339,6 +475,13 @@ class InventarioService:
         logger.info("Tokens revogados manualmente: inventario_id=%s total=%s usuario_id=%s",
                     inventario_id, total, usuario_id)
         return total
+
+    def listar_dispositivos(self, inventario_id: int, usuario_id: int) -> list:
+        """Dispositivos atualmente pareados (não revogados, não expirados) — painel de T-26."""
+        resolver_usuario_autorizado(usuario_id)
+        self.obter_sessao(inventario_id)
+        tokens = InventarioRepo.listar_tokens_sessao(inventario_id)
+        return [t for t in tokens if t.valido]
 
     # ─── Coleta ─────────────────────────────────────────────────────────────
 
@@ -535,6 +678,31 @@ class InventarioService:
                     inventario_id, usuario_id)
         return str(caminho)
 
+    def enviar_relatorio(self, inventario_id: int, usuario_id: int) -> None:
+        """
+        Gera o mesmo XLSX de gerar_relatorio e envia por e-mail (T-27, RF-35
+        — "divergências de sessão" é reimpressão sob demanda de uma sessão
+        específica, escolhida numa lista).
+
+        Raises: SessaoNaoEncontradaError, PermissaoNegadaError
+        """
+        inv = self.obter_sessao(inventario_id)
+        caminho = self.gerar_relatorio(inventario_id, usuario_id)
+
+        from pathlib import Path
+        from Modulo_04_notificacoes.gmail_client import GmailClient
+        corpo_html = f"""
+        <div style="font-family: Arial, sans-serif; color: #3d3d3a;">
+            <h2 style="color: #1F5F5B;">SCE — Divergências de sessão de inventário</h2>
+            <p>Sessão #{inv.id} — {inv.descricao}.</p>
+            <p style="color: #888780; font-size: 12px;">
+                Relatório gerado automaticamente pelo Sistema de Controle de
+                Estoque — Centro de Uro-Nefrologia.
+            </p>
+        </div>
+        """
+        GmailClient.enviar(f"SCE — Divergências: sessão #{inv.id}", corpo_html, anexos=[Path(caminho)])
+
     def alertar_sessoes_antigas(self) -> list:
         """Sessões abertas há mais tempo que inventario_alerta_dias (R-13)."""
         dias = int(ConfigService.get("inventario_alerta_dias") or _DIAS_ALERTA_PADRAO)
@@ -548,7 +716,16 @@ class InventarioService:
         Contagem viva de progresso, na MESMA transação da leitura em curso
         — lida com o estado recém-gravado, ainda não commitado, em vez de
         uma segunda conexão que não o enxergaria.
+
+        flush() explícito é necessário: a sessão do projeto usa
+        autoflush=False (database.py), então a mutação de item.status feita
+        por marcar_encontrado/marcar_divergente logo antes desta chamada
+        fica só em memória até o flush — sem ele, esta contagem SELECT
+        ainda vê o estado antigo, e a resposta de registrar_leitura chega
+        com progresso "um passo atrás" (bug relatado: 0/x após a primeira
+        leitura).
         """
+        session.flush()
         total_esperado = (session.query(func.count(InventarioItem.id))
                           .filter(InventarioItem.inventario_id == inventario_id)
                           .scalar() or 0)

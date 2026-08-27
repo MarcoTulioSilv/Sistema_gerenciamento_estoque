@@ -127,6 +127,14 @@ class CodigoIlegivelError(PatrimonioError):
     """
 
 
+class EscopoFixoError(PatrimonioError):
+    """
+    Tentativa de trocar a localização de um dispositivo pareado numa sessão
+    de escopo `localizacao` — a sala é fixa por definição da sessão, não há
+    o que trocar (só se aplica a sessões de escopo `geral`).
+    """
+
+
 # ─── Etiquetas e impressão ──────────────────────────────────────────────────
 
 class EtiquetaError(PatrimonioError):

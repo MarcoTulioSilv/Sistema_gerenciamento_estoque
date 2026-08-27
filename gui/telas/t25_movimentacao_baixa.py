@@ -11,6 +11,7 @@ from tkinter import filedialog
 
 import customtkinter as ctk
 
+from fuso_horario import formatar
 from gui.componentes.form_widgets import Campo, FeedbackBanner
 from Modulo_07_patrimonio import (
     PatrimonioService, DadosBem, DadosBaixa, PatrimonioError,
@@ -411,7 +412,7 @@ class TelaMovimentacaoBaixa(ctk.CTkFrame):
                 partes.append(f"{mov.localizacao_origem.nome_completo} › {mov.localizacao_destino.nome_completo}")
             elif mov.localizacao_destino:
                 partes.append(mov.localizacao_destino.nome_completo)
-            data_str = mov.data_hora.strftime("%d/%m/%Y %H:%M")
+            data_str = formatar(mov.data_hora, "%d/%m/%Y %H:%M")
             usuario_str = mov.usuario.nome if mov.usuario else "—"
             partes.append(f"{data_str} · {usuario_str}")
             if mov.motivo:

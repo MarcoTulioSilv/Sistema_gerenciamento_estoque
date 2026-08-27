@@ -19,7 +19,7 @@ from sqlalchemy.orm import joinedload
 
 from Modulo_06_dados import (
     get_session, get_read_session,
-    Inventario, InventarioItem, InventarioSobra, ColetaToken,
+    Inventario, InventarioItem, InventarioSobra, ColetaToken, ColetaConvite,
     BemPatrimonial, MovimentacaoBem,
     EscopoInventarioEnum, StatusInventarioEnum, StatusItemInventarioEnum,
     TipoSobraEnum, SituacaoBemEnum, TipoMovimentacaoBemEnum,
@@ -209,6 +209,40 @@ class InventarioRepo:
             s.expunge_all()
             return itens
 
+    @staticmethod
+    def listar_conferidos_recentes(inventario_id: int, limite: int) -> list[InventarioItem]:
+        """Itens marcados encontrado/divergente_local mais recentemente —
+        metade da fonte do log "Últimas leituras" de T-26 (a outra metade são
+        as sobras). Consultado do banco, não de estado em memória, pra
+        refletir leituras de QUALQUER origem (estação ou celular pareado)."""
+        with get_read_session() as s:
+            itens = (s.query(InventarioItem)
+                     .options(joinedload(InventarioItem.bem))
+                     .filter(InventarioItem.inventario_id == inventario_id,
+                             InventarioItem.status.in_([
+                                 StatusItemInventarioEnum.encontrado,
+                                 StatusItemInventarioEnum.divergente_local,
+                             ]),
+                             InventarioItem.conferido_em.isnot(None))
+                     .order_by(InventarioItem.conferido_em.desc(), InventarioItem.id.desc())
+                     .limit(limite)
+                     .all())
+            s.expunge_all()
+            return itens
+
+    @staticmethod
+    def listar_sobras_recentes(inventario_id: int, limite: int) -> list[InventarioSobra]:
+        """Outra metade da fonte do log "Últimas leituras" — ver
+        listar_conferidos_recentes."""
+        with get_read_session() as s:
+            sobras = (s.query(InventarioSobra)
+                      .filter(InventarioSobra.inventario_id == inventario_id)
+                      .order_by(InventarioSobra.registrado_em.desc(), InventarioSobra.id.desc())
+                      .limit(limite)
+                      .all())
+            s.expunge_all()
+            return sobras
+
     # ─── Itens — escrita (participa da transação do chamador) ──────────────
 
     @staticmethod
@@ -361,24 +395,55 @@ class InventarioRepo:
             s.delete(sobra)
             return True
 
-    # ─── Tokens ──────────────────────────────────────────────────────────────
+    # ─── Tokens (dispositivo pareado) ───────────────────────────────────────
 
     @staticmethod
     def criar_token(session, inventario_id: int, localizacao_conferida_id: int,
                     usuario_id: int, horas_validade: float,
-                    dispositivo_label: str | None = None) -> ColetaToken:
+                    dispositivo_label: str | None = None,
+                    dispositivo_id: str | None = None) -> ColetaToken:
         token = ColetaToken(
             token=secrets.token_urlsafe(_TOKEN_BYTES),
             inventario_id=inventario_id,
             localizacao_conferida_id=localizacao_conferida_id,
             usuario_id=usuario_id,
             dispositivo_label=dispositivo_label,
+            dispositivo_id=dispositivo_id,
             expira_em=datetime.utcnow() + timedelta(hours=horas_validade),
         )
         session.add(token)
         session.flush()
         session.expunge(token)
         return token
+
+    @staticmethod
+    def listar_tokens_sessao(inventario_id: int) -> list[ColetaToken]:
+        """Dispositivos pareados na sessão (revogados ou não — o serviço filtra por .valido)."""
+        with get_read_session() as s:
+            itens = (s.query(ColetaToken)
+                     .options(joinedload(ColetaToken.localizacao_conferida),
+                              joinedload(ColetaToken.usuario))
+                     .filter(ColetaToken.inventario_id == inventario_id)
+                     .order_by(ColetaToken.criado_em.desc())
+                     .all())
+            s.expunge_all()
+            return itens
+
+    @staticmethod
+    def buscar_token_dispositivo(inventario_id: int, dispositivo_id: str) -> ColetaToken | None:
+        """Token já existente para esse aparelho (mesmo dispositivo_id) nesta
+        sessão, se houver — usado para reconectar sem mintar outro token ao
+        reabrir o link do convite no mesmo celular."""
+        with get_read_session() as s:
+            obj = (s.query(ColetaToken)
+                   .options(joinedload(ColetaToken.localizacao_conferida))
+                   .filter(ColetaToken.inventario_id == inventario_id,
+                           ColetaToken.dispositivo_id == dispositivo_id)
+                   .order_by(ColetaToken.criado_em.desc())
+                   .first())
+            if obj:
+                s.expunge(obj)
+            return obj
 
     @staticmethod
     def buscar_token(token: str) -> ColetaToken | None:
@@ -398,3 +463,48 @@ class InventarioRepo:
                 .filter(ColetaToken.inventario_id == inventario_id,
                         ColetaToken.revogado == False)  # noqa: E712
                 .update({ColetaToken.revogado: True}, synchronize_session=False))
+
+    @staticmethod
+    def atualizar_localizacao_token(session, token_id: int, localizacao_id: int) -> None:
+        """Troca a sala de leitura de um aparelho já pareado (sessão de escopo
+        geral) — não cria nem revoga token, só atualiza o campo."""
+        session.query(ColetaToken).filter(ColetaToken.id == token_id).update(
+            {ColetaToken.localizacao_conferida_id: localizacao_id}, synchronize_session=False)
+
+    # ─── Convite de pareamento (QR fixo da sessão) ──────────────────────────
+
+    @staticmethod
+    def criar_convite(session, inventario_id: int, usuario_id: int) -> ColetaConvite:
+        convite = ColetaConvite(
+            token=secrets.token_urlsafe(_TOKEN_BYTES),
+            inventario_id=inventario_id,
+            usuario_id=usuario_id,
+        )
+        session.add(convite)
+        session.flush()
+        session.expunge(convite)
+        return convite
+
+    @staticmethod
+    def buscar_convite_sessao(inventario_id: int) -> ColetaConvite | None:
+        with get_read_session() as s:
+            obj = (s.query(ColetaConvite)
+                   .filter(ColetaConvite.inventario_id == inventario_id)
+                   .first())
+            if obj:
+                s.expunge(obj)
+            return obj
+
+    @staticmethod
+    def buscar_convite_por_token(token: str) -> ColetaConvite | None:
+        with get_read_session() as s:
+            obj = (s.query(ColetaConvite)
+                   .filter(ColetaConvite.token == token)
+                   .first())
+            if obj:
+                s.expunge(obj)
+            return obj
+
+    @staticmethod
+    def remover_convite(session, inventario_id: int) -> None:
+        session.query(ColetaConvite).filter(ColetaConvite.inventario_id == inventario_id).delete()

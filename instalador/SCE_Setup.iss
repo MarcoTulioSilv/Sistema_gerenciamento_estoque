@@ -1,17 +1,17 @@
 ; ================================================================
-; SCE — Sistema de Controle de Estoque · Centro Uronefrologia
+; SCE — Sistema de Controle de Estoque · Centro Uro-Nefrologia
 ; Script Inno Setup 6.x
 ; Versão vem do build.bat (set VERSION=...) via /DAppVersion — não editar
 ; AppVersion aqui manualmente.
 ; ================================================================
 
-#define AppName      "SCE - Controle de Estoque Uronefrologia"
+#define AppName      "SCE - Controle de Estoque Uro-Nefrologia"
 ; AppVersion vem de /DAppVersion=... (passado pelo build.bat). O fallback
 ; abaixo só é usado se o .iss for compilado direto, fora do build.bat.
 #ifndef AppVersion
   #define AppVersion "0.0.0-dev"
 #endif
-#define AppPublisher "Centro Uronefrologia"
+#define AppPublisher "Centro Uro-Nefrologia"
 
 ; 1. CORREÇÃO: Nomes dinâmicos baseados no AppVersion acima!
 #define AppExeName   "SCE_Uro.exe"
@@ -24,7 +24,7 @@ AppId={{A7C3F2E1-4B8D-4A1F-9C2E-3D6B8A5F1E4C}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
-DefaultDirName={autopf}\SCE_Uronefrologia
+DefaultDirName={autopf}\SCE_Uro-Nefrologia
 DefaultGroupName={#AppName}
 AllowNoIcons=yes
 OutputDir=..\dist\instalador
@@ -70,7 +70,7 @@ Source: "{#SourceDir}\*"; \
 [Icons]
 Name: "{group}\{#AppName}";   Filename: "{app}\{#AppExeName}"
 Name: "{group}\Desinstalar";  Filename: "{uninstallexe}"
-Name: "{commondesktop}\SCE Uronefrologia"; \
+Name: "{commondesktop}\SCE Uro-Nefrologia"; \
   Filename: "{app}\{#AppExeName}"; \
   IconFilename: "{app}\{#AppExeName}"; \
 

@@ -3,7 +3,7 @@
 > Documento de contexto, não é a documentação oficial do projeto (essa é o `README.md`). Serve pra colar em outra conversa/IA e dar o estado real do sistema sem precisar re-explorar o repositório do zero. Gerado a partir do estado do código em 04/08/2026, branch `Inventario`.
 
 ## O que é o SCE
-Sistema de Controle de Estoque desktop para o **Centro de Uronefrologia** — rastreabilidade de insumos e medicamentos (EAN, lotes, validade, fracionamento), voltado a exigências tipo ANVISA. Aplicação Windows, um único MySQL compartilhado por todas as estações, sem nuvem.
+Sistema de Controle de Estoque desktop para o **Centro de Uro-Nefrologia** — rastreabilidade de insumos e medicamentos (EAN, lotes, validade, fracionamento), voltado a exigências tipo ANVISA. Aplicação Windows, um único MySQL compartilhado por todas as estações, sem nuvem.
 
 ## Stack
 - **Python 3.11+**, GUI em **CustomTkinter + Tkinter** nativo.

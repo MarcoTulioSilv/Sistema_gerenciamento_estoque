@@ -9,8 +9,9 @@ import tempfile
 from datetime import date, datetime, timedelta
 from pathlib  import Path
 from decimal  import Decimal
-from openpyxl.styles import PatternFill, Font, Alignment, Border, Side 
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl import Workbook
+from fuso_horario import formatar
 from Modulo_06_dados import get_read_session, Movimentacao, Lote, Produto, Usuario
 from sqlalchemy.orm import joinedload
 from datetime import datetime as dt
@@ -317,7 +318,7 @@ class XlsxBuilder:
                 font = st["vft"] if vencido else None
                 
                 _aplicar_linha(ws, i, [
-                    mov.data_hora.strftime("%d/%m/%Y %H:%M"),
+                    formatar(mov.data_hora, "%d/%m/%Y %H:%M"),
                     mov.lote.produto.nome,
                     mov.lote.num_lote,
                     mov.numero_nf or mov.lote.nota_fiscal,
@@ -674,7 +675,7 @@ class XlsxBuilder:
         st = _wb_styles()
 
         ws_resumo = wb.active
-        ws_resumo.title = "Resumo"
+        ws_resumo.title = "Resumo o Inventário"
         ws_resumo.merge_cells('A1:B1')
         cell_p = ws_resumo['A1']
         cell_p.value = f"Inventário #{inventario.id} — {inventario.descricao}"
@@ -688,7 +689,7 @@ class XlsxBuilder:
         linhas_resumo = [
             ("Escopo", escopo_label),
             ("Status", resumo.status.replace("_", " ").title()),
-            ("Aberto em", inventario.aberto_em.strftime("%d/%m/%Y %H:%M")),
+            ("Aberto em", formatar(inventario.aberto_em, "%d/%m/%Y %H:%M")),
             ("Total esperado", resumo.total_esperado),
             ("Encontrados", resumo.encontrados),
             ("Divergentes", resumo.divergentes),
@@ -714,7 +715,7 @@ class XlsxBuilder:
                     item.bem.descricao,
                     item.localizacao_esperada.nome_completo if item.localizacao_esperada else "—",
                     item.localizacao_encontrada.nome_completo if item.localizacao_encontrada else "—",
-                    item.conferido_em.strftime("%d/%m/%Y %H:%M") if item.conferido_em else "—",
+                    formatar(item.conferido_em, "%d/%m/%Y %H:%M"),
                     item.conferido_por_usuario.nome if item.conferido_por_usuario else "—",
                     item.observacao or "",
                 ], st, fill=fill, font=font)
@@ -740,7 +741,7 @@ class XlsxBuilder:
                 sobra.codigo_lido,
                 sobra.tipo.value.replace("_", " ").title(),
                 sobra.localizacao.nome_completo if sobra.localizacao else "—",
-                sobra.registrado_em.strftime("%d/%m/%Y %H:%M"),
+                formatar(sobra.registrado_em, "%d/%m/%Y %H:%M"),
                 sobra.registrado_por_usuario.nome if sobra.registrado_por_usuario else "—",
                 sobra.descricao_livre or "",
             ], st, fill=st["af"], font=st["aft"])
@@ -752,4 +753,205 @@ class XlsxBuilder:
         caminho = XlsxBuilder._nome_arquivo("inventario")
         Path(caminho).write_bytes(_bytes_final)
         logger.info("Relatório de inventário gerado: %s (inventario_id=%s)", caminho, inventario.id)
+        return caminho
+
+    # ── 7. Bens ativos, agrupados por localização (MOD-07, T-27/RF-35) ──────
+
+    @staticmethod
+    def relatorio_bens_ativos(bens: list) -> Path:
+        """
+        Bens patrimoniais ativos, agrupados por localização — uma linha de
+        seção mesclada a cada troca de localização na sequência (`bens` já
+        vem ordenado por setor/sala, ver
+        PatrimonioService.listar_bens_ativos). Sem coluna de manutenção — ver
+        relatorio_manutencoes, separado por decisão de escopo.
+        """
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Bens ativos"
+        st = _wb_styles()
+
+        colunas = [("Tombo", 16), ("Descrição", 45), ("Marca/modelo", 25), ("Nota fiscal", 18)]
+
+        ws.row_dimensions[1].height = 25
+        ws.merge_cells('A1:D1')
+        cell_p = ws['A1']
+        cell_p.value = f"Bens ativos — {len(bens)} bem(ns)"
+        cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+        cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+        def _nome_loc(bem):
+            return bem.localizacao.nome_completo if bem.localizacao else "—"
+
+        row = 2
+        localizacao_atual = None
+        for bem in bens:
+            nome_loc = _nome_loc(bem)
+            if nome_loc != localizacao_atual:
+                localizacao_atual = nome_loc
+                qtd_grupo = sum(1 for b in bens if _nome_loc(b) == nome_loc)
+                ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=len(colunas))
+                cell_sec = ws.cell(row=row, column=1, value=f"{nome_loc} ({qtd_grupo} bem(ns))")
+                cell_sec.font = st["hft"]
+                cell_sec.fill = st["hf"]
+                cell_sec.alignment = Alignment(horizontal="left", vertical="center")
+                for col in range(1, len(colunas) + 1):
+                    ws.cell(row=row, column=col).border = st["border"]
+                ws.row_dimensions[row].height = 22
+                row += 1
+                _aplicar_header(ws, colunas, st, row_idx=row)
+                row += 1
+
+            _aplicar_linha(ws, row, [
+                bem.tombo, bem.descricao, bem.marca_modelo or "—", bem.nota_fiscal or "—",
+            ], st)
+            row += 1
+
+        ws.freeze_panes = "A2"
+        _buf = _io_bg.BytesIO()
+        wb.save(_buf)
+        _bytes_final = _aplicar_background(_buf.getvalue())
+        caminho = XlsxBuilder._nome_arquivo("bens_ativos")
+        Path(caminho).write_bytes(_bytes_final)
+        logger.info("Relatório de bens ativos gerado: %s (%d bens)", caminho, len(bens))
+        return caminho
+
+    # ── 8. Histórico de movimentação (MOD-07, T-27/RF-35) ───────────────────
+
+    _TIPO_MOV_LABEL = {
+        "cadastro": "Cadastro", "transferencia": "Transferência",
+        "ajuste_inventario": "Ajuste de inventário", "baixa": "Baixa",
+    }
+
+    @staticmethod
+    def relatorio_historico_movimentacao(movs: list, data_ini, data_fim) -> Path:
+        """Movimentações de bens patrimoniais num período, todas as origens/tipos."""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Histórico de Movimentação"
+        st = _wb_styles()
+
+        colunas = [
+            ("Data/Hora", 18), ("Tombo", 16), ("Descrição", 40), ("Tipo", 20),
+            ("Origem", 26), ("Destino", 26), ("Motivo", 30), ("Usuário", 20),
+        ]
+
+        ws.row_dimensions[1].height = 25
+        ws.merge_cells('A1:H1')
+        cell_p = ws['A1']
+        cell_p.value = f"Período: {data_ini.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
+        cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+        cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+        _aplicar_header(ws, colunas, st, row_idx=2)
+
+        for i, mov in enumerate(movs, 3):
+            _aplicar_linha(ws, i, [
+                formatar(mov.data_hora, "%d/%m/%Y %H:%M"),
+                mov.bem.tombo,
+                mov.bem.descricao,
+                XlsxBuilder._TIPO_MOV_LABEL.get(mov.tipo.value, mov.tipo.value),
+                mov.localizacao_origem.nome_completo if mov.localizacao_origem else "—",
+                mov.localizacao_destino.nome_completo if mov.localizacao_destino else "—",
+                mov.motivo or "—",
+                mov.usuario.nome,
+            ], st)
+
+        ws.freeze_panes = "A3"
+        _buf = _io_bg.BytesIO()
+        wb.save(_buf)
+        _bytes_final = _aplicar_background(_buf.getvalue())
+        caminho = XlsxBuilder._nome_arquivo("historico_movimentacao_patrimonio")
+        Path(caminho).write_bytes(_bytes_final)
+        logger.info("Relatório de histórico de movimentação gerado: %s (%d linhas)", caminho, len(movs))
+        return caminho
+
+    # ── 9. Bens descartados/inativados (MOD-07, T-27/RF-35) ─────────────────
+
+    _MOTIVO_BAIXA_LABEL = {
+        "descarte": "Descarte", "doacao": "Doação", "venda": "Venda",
+        "extravio": "Extravio", "obsolescencia": "Obsolescência", "sinistro": "Sinistro",
+    }
+
+    @staticmethod
+    def relatorio_bens_baixados(baixas: list, data_ini, data_fim) -> Path:
+        """Bens baixados (descartados/inativados) num período, com motivo e documentação."""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Bens Baixados"
+        st = _wb_styles()
+
+        colunas = [
+            ("Tombo", 16), ("Descrição", 40), ("Motivo", 20), ("Data baixa", 14),
+            ("Documento", 22), ("MTR", 16), ("Laudo", 16), ("Usuário", 20),
+        ]
+
+        ws.row_dimensions[1].height = 25
+        ws.merge_cells('A1:H1')
+        cell_p = ws['A1']
+        cell_p.value = (f"Bens descartados/inativados — {data_ini.strftime('%d/%m/%Y')} "
+                        f"a {data_fim.strftime('%d/%m/%Y')}")
+        cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+        cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+        _aplicar_header(ws, colunas, st, row_idx=2)
+
+        for i, baixa in enumerate(baixas, 3):
+            _aplicar_linha(ws, i, [
+                baixa.bem.tombo,
+                baixa.bem.descricao,
+                XlsxBuilder._MOTIVO_BAIXA_LABEL.get(baixa.motivo.value, baixa.motivo.value),
+                baixa.data_baixa.strftime("%d/%m/%Y"),
+                baixa.documento or "—",
+                baixa.numero_mtr or "—",
+                baixa.numero_laudo or "—",
+                baixa.usuario.nome,
+            ], st, fill=st["vf"], font=st["vft"])
+
+        ws.freeze_panes = "A3"
+        _buf = _io_bg.BytesIO()
+        wb.save(_buf)
+        _bytes_final = _aplicar_background(_buf.getvalue())
+        caminho = XlsxBuilder._nome_arquivo("bens_baixados")
+        Path(caminho).write_bytes(_bytes_final)
+        logger.info("Relatório de bens baixados gerado: %s (%d bens)", caminho, len(baixas))
+        return caminho
+
+    # ── 10. Manutenções (MOD-07, T-27/RF-35) ─────────────────────────────────
+
+    @staticmethod
+    def relatorio_manutencoes(manutencoes: list) -> Path:
+        """Manutenções realizadas em bens patrimoniais — todo o histórico ou um período."""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Manutenções"
+        st = _wb_styles()
+
+        colunas = [
+            ("Tombo", 16), ("Descrição", 40), ("Data manutenção", 16),
+            ("Serviço realizado", 50), ("Registrado por", 20),
+        ]
+
+        ws.row_dimensions[1].height = 25
+        ws.merge_cells('A1:E1')
+        cell_p = ws['A1']
+        cell_p.value = f"Manutenções — {len(manutencoes)} registro(s)"
+        cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+        cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+        _aplicar_header(ws, colunas, st, row_idx=2)
+
+        for i, m in enumerate(manutencoes, 3):
+            _aplicar_linha(ws, i, [
+                m.bem.tombo, m.bem.descricao, m.data_manutencao.strftime("%d/%m/%Y"),
+                m.descricao, m.usuario.nome,
+            ], st)
+
+        ws.freeze_panes = "A3"
+        _buf = _io_bg.BytesIO()
+        wb.save(_buf)
+        _bytes_final = _aplicar_background(_buf.getvalue())
+        caminho = XlsxBuilder._nome_arquivo("manutencoes")
+        Path(caminho).write_bytes(_bytes_final)
+        logger.info("Relatório de manutenções gerado: %s (%d registros)", caminho, len(manutencoes))
         return caminho

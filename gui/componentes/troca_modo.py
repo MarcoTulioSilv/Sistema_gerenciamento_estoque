@@ -23,7 +23,7 @@ class TrocaModoOverlay(ctk.CTkFrame):
         super().__init__(master, corner_radius=0)
         self._label_titulo = ctk.CTkLabel(self, text="", text_color="white",
                                           font=ctk.CTkFont(size=18, weight="bold"))
-        self._label_sub = ctk.CTkLabel(self, text="Centro de Uronefrologia", text_color="white",
+        self._label_sub = ctk.CTkLabel(self, text="Centro de Uro-Nefrologia", text_color="white",
                                        font=ctk.CTkFont(size=11))
         self._label_titulo.place(relx=0.5, rely=0.46, anchor="center")
         self._label_sub.place(relx=0.5, rely=0.54, anchor="center")

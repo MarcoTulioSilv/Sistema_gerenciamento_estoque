@@ -35,8 +35,8 @@ _SITUACAO_COR = {
 _COLUNAS = [
     ("Tombo",              50),
     ("Descrição",          200),
-    ("Marca / modelo",     140),
-    ("Localização",        250),
+    ("Marca / modelo",     200),
+    ("Localização",        300),
     ("Situação",           100),
     ("Etiqueta",            100),
     ("Última manutenção",  60),
@@ -192,11 +192,11 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         for col, (txt, largura) in enumerate(_COLUNAS, start=1):
             ancora = "w" if col == 1 else "center"
             ctk.CTkLabel(grade, text=txt.upper(), text_color="#888780",
-                         font=ctk.CTkFont(size=9, weight="bold"),
+                         font=ctk.CTkFont(size=12, weight="bold"),
                          anchor=ancora
                          ).grid(row=0, column=col, padx=8, pady=8)
         ctk.CTkLabel(grade, text="AÇÃO", text_color="#888780",
-                     font=ctk.CTkFont(size=9, weight="bold"),
+                     font=ctk.CTkFont(size=12, weight="bold"),
                      ).grid(row=0, column=len(_COLUNAS) + 1, padx=8, pady=8)
 
         self._lbl_rodape = ctk.CTkLabel(
@@ -348,7 +348,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         if not bens and indice_inicial == 0:
             ctk.CTkLabel(grade, text="Nenhum bem encontrado.",
                         text_color=COR_VERM,
-                        font=ctk.CTkFont(size=12)
+                        font=ctk.CTkFont(size=30, weight="bold")
                         ).grid(row=1, column=0, columnspan=len(_COLUNAS) + 2, pady=24)
             self._lbl_rodape.configure(text="")
             return
@@ -372,7 +372,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
             ]
             for col, val in enumerate(valores, start=1):
                 cor = COR_PETROLEO if col == 1 else "#3d3d3a"
-                fonte = ctk.CTkFont(size=11, weight="bold", family="Consolas") if col == 1 else ctk.CTkFont(size=11)
+                fonte = ctk.CTkFont(size=13, weight="bold", family="Consolas") if col == 1 else ctk.CTkFont(size=15)
                 ctk.CTkLabel(grade, text=val, text_color=cor, font=fonte,
                              fg_color=bg, anchor="w", corner_radius=5,
                              ).grid(row=row_idx, column=col, padx=8, pady=6, sticky="nsew")
@@ -381,7 +381,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
             wrap_situacao = ctk.CTkFrame(grade, fg_color="transparent", corner_radius=0)
             wrap_situacao.grid(row=row_idx, column=5, padx=8, pady=6, sticky="nsew")
             ctk.CTkLabel(wrap_situacao, text=situacao_label, fg_color=fg_s, text_color=tc_s,
-                         font=ctk.CTkFont(size=9, weight="bold"),
+                         font=ctk.CTkFont(size=11, weight="bold"),
                          corner_radius=6, padx=6, pady=2).pack()
 
             if bem.etiqueta_impressa_em:
@@ -391,7 +391,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
             wrap_etiqueta = ctk.CTkFrame(grade, fg_color="transparent", corner_radius=0)
             wrap_etiqueta.grid(row=row_idx, column=6, padx=8, pady=6, sticky="nsew")
             ctk.CTkLabel(wrap_etiqueta, text=txt_etiqueta, fg_color=cor_etiqueta[0], text_color=cor_etiqueta[1],
-                         font=ctk.CTkFont(size=9, weight="bold"),
+                         font=ctk.CTkFont(size=11, weight="bold"),
                          corner_radius=6, padx=6, pady=2).pack()
 
             if ultima_manutencao:

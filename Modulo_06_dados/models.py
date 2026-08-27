@@ -666,6 +666,7 @@ class ColetaToken(Base):
     localizacao_conferida_id:   Mapped[int]         = mapped_column(Integer, ForeignKey("localizacao.id"), nullable=False)
     usuario_id:                 Mapped[int]         = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
     dispositivo_label:          Mapped[str | None]  = mapped_column(String(60), nullable=True)
+    dispositivo_id:              Mapped[str | None]  = mapped_column(String(64), nullable=True)
     criado_em:                  Mapped[datetime]    = mapped_column(DateTime, nullable=False, default=func.now())
     expira_em:                  Mapped[datetime]    = mapped_column(DateTime, nullable=False)
     revogado:                   Mapped[bool]        = mapped_column(Boolean, nullable=False, default=False)
@@ -679,6 +680,7 @@ class ColetaToken(Base):
         Index('idx_coleta_token_sessao', 'inventario_id', 'revogado'),
         Index('idx_coleta_token_localizacao', 'localizacao_conferida_id'),
         Index('idx_coleta_token_usuario', 'usuario_id'),
+        Index('idx_coleta_token_dispositivo', 'inventario_id', 'dispositivo_id'),
     )
 
     @property
@@ -691,6 +693,42 @@ class ColetaToken(Base):
 
     def __repr__(self):
         return f"<ColetaToken sessao {self.inventario_id} | {self.dispositivo_label} | revogado={self.revogado}>"
+
+
+class ColetaConvite(Base):
+    """
+    Tabela: coleta_convite — MOD-07
+
+    Convite fixo de pareamento — uma linha por sessão (índice único em
+    inventario_id). Não representa nenhum aparelho nem localização: é só um
+    ponteiro estável para "esta sessão está aceitando pareamentos", exibido
+    como QR no desktop (T-26) durante toda a coleta sem precisar ser
+    regenerado. usuario_id é metadado de auditoria (quem abriu a coleta) —
+    herdado pelo ColetaToken real no cadastro do aparelho, já que o celular
+    nunca se autentica.
+
+    Sem expira_em própria: validade = sessão continuar aberta (mesma
+    checagem já feita para ColetaToken via inventario.status).
+    """
+    __tablename__ = "coleta_convite"
+
+    id:             Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token:          Mapped[str]      = mapped_column(CHAR(43), nullable=False)
+    inventario_id:  Mapped[int]      = mapped_column(Integer, ForeignKey("inventario.id"), nullable=False)
+    usuario_id:     Mapped[int]      = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
+    criado_em:      Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+
+    inventario: Mapped["Inventario"] = relationship()
+    usuario:    Mapped["Usuario"]    = relationship(foreign_keys=[usuario_id])
+
+    __table_args__ = (
+        Index('uq_coleta_convite_token', 'token', unique=True),
+        Index('uq_coleta_convite_inventario', 'inventario_id', unique=True),
+        Index('idx_coleta_convite_usuario', 'usuario_id'),
+    )
+
+    def __repr__(self):
+        return f"<ColetaConvite sessao {self.inventario_id}>"
 
 
 class BaixaDocumento(Base):

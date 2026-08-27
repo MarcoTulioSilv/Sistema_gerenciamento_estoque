@@ -12,7 +12,7 @@ set INSTALLER=SCE_Setup_%VERSION%.exe
 
 echo.
 echo ╔══════════════════════════════════════════╗
-echo ║   SCE Uronefrologia — Build %VERSION%    ║
+echo ║   SCE Uro-Nefrologia — Build %VERSION%   ║
 echo ╚══════════════════════════════════════════╝
 echo.
 

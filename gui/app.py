@@ -49,6 +49,7 @@ from gui.telas.t24_cadastro_bem      import TelaCadastroBem
 from gui.telas.t25_movimentacao_baixa import TelaMovimentacaoBaixa
 from gui.telas.t28_localizacoes      import TelaLocalizacoes
 from gui.telas.t26_inventario        import TelaInventario
+from gui.telas.t27_relatorios        import TelaRelatoriosPatrimonio
 
 # tema global
 ctk.set_appearance_mode("light")
@@ -100,7 +101,7 @@ class SCEApp(ctk.CTk):
 
         self.escala_atual = 1.0
 
-        self.title("Sistema de Controle de Estoque - Centro de Uronefrologia")
+        self.title("Sistema de Controle de Estoque - Centro de Uro-Nefrologia")
         self.geometry("1100x600")
         self.minsize(900, 600)
 
@@ -365,6 +366,9 @@ class SCEApp(ctk.CTk):
         if destino == "inventario":
             return TelaInventario(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
 
+        if destino == "relatorios_patrimonio":
+            return TelaRelatoriosPatrimonio(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+
     def _on_navigate_com_extra(self, destino: str, extra=None):
         """Versão do _navegar que aceita parâmetro extra(ex: produto_id)"""
         self.resetar_timer_sessao()
@@ -512,6 +516,8 @@ class Sidebar(ctk.CTkFrame):
         ("bens_patrimoniais"  ,"Bens patrimoniais", ["tecnico", "admin", "ti"]),
         ("novo_bem"           ,"Cadastrar bem",      ["tecnico", "admin", "ti"]),
         ("inventario"         ,"Inventário",         ["tecnico", "admin", "ti"]),
+        ("__label__"          ,"Consulta",           None),
+        ("relatorios_patrimonio","Relatórios",       ["admin", "ti"]),  # RF-35
         ("__label__"          ,"Acesso restrito",    None),
         ("localizacoes"       ,"Localizações",       ["ti"]),
     ]

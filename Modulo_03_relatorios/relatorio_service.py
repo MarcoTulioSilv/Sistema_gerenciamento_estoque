@@ -9,6 +9,7 @@ from datetime import date, datetime, time, timedelta
 from pathlib  import Path
 from .xlsx_builder import XlsxBuilder
 from .grupo_consumo_repo import GrupoConsumoRepo
+from fuso_horario import formatar
 from Modulo_04_notificacoes.gmail_client import GmailClient
 from Modulo_06_dados import (
     get_read_session, RelatorioAgendamento, get_session, JobLog, GrupoConsumo,
@@ -133,7 +134,7 @@ class RelatorioService:
             )
             return [
                 [
-                    m.data_hora.strftime("%d/%m/%Y %H:%M"),
+                    formatar(m.data_hora, "%d/%m/%Y %H:%M"),
                     m.lote.produto.nome,
                     m.lote.num_lote,
                     m.numero_nf or m.lote.nota_fiscal or "—",
@@ -539,7 +540,7 @@ def _html_corpo(titulo: str, descricao: str, rodape: str,
           <hr style="border:none;border-top:1px solid #E8E6DE;margin:16px 0">
           <p style="font-size:12px;color:#888780">{rodape}</p>
           <p style="font-size:11px;color:#AAAAAA;margin-top:20px">
-            Sistema de Controle de Estoque — Centro de Uronefrologia<br>
+            Sistema de Controle de Estoque — Centro de Uro-Nefrologia<br>
             Gerado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}
           </p>
         </div>

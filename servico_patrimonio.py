@@ -1,5 +1,5 @@
 """
-SCE — Sistema de Controle de Estoque do Centro de Uronefrologia
+SCE — Sistema de Controle de Estoque do Centro de Uro-Nefrologia
 servico_patrimonio.py — ponto de entrada do ColetaWebService (MOD-07, AD-14)
 
 Processo headless, sem GUI, sem scheduler, sem verificação de atualização —

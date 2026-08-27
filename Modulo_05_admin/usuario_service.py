@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 import bcrypt
 
+from fuso_horario import formatar
 from Modulo_06_dados import get_session, get_read_session, Usuario, PerfilEnum
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ class UsuarioService:
                     login             = u.login,
                     perfil            = u.perfil,
                     ativo             = u.ativo,
-                    criado_em         = u.criado_em.strftime("%d/%m/%Y") if u.criado_em else "—",
+                    criado_em         = formatar(u.criado_em, "%d/%m/%Y"),
                     acesso_patrimonio = u.acesso_patrimonio,
                 )
                 for u in usuarios
@@ -77,7 +78,7 @@ class UsuarioService:
                 login             = u.login,
                 perfil            = u.perfil,
                 ativo             = u.ativo,
-                criado_em         = u.criado_em.strftime("%d/%m/%Y") if u.criado_em else "—",
+                criado_em         = formatar(u.criado_em, "%d/%m/%Y"),
                 acesso_patrimonio = u.acesso_patrimonio,
             )
 
@@ -170,7 +171,7 @@ class UsuarioService:
             resultado = DadosUsuario(
                 id=u.id, nome=u.nome, login=u.login,
                 perfil=u.perfil, ativo=u.ativo,
-                criado_em=u.criado_em.strftime("%d/%m/%Y") if u.criado_em else "—",
+                criado_em=formatar(u.criado_em, "%d/%m/%Y"),
                 acesso_patrimonio=u.acesso_patrimonio,
             )
 

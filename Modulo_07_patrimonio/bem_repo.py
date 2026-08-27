@@ -278,6 +278,47 @@ class BemRepo:
             return itens
 
     @staticmethod
+    def historico_movimentacao(
+        data_ini: datetime, data_fim: datetime,
+        localizacao_id: int | None = None,
+    ) -> list[MovimentacaoBem]:
+        """
+        Movimentações de TODOS os bens num período (T-27, RF-35) — diferente
+        de historico(bem_id), que já sabe de qual bem se trata, aqui é
+        necessário carregar o próprio bem (joinedload) para o relatório saber
+        de quem é cada linha.
+        """
+        with get_read_session() as s:
+            q = (s.query(MovimentacaoBem)
+                 .options(
+                     joinedload(MovimentacaoBem.bem),
+                     joinedload(MovimentacaoBem.localizacao_origem),
+                     joinedload(MovimentacaoBem.localizacao_destino),
+                     joinedload(MovimentacaoBem.usuario),
+                 )
+                 .filter(MovimentacaoBem.data_hora.between(data_ini, data_fim)))
+            if localizacao_id is not None:
+                q = q.filter(or_(
+                    MovimentacaoBem.localizacao_origem_id == localizacao_id,
+                    MovimentacaoBem.localizacao_destino_id == localizacao_id,
+                ))
+            itens = q.order_by(MovimentacaoBem.data_hora).all()
+            s.expunge_all()
+            return itens
+
+    @staticmethod
+    def listar_baixas(data_ini: date, data_fim: date) -> list[BaixaBem]:
+        """Baixas registradas num período (T-27, RF-35)."""
+        with get_read_session() as s:
+            itens = (s.query(BaixaBem)
+                     .options(joinedload(BaixaBem.bem), joinedload(BaixaBem.usuario))
+                     .filter(BaixaBem.data_baixa.between(data_ini, data_fim))
+                     .order_by(BaixaBem.data_baixa)
+                     .all())
+            s.expunge_all()
+            return itens
+
+    @staticmethod
     def marcar_etiqueta_impressa(bem_ids: list[int], quando: datetime) -> None:
         # RF-28/AP-07 — atualização em lote após gerar_etiquetas ter sucesso.
         # Não é movimentação (RN-11): emitir etiqueta não move nem altera o

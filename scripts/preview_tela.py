@@ -48,6 +48,7 @@ _TELAS = {
     "movimentar_bem":    ("gui.telas.t25_movimentacao_baixa", "TelaMovimentacaoBaixa", "bem_id"),
     "localizacoes":      ("gui.telas.t28_localizacoes",      "TelaLocalizacoes",     None),
     "inventario":        ("gui.telas.t26_inventario",        "TelaInventario",       None),
+    "relatorios_patrimonio": ("gui.telas.t27_relatorios",    "TelaRelatoriosPatrimonio", None),
     "transferencias":     ("gui.telas.t09b_transferencia",    "TelaTransferencia",   None),
 }
 

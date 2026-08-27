@@ -19,7 +19,7 @@ from gui.componentes.tema import (
 _COLUNAS = [
     ("Setor",       160),
     ("Sala",        160),
-    ("Descrição",   220),
+    ("Descrição",   300),
     ("Situação",     90),
     ("Bens ativos", 100),
     ("Ações",       140),
@@ -45,11 +45,11 @@ class TelaLocalizacoes(ctk.CTkFrame):
         topbar = ctk.CTkFrame(self, fg_color=COR_BRANCO, height=44, corner_radius=0)
         topbar.pack(fill="x")
         topbar.pack_propagate(False)
-        ctk.CTkLabel(topbar, text="Localizações", font=ctk.CTkFont(size=13, weight="bold"),
+        ctk.CTkLabel(topbar, text="Localizações", font=ctk.CTkFont(size=15, weight="bold"),
                      text_color=COR_PETROLEO).pack(side="left", padx=16, pady=10)
         ctk.CTkButton(topbar, text="+ Nova localização", width=150, height=28,
                       fg_color=COR_PETROLEO_M, hover_color=COR_PETROLEO,
-                      font=ctk.CTkFont(size=11),
+                      font=ctk.CTkFont(size=15),
                       command=self._abrir_novo).pack(side="right", padx=16, pady=8)
 
         self._banner = FeedbackBanner(self)
@@ -60,8 +60,8 @@ class TelaLocalizacoes(ctk.CTkFrame):
         hdr.pack(fill="x", padx=16, pady=(10, 0))
         for col, (txt, larg) in enumerate(_COLUNAS):
             ctk.CTkLabel(hdr, text=txt.upper(), text_color="#888780",
-                         font=ctk.CTkFont(size=10, weight="bold"),
-                         width=larg, anchor="w").grid(row=0, column=col, padx=6, pady=6, sticky="w")
+                         font=ctk.CTkFont(size=15, weight="bold"),
+                         width=larg, anchor="center" if col!=0 else "w").grid(row=0, column=col, padx=6, pady=6, sticky="w")
 
         self._scroll = ctk.CTkScrollableFrame(self, fg_color=COR_CINZA_E, corner_radius=0)
         self._scroll.pack(fill="both", expand=True, padx=16, pady=(0, 16))
@@ -92,31 +92,31 @@ class TelaLocalizacoes(ctk.CTkFrame):
             row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
             row.pack(fill="x")
 
-            valores = [(loc.setor, 160), (loc.sala, 160), (loc.descricao or "—", 220)]
+            valores = [(loc.setor, 160), (loc.sala, 160), (loc.descricao or "—", 300)]
             for col, (val, larg) in enumerate(valores):
-                ctk.CTkLabel(row, text=val, text_color="#3d3d3a", font=ctk.CTkFont(size=11),
-                             width=larg, anchor="w").grid(row=0, column=col, padx=6, pady=7, sticky="w")
+                ctk.CTkLabel(row, text=val, text_color="#3d3d3a", font=ctk.CTkFont(size=15),
+                             width=larg , anchor="w").grid(row=0, column=col, padx=6, pady=7, sticky="w")
 
             fg_s, tc_s = ("#EAF3DE", "#27500A") if loc.ativo else ("#F1EFE8", "#5F5E5A")
             ctk.CTkLabel(row, text="Ativa" if loc.ativo else "Inativa",
-                         fg_color=fg_s, text_color=tc_s, font=ctk.CTkFont(size=9, weight="bold"),
+                         fg_color=fg_s, text_color=tc_s, font=ctk.CTkFont(size=15, weight="bold"),
                          corner_radius=6, padx=6, pady=2, width=90).grid(row=0, column=3, padx=6, pady=7)
 
             ctk.CTkLabel(row, text=str(total_ativos), text_color="#3d3d3a",
-                         font=ctk.CTkFont(size=11), width=100, anchor="center"
+                         font=ctk.CTkFont(size=15), width=100, anchor="center"
                          ).grid(row=0, column=4, padx=6, pady=7)
 
             acoes = ctk.CTkFrame(row, fg_color="transparent")
             acoes.grid(row=0, column=5, padx=6, pady=5)
-            ctk.CTkButton(acoes, text="Editar", width=60, height=26,
+            ctk.CTkButton(acoes, text="Editar", width=65, height=31,
                           fg_color=COR_BRANCO, text_color="#3d3d3a",
                           border_width=1, border_color=COR_CINZA_B,
-                          hover_color=COR_CINZA_E, font=ctk.CTkFont(size=11),
+                          hover_color=COR_CINZA_E, font=ctk.CTkFont(size=13),
                           command=lambda l=loc: self._abrir_edicao(l)).pack(side="left", padx=(0, 4))
             if loc.ativo:
-                ctk.CTkButton(acoes, text="Desativar", width=78, height=26,
+                ctk.CTkButton(acoes, text="Desativar", width=65, height=31,
                               fg_color=COR_VERM, hover_color="#7a1f1f",
-                              text_color="#fff", font=ctk.CTkFont(size=11),
+                              text_color="#fff", font=ctk.CTkFont(size=13),
                               command=lambda l=loc: self._desativar(l)).pack(side="left")
 
     # ── Painel de edição ──────────────────────────────────────────────────────

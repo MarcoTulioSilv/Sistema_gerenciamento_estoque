@@ -30,7 +30,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-from datetime import datetime
+from datetime import date, datetime
 from urllib.parse import urlparse, parse_qs
 
 from sqlalchemy.exc import IntegrityError
@@ -622,6 +622,172 @@ class PatrimonioService:
 
         return codigo
 
+    # ─── Relatórios (T-27, RF-35) ────────────────────────────────────────────
+    #
+    # Cada tipo tem três métodos: listar_* (dados crus, usado pelo painel de
+    # Visualizar), relatorio_* (gera o XLSX e devolve o caminho) e enviar_*
+    # (gera + envia por e-mail via GmailClient). relatorio_*/enviar_* sempre
+    # chamam listar_* por baixo, pra não duplicar a busca. Todos exigem
+    # "relatorios_patrimonio" (admin/ti — RF-35, técnico sem acesso).
+
+    def listar_bens_ativos(self, usuario_id: int, localizacao_id: int | None = None) -> list:
+        """
+        Bens ativos, ordenados por localização (setor/sala) — o builder do
+        XLSX usa essa ordem pra agrupar visualmente por localização. Sem
+        `localizacao_id`, cobre a clínica inteira (N grupos); com, cobre só
+        aquela localização (1 grupo) — mesma consulta, o filtro é que muda o
+        escopo.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id, "relatorios_patrimonio")
+        filtro = FiltroBens(localizacao_id=localizacao_id, apenas_ativos=True, ordenar_por="localizacao")
+        return BemRepo.listar(filtro)
+
+    def relatorio_bens_ativos(self, usuario_id: int, localizacao_id: int | None = None) -> str:
+        """
+        Gera o XLSX de bens ativos, agrupado por localização (RF-35).
+
+        Raises:
+            PermissaoNegadaError
+        """
+        bens = self.listar_bens_ativos(usuario_id, localizacao_id)
+        from Modulo_03_relatorios.xlsx_builder import XlsxBuilder
+        caminho = XlsxBuilder.relatorio_bens_ativos(bens)
+        logger.info("Relatório de bens ativos gerado: usuario_id=%s localizacao_id=%s",
+                    usuario_id, localizacao_id)
+        return str(caminho)
+
+    def enviar_relatorio_bens_ativos(self, usuario_id: int, localizacao_id: int | None = None) -> None:
+        """
+        Gera e envia por e-mail o relatório de bens ativos.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        caminho = self.relatorio_bens_ativos(usuario_id, localizacao_id)
+        self._enviar_email_relatorio(
+            "Bens ativos", "Listagem de bens patrimoniais ativos, agrupada por localização.", caminho)
+
+    def listar_historico_movimentacao(self, usuario_id: int, data_ini: datetime, data_fim: datetime,
+                                      localizacao_id: int | None = None) -> list:
+        """
+        Movimentações (cadastro, transferência, ajuste de inventário, baixa)
+        de todos os bens num período.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id, "relatorios_patrimonio")
+        return BemRepo.historico_movimentacao(data_ini, data_fim, localizacao_id)
+
+    def relatorio_historico_movimentacao(self, usuario_id: int, data_ini: datetime, data_fim: datetime,
+                                         localizacao_id: int | None = None) -> str:
+        """
+        Gera o XLSX de histórico de movimentação por bem, num período (RF-35).
+
+        Raises:
+            PermissaoNegadaError
+        """
+        movs = self.listar_historico_movimentacao(usuario_id, data_ini, data_fim, localizacao_id)
+        from Modulo_03_relatorios.xlsx_builder import XlsxBuilder
+        caminho = XlsxBuilder.relatorio_historico_movimentacao(movs, data_ini, data_fim)
+        logger.info("Relatório de histórico de movimentação gerado: usuario_id=%s período=%s..%s",
+                    usuario_id, data_ini, data_fim)
+        return str(caminho)
+
+    def enviar_historico_movimentacao(self, usuario_id: int, data_ini: datetime, data_fim: datetime,
+                                      localizacao_id: int | None = None) -> None:
+        """
+        Gera e envia por e-mail o relatório de histórico de movimentação.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        caminho = self.relatorio_historico_movimentacao(usuario_id, data_ini, data_fim, localizacao_id)
+        self._enviar_email_relatorio(
+            "Histórico de movimentação",
+            f"Movimentações de bens patrimoniais entre {data_ini:%d/%m/%Y} e {data_fim:%d/%m/%Y}.",
+            caminho)
+
+    def listar_bens_baixados(self, usuario_id: int, data_ini: date, data_fim: date) -> list:
+        """
+        Bens descartados/inativados (baixados) num período.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id, "relatorios_patrimonio")
+        return BemRepo.listar_baixas(data_ini, data_fim)
+
+    def relatorio_bens_baixados(self, usuario_id: int, data_ini: date, data_fim: date) -> str:
+        """
+        Gera o XLSX de bens descartados/inativados num período (RF-35).
+
+        Raises:
+            PermissaoNegadaError
+        """
+        baixas = self.listar_bens_baixados(usuario_id, data_ini, data_fim)
+        from Modulo_03_relatorios.xlsx_builder import XlsxBuilder
+        caminho = XlsxBuilder.relatorio_bens_baixados(baixas, data_ini, data_fim)
+        logger.info("Relatório de bens baixados gerado: usuario_id=%s período=%s..%s",
+                    usuario_id, data_ini, data_fim)
+        return str(caminho)
+
+    def enviar_relatorio_bens_baixados(self, usuario_id: int, data_ini: date, data_fim: date) -> None:
+        """
+        Gera e envia por e-mail o relatório de bens descartados/inativados.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        caminho = self.relatorio_bens_baixados(usuario_id, data_ini, data_fim)
+        self._enviar_email_relatorio(
+            "Bens descartados/inativados",
+            f"Baixas patrimoniais registradas entre {data_ini:%d/%m/%Y} e {data_fim:%d/%m/%Y}.",
+            caminho)
+
+    def listar_manutencoes(self, usuario_id: int, data_ini: date | None = None,
+                           data_fim: date | None = None) -> list:
+        """
+        Manutenções realizadas em bens, opcionalmente filtradas por período —
+        sem as duas datas, devolve todo o histórico.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id, "relatorios_patrimonio")
+        return ManutencaoRepo.listar_periodo(data_ini, data_fim)
+
+    def relatorio_manutencoes(self, usuario_id: int, data_ini: date | None = None,
+                              data_fim: date | None = None) -> str:
+        """
+        Gera o XLSX de manutenções realizadas (RF-35 — complementa "bens
+        ativos", que não traz mais essa coluna).
+
+        Raises:
+            PermissaoNegadaError
+        """
+        manutencoes = self.listar_manutencoes(usuario_id, data_ini, data_fim)
+        from Modulo_03_relatorios.xlsx_builder import XlsxBuilder
+        caminho = XlsxBuilder.relatorio_manutencoes(manutencoes)
+        logger.info("Relatório de manutenções gerado: usuario_id=%s", usuario_id)
+        return str(caminho)
+
+    def enviar_relatorio_manutencoes(self, usuario_id: int, data_ini: date | None = None,
+                                     data_fim: date | None = None) -> None:
+        """
+        Gera e envia por e-mail o relatório de manutenções.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        caminho = self.relatorio_manutencoes(usuario_id, data_ini, data_fim)
+        periodo = f" entre {data_ini:%d/%m/%Y} e {data_fim:%d/%m/%Y}" if data_ini and data_fim else ""
+        self._enviar_email_relatorio(
+            "Manutenções", f"Manutenções registradas em bens patrimoniais{periodo}.", caminho)
+
     # ─── Interno ──────────────────────────────────────────────────────────────
 
     @staticmethod
@@ -660,6 +826,29 @@ class PatrimonioService:
         raiz, ext = os.path.splitext(nome)
         ext = ext[:20]  # extensão absurdamente longa não é extensão de verdade
         return raiz[: _LIMITE_NOME_ANEXO - len(ext)] + ext
+
+    @staticmethod
+    def _enviar_email_relatorio(titulo: str, descricao: str, caminho_xlsx: str) -> None:
+        """
+        Corpo HTML mínimo pro e-mail de relatório — não importa o
+        `_html_corpo` privado de Modulo_03_relatorios/relatorio_service.py
+        (é interno daquele módulo; MOD-07 não deveria depender de detalhe de
+        implementação do MOD-02).
+        """
+        from pathlib import Path
+        from Modulo_04_notificacoes.gmail_client import GmailClient
+
+        corpo_html = f"""
+        <div style="font-family: Arial, sans-serif; color: #3d3d3a;">
+            <h2 style="color: #1F5F5B;">SCE — {titulo}</h2>
+            <p>{descricao}</p>
+            <p style="color: #888780; font-size: 12px;">
+                Relatório gerado automaticamente pelo Sistema de Controle de
+                Estoque — Centro de Uro-Nefrologia.
+            </p>
+        </div>
+        """
+        GmailClient.enviar(f"SCE — Relatório: {titulo}", corpo_html, anexos=[Path(caminho_xlsx)])
 
     @staticmethod
     def _resolver_usuario_autorizado(usuario_id: int, recurso: str | None = None):

@@ -8,9 +8,20 @@ DIMENSÕES — Anexo A da ERS v1.8, calibradas para 203 dpi:
     etiqueta          100 x 50 mm
     QR Code           29 x 29 mm  · versão 3, ECC M, módulo 1,000 mm (8 pts)
     Code 128          42 x 8 mm   · módulo 0,375 mm (3 pts), conteúdo = tombo puro
-    nome da clínica   fonte 4 mm, linha única
+    nome da clínica   fonte 4 mm, duas linhas ("Centro de" / "Uro-Nefrologia")
     tombo             fonte 11 mm
+    ícone da clínica  10 mm de altura, canto superior direito
     zona de silêncio  QR: 4 mm · Code128: 20 mm à direita
+
+LAYOUT — modelo aprovado em documentacao/exemplo etiqueta tombo.pdf: QR no
+canto superior esquerdo, nome da clínica em duas linhas e tombo grande ao
+lado, ícone da clínica (assets/etiqueta_logo_icone.png, recorte de
+assets/logo_Centro_Uro_Nefrologia_sem_fundo_sem_letras.png) no canto
+superior direito, Code 128 na base. A baseline do tombo (POS_TOMBO_Y_MM)
+foi calibrada para nunca colidir com o ícone acima dela, testado com um
+tombo de 10 caracteres — folga que sobra independe do quão longo o tombo
+fique, já que o ícone ocupa uma faixa vertical fixa acima da faixa do
+tombo (não uma faixa horizontal, que dependeria do comprimento da string).
 
 O QR é desenhado a partir da MESMA matriz de módulos (segno, versão 3
 forçada, boost_error desligado) tanto no ZPL (bitmap ^GFA módulo a módulo)
@@ -21,6 +32,12 @@ cuidado: é determinístico (mesmos dados + mesma largura de módulo sempre
 produzem o mesmo padrão de barras), então o ZPL usa o comando nativo ^BC e
 o PDF usa python-barcode — ambos com o mesmo dado e a mesma largura de
 módulo em mm.
+
+O ícone da clínica segue o mesmo raciocínio do QR: mesma imagem de origem
+para as duas saídas, convertida para bitmap ^GFA no ZPL (limiar de alfa,
+_gfa_bitmap_logo) e desenhada como imagem vetorial no PDF (_desenhar_logo)
+— não depende do bem, então o bitmap ZPL é gerado uma única vez por
+chamada de gerar_zpl(), não por etiqueta.
 
 LIMITAÇÃO CONHECIDA: a calibração final (módulo realmente saindo a
 1,000 mm / 0,375 mm na Elgin L42Pro) não foi verificada contra a impressora
@@ -34,12 +51,29 @@ from __future__ import annotations
 
 import io
 import logging
+from pathlib import Path
 
 import segno
 from barcode import Code128
 from barcode.writer import ImageWriter
 
 logger = logging.getLogger(__name__)
+
+# Ícone da clínica (já recortado sem a margem em branco do PNG original —
+# ver assets/logo_Centro_Uro_Nefrologia_sem_fundo_sem_letras.png) — fundo
+# transparente, RGB preto sólido com alfa variável.
+_LOGO_ARQUIVO = Path(__file__).resolve().parent.parent / "assets" / "etiqueta_logo_icone.png"
+_logo_dimensoes_cache: tuple[int, int] | None = None
+
+
+def _dimensoes_logo() -> tuple[int, int]:
+    """(largura_px, altura_px) do ícone — lido uma vez, cacheado em memória."""
+    global _logo_dimensoes_cache
+    if _logo_dimensoes_cache is None:
+        from PIL import Image as PILImage
+        with PILImage.open(_LOGO_ARQUIVO) as im:
+            _logo_dimensoes_cache = im.size
+    return _logo_dimensoes_cache
 
 # ─── Layout (mm) ──────────────────────────────────────────────────────────────
 
@@ -56,9 +90,19 @@ CODE128_LARGURA_MM = 42.0
 CODE128_ALTURA_MM = 8.0
 CODE128_MODULO_MM = 0.375
 
-NOME_CLINICA = "Centro de Uronefrologia"
+# Nome da clínica em duas linhas (layout do modelo aprovado,
+# documentacao/exemplo etiqueta tombo.pdf) — mais estreito que numa linha
+# só, o que garante folga horizontal em relação ao ícone no canto superior
+# direito, qualquer que seja o comprimento do tombo abaixo.
+NOME_CLINICA_L1 = "Centro de"
+NOME_CLINICA_L2 = "Uro-Nefrologia"
 NOME_CLINICA_FONTE_MM = 4.0
+NOME_CLINICA_ENTRELINHA_MM = 4.6
 TOMBO_FONTE_MM = 11.0
+
+LOGO_ALTURA_MM = 10.0
+LOGO_MARGEM_TOPO_MM = 3.0
+LOGO_MARGEM_DIREITA_MM = 3.0
 
 ZONA_SILENCIO_QR_MM = 4.0
 ZONA_SILENCIO_CODE128_MM = 20.0
@@ -76,10 +120,21 @@ POS_QR_Y_MM = ZONA_SILENCIO_QR_MM
 
 POS_TEXTO_X_MM = POS_QR_X_MM + QR_TAMANHO_MM + 4.0
 POS_NOME_Y_MM = 8.0
-POS_TOMBO_Y_MM = 18.0
+# Baseline do tombo: verificada empiricamente (não só por métrica de fonte
+# teórica) renderizando um tombo de 10 caracteres e conferindo visualmente
+# que nem a linha 2 do nome nem o ícone (y1 = 3+10 = 13mm) encostam nele —
+# 30mm deixa folga real dos dois lados, testada com "PAT-000123".
+POS_TOMBO_Y_MM = 30.0
 
 POS_CODE128_X_MM = ZONA_SILENCIO_QR_MM
 POS_CODE128_Y_MM = ETIQUETA_ALTURA_MM - CODE128_ALTURA_MM - 4.0
+
+# Ícone da clínica: canto superior direito, y1 = 3 + 10 = 13mm — sempre
+# ACIMA de POS_TOMBO_Y_MM (30mm), por design: garante zero sobreposição
+# com o tombo não importa o quão largo o texto fique (tombos mais longos
+# no futuro não colidem com o ícone), sem depender de calcular a largura
+# real da string a cada etiqueta.
+POS_LOGO_Y_MM = LOGO_MARGEM_TOPO_MM
 
 
 class EtiquetaBuilderError(Exception):
@@ -136,6 +191,48 @@ def _gfa_bitmap_qr(matriz: list[list[bool]], modulo_dots: int) -> str:
     return f"^GFA,{total_bytes},{total_bytes},{bytes_por_linha},{dados}"
 
 
+_gfa_logo_cache: tuple[str, int, int] | None = None
+
+
+def _gfa_bitmap_logo(altura_dots: int) -> tuple[str, int]:
+    """
+    Bitmap ^GFA do ícone da clínica — mesma técnica de _gfa_bitmap_qr, mas a
+    partir do PNG pré-recortado (RGB preto sólido, alfa variável) em vez de
+    uma matriz de módulos. Não depende do bem, então é gerado uma única vez
+    por processo (cacheado), não por etiqueta. Devolve (campo_GFA, largura
+    em dots), já que a largura varia com a proporção real do ícone.
+    """
+    global _gfa_logo_cache
+    if _gfa_logo_cache is not None and _gfa_logo_cache[2] == altura_dots:
+        return _gfa_logo_cache[0], _gfa_logo_cache[1]
+
+    from PIL import Image as PILImage
+    largura_px, altura_px = _dimensoes_logo()
+    largura_dots = round(altura_dots * largura_px / altura_px)
+    with PILImage.open(_LOGO_ARQUIVO) as im:
+        im_redim = im.resize((largura_dots, altura_dots), PILImage.LANCZOS)
+        alfa = im_redim.convert("RGBA").split()[3]
+
+    bytes_por_linha = (largura_dots + 7) // 8
+    linhas_hex: list[str] = []
+    for y in range(altura_dots):
+        linha_bytes = bytearray()
+        for byte_idx in range(bytes_por_linha):
+            byte = 0
+            for bit in range(8):
+                x = byte_idx * 8 + bit
+                if x < largura_dots and alfa.getpixel((x, y)) > 127:
+                    byte |= 1 << (7 - bit)
+            linha_bytes.append(byte)
+        linhas_hex.append(linha_bytes.hex().upper())
+
+    dados = "".join(linhas_hex)
+    total_bytes = bytes_por_linha * altura_dots
+    gfa = f"^GFA,{total_bytes},{total_bytes},{bytes_por_linha},{dados}"
+    _gfa_logo_cache = (gfa, largura_dots, altura_dots)
+    return gfa, largura_dots
+
+
 def gerar_zpl(bens, host: str, porta: str) -> bytes:
     """Um bloco ^XA...^XZ por bem, concatenados — um job só, várias etiquetas."""
     largura_dots = round(ETIQUETA_LARGURA_MM * DOTS_POR_MM)
@@ -144,27 +241,36 @@ def gerar_zpl(bens, host: str, porta: str) -> bytes:
     modulo_code128_dots = round(CODE128_MODULO_MM * DOTS_POR_MM)
     h_nome_dots = round(NOME_CLINICA_FONTE_MM * DOTS_POR_MM)
     h_tombo_dots = round(TOMBO_FONTE_MM * DOTS_POR_MM)
+    entrelinha_dots = round(NOME_CLINICA_ENTRELINHA_MM * DOTS_POR_MM)
     h_code_dots = round(CODE128_ALTURA_MM * DOTS_POR_MM)
 
     x_qr = round(POS_QR_X_MM * DOTS_POR_MM)
     y_qr = round(POS_QR_Y_MM * DOTS_POR_MM)
     x_texto = round(POS_TEXTO_X_MM * DOTS_POR_MM)
-    y_nome = round(POS_NOME_Y_MM * DOTS_POR_MM)
+    y_nome_l1 = round(POS_NOME_Y_MM * DOTS_POR_MM)
+    y_nome_l2 = y_nome_l1 + entrelinha_dots
     y_tombo = round(POS_TOMBO_Y_MM * DOTS_POR_MM)
     x_code = round(POS_CODE128_X_MM * DOTS_POR_MM)
     y_code = round(POS_CODE128_Y_MM * DOTS_POR_MM)
+
+    altura_logo_dots = round(LOGO_ALTURA_MM * DOTS_POR_MM)
+    gfa_logo, largura_logo_dots = _gfa_bitmap_logo(altura_logo_dots)
+    x_logo = largura_dots - round(LOGO_MARGEM_DIREITA_MM * DOTS_POR_MM) - largura_logo_dots
+    y_logo = round(POS_LOGO_Y_MM * DOTS_POR_MM)
 
     partes: list[str] = []
     for bem in bens:
         payload = montar_payload(bem.tombo, host, porta)
         matriz = _matriz_qr(payload)
-        gfa = _gfa_bitmap_qr(matriz, modulo_qr_dots)
+        gfa_qr = _gfa_bitmap_qr(matriz, modulo_qr_dots)
 
         zpl = (
             "^XA"
             f"^PW{largura_dots}^LL{altura_dots}"
-            f"^FO{x_qr},{y_qr}{gfa}^FS"
-            f"^FO{x_texto},{y_nome}^A0N,{h_nome_dots},{h_nome_dots}^FD{NOME_CLINICA}^FS"
+            f"^FO{x_qr},{y_qr}{gfa_qr}^FS"
+            f"^FO{x_logo},{y_logo}{gfa_logo}^FS"
+            f"^FO{x_texto},{y_nome_l1}^A0N,{h_nome_dots},{h_nome_dots}^FD{NOME_CLINICA_L1}^FS"
+            f"^FO{x_texto},{y_nome_l2}^A0N,{h_nome_dots},{h_nome_dots}^FD{NOME_CLINICA_L2}^FS"
             f"^FO{x_texto},{y_tombo}^A0N,{h_tombo_dots},{h_tombo_dots}^FD{bem.tombo}^FS"
             f"^FO{x_code},{y_code}^BY{modulo_code128_dots},2,{h_code_dots}"
             f"^BCN,{h_code_dots},N,N,N^FD{bem.tombo}^FS"
@@ -245,6 +351,20 @@ def _desenhar_code128(c, tombo: str, x_mm: float, y_topo_mm: float, altura_pagin
                 preserveAspectRatio=False, mask="auto")
 
 
+def _desenhar_logo(c, x_direita_mm: float, y_topo_mm: float, altura_mm: float,
+                   altura_pagina_mm: float):
+    from reportlab.lib.units import mm as MM
+    from reportlab.lib.utils import ImageReader
+
+    largura_px, altura_px = _dimensoes_logo()
+    largura_mm = altura_mm * (largura_px / altura_px)
+    x0_mm = x_direita_mm - largura_mm
+    y_base_pt = (altura_pagina_mm - y_topo_mm - altura_mm) * MM
+    c.drawImage(ImageReader(str(_LOGO_ARQUIVO)), x0_mm * MM, y_base_pt,
+                width=largura_mm * MM, height=altura_mm * MM,
+                preserveAspectRatio=True, mask="auto")
+
+
 def _desenhar_etiqueta(c, bem, host: str, porta: str, origem_x_mm: float,
                        origem_y_topo_mm: float, altura_pagina_mm: float):
     from reportlab.lib.units import mm as MM
@@ -256,15 +376,19 @@ def _desenhar_etiqueta(c, bem, host: str, porta: str, origem_x_mm: float,
                 QR_TAMANHO_MM, altura_pagina_mm)
     _desenhar_code128(c, bem.tombo, origem_x_mm + POS_CODE128_X_MM,
                       origem_y_topo_mm + POS_CODE128_Y_MM, altura_pagina_mm)
+    _desenhar_logo(c, origem_x_mm + ETIQUETA_LARGURA_MM - LOGO_MARGEM_DIREITA_MM,
+                   origem_y_topo_mm + POS_LOGO_Y_MM, LOGO_ALTURA_MM, altura_pagina_mm)
 
     # Tamanho da fonte em pt = valor em mm da ERS convertido direto (reportlab
     # usa pt como unidade de tamanho de fonte; 1mm da ERS = 1mm nominal aqui).
-    c.setFont("Helvetica", NOME_CLINICA_FONTE_MM * MM)
-    y_nome_pt = (altura_pagina_mm - origem_y_topo_mm - POS_NOME_Y_MM) * MM
-    c.drawString((origem_x_mm + POS_TEXTO_X_MM) * MM, y_nome_pt, NOME_CLINICA)
+    c.setFont("Helvetica-Bold", NOME_CLINICA_FONTE_MM * MM)
+    y_l1_pt = (altura_pagina_mm - origem_y_topo_mm - POS_NOME_Y_MM) * MM
+    c.drawString((origem_x_mm + POS_TEXTO_X_MM) * MM, y_l1_pt, NOME_CLINICA_L1)
+    y_l2_pt = y_l1_pt - NOME_CLINICA_ENTRELINHA_MM * MM
+    c.drawString((origem_x_mm + POS_TEXTO_X_MM) * MM, y_l2_pt, NOME_CLINICA_L2)
 
     c.setFont("Helvetica-Bold", TOMBO_FONTE_MM * MM)
-    y_tombo_pt = (altura_pagina_mm - origem_y_topo_mm - POS_TOMBO_Y_MM-2) * MM
+    y_tombo_pt = (altura_pagina_mm - origem_y_topo_mm - POS_TOMBO_Y_MM) * MM
     c.drawString((origem_x_mm + POS_TEXTO_X_MM) * MM, y_tombo_pt, bem.tombo)
 
 

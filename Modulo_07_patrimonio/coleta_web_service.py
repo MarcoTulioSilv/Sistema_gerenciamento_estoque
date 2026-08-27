@@ -11,29 +11,48 @@ repositório, nunca regra própria aqui.
 
 CONTRATO DE URL — gravado em toda etiqueta já impressa, não pode mudar sem
 invalidar o parque inteiro (R-08):
-    GET /p?t=<tombo>          — etiqueta.montar_payload()
-    GET /parear?token=<token> — InventarioService.parear_dispositivo()
+    GET  /p?t=<tombo>          — etiqueta.montar_payload()
+    GET  /parear?token=<token> — convite fixo da sessão (RF-36 revisado)
+    POST /parear                — confirma o cadastro do aparelho
+
+PAREAMENTO EM DUAS FASES (RF-36 revisado — corrige "dispositivo fantasma")
+    O QR exibido no desktop (T-26) é um CONVITE fixo por sessão: escaneá-lo
+    não cria nada no banco por si só, só valida que a sessão aceita
+    pareamento e mostra um formulário. O ColetaToken real (o que aparece em
+    "Dispositivos ativos") só nasce quando o celular efetivamente confirma
+    o cadastro (POST), com um nome e — se a sessão for de escopo geral —
+    uma localização escolhida por ele mesmo.
+
+    Como o navegador não expõe o MAC do aparelho, a identidade entre
+    pareamentos é um id aleatório gravado num cookie de longa duração
+    (sce_device_id): reabrir o link do convite no mesmo celular reconecta
+    ao token existente em vez de duplicar.
 
 A MESMA rota /p serve dois propósitos, decidido pela presença de um cookie
 de pareamento válido (AD-16): sem cookie válido → consulta pública somente
 leitura (RF-37), sem nunca expor por que o cookie falhou (RE-15 — a consulta
 nunca deve "parecer quebrada"); com cookie válido → registra a leitura na
 sessão pareada num único GET (DAS §5.5) — a câmera nativa do celular abre a
-URL da etiqueta e o registro já acontece, sem clique extra.
+URL da etiqueta e o registro já acontece, sem clique extra. Essa regra vale
+só para /p — /parear e /localizacao sempre mostram o motivo real do erro,
+já que ali o usuário está deliberadamente gerenciando o pareamento, não
+lendo uma etiqueta de bem.
 """
 from __future__ import annotations
 
 import logging
+import secrets
 
 from flask import Flask, Response, request
 from markupsafe import escape
 
 from Modulo_05_admin import ConfigService
-from Modulo_07_patrimonio.dto import ResultadoLeitura, BemPublico, ContextoColeta
+from Modulo_07_patrimonio.dto import ResultadoLeitura, BemPublico, ContextoColeta, ConviteColeta
 from Modulo_07_patrimonio.excecoes import (
     BemNaoEncontradoError,
     TokenInvalidoError, TokenRevogadoError, TokenExpiradoError,
-    SessaoNaoAbertaError, SessaoNaoEncontradaError,
+    SessaoNaoAbertaError, SessaoNaoEncontradaError, LocalizacaoNaoEncontradaError,
+    EscopoFixoError,
 )
 from Modulo_07_patrimonio.inventario_service import InventarioService
 from Modulo_07_patrimonio.patrimonio_service import PatrimonioService
@@ -41,11 +60,16 @@ from Modulo_07_patrimonio.patrimonio_service import PatrimonioService
 logger = logging.getLogger(__name__)
 
 _COOKIE_NOME = "sce_coleta_token"
+_COOKIE_DISPOSITIVO = "sce_device_id"
+_DISPOSITIVO_ID_BYTES = 24
+_DISPOSITIVO_ID_DIAS = 180
 _LIMITE_TOMBO = 64
 _LIMITE_TOKEN = 200
+_LIMITE_NOME = 60
 _HORAS_TOKEN_PADRAO = 12
 
 _ERROS_PAREAMENTO = (TokenInvalidoError, TokenRevogadoError, TokenExpiradoError, SessaoNaoAbertaError)
+_ERROS_CONVITE = (TokenInvalidoError, SessaoNaoAbertaError, LocalizacaoNaoEncontradaError)
 
 _COR_SEVERIDADE = {
     "ok": "#1D9E75",
@@ -95,24 +119,51 @@ def criar_app() -> Flask:
             return _pagina_erro("Bem não encontrado", "Nenhum bem foi encontrado para este código.", 404)
         return _pagina_consulta(bem)
 
-    @app.get("/parear")
+    @app.route("/parear", methods=["GET", "POST"])
     def parear():
+        if request.method == "POST":
+            return _confirmar_pareamento(inventario)
+
         token = (request.args.get("token") or "").strip()
         if not token or len(token) > _LIMITE_TOKEN:
             return _pagina_erro("Código inválido", "O código de pareamento não é válido.", 400)
 
         try:
-            contexto = inventario.resolver_token(token)
-        except _ERROS_PAREAMENTO as exc:
+            convite = inventario.resolver_convite(token)
+        except _ERROS_CONVITE as exc:
             return _pagina_erro("Pareamento não realizado", str(exc), 200)
 
-        horas = float(ConfigService.get("coleta_token_horas") or _HORAS_TOKEN_PADRAO)
-        resp = Response(_pagina_pareamento_ok(contexto))
-        resp.set_cookie(
-            _COOKIE_NOME, token, max_age=int(horas * 3600),
-            httponly=True, samesite="Lax", secure=False, path="/",
-        )
-        return resp
+        dispositivo_id = request.cookies.get(_COOKIE_DISPOSITIVO)
+        if dispositivo_id:
+            existente = inventario.buscar_dispositivo_conhecido(convite.inventario_id, dispositivo_id)
+            if existente:
+                return _resposta_pareada(existente.token, existente.dispositivo_label)
+
+        return _pagina_cadastro_dispositivo(convite, token)
+
+    @app.route("/localizacao", methods=["GET", "POST"])
+    def localizacao():
+        contexto = _resolver_contexto_pareado(inventario)
+        if contexto is None:
+            return _pagina_erro("Não pareado", "Escaneie o QR de pareamento antes de trocar de localização.", 200)
+
+        if request.method == "POST":
+            localizacao_id = request.form.get("localizacao_id", type=int)
+            if not localizacao_id:
+                return _pagina_erro("Dados incompletos", "Selecione uma localização.", 400)
+            try:
+                inventario.trocar_localizacao(contexto, localizacao_id)
+            except EscopoFixoError as exc:
+                return _pagina_erro("Não é possível trocar", str(exc), 200)
+            except (SessaoNaoAbertaError, LocalizacaoNaoEncontradaError) as exc:
+                return _pagina_erro("Não foi possível trocar", str(exc), 200)
+            return _pagina_localizacao_trocada()
+
+        try:
+            dados = inventario.opcoes_troca_localizacao(contexto)
+        except SessaoNaoAbertaError as exc:
+            return _pagina_erro("Sessão encerrada", str(exc), 200)
+        return _pagina_trocar_localizacao(dados, contexto.localizacao_id)
 
     @app.errorhandler(Exception)
     def erro_generico(exc):
@@ -120,6 +171,39 @@ def criar_app() -> Flask:
         return _pagina_erro("Serviço indisponível", "Ocorreu um erro. Tente novamente em instantes.", 500)
 
     return app
+
+
+def _confirmar_pareamento(inventario: InventarioService):
+    convite_token = (request.form.get("token") or "").strip()
+    nome = (request.form.get("nome") or "").strip()[:_LIMITE_NOME] or None
+    localizacao_id = request.form.get("localizacao_id", type=int)
+
+    if not convite_token or len(convite_token) > _LIMITE_TOKEN:
+        return _pagina_erro("Código inválido", "O código de pareamento não é válido.", 400)
+
+    dispositivo_id = request.cookies.get(_COOKIE_DISPOSITIVO) or secrets.token_urlsafe(_DISPOSITIVO_ID_BYTES)
+
+    try:
+        device_token = inventario.registrar_dispositivo(convite_token, localizacao_id, nome, dispositivo_id)
+    except _ERROS_CONVITE as exc:
+        return _pagina_erro("Pareamento não realizado", str(exc), 200)
+
+    return _resposta_pareada(device_token, nome, dispositivo_id=dispositivo_id)
+
+
+def _resposta_pareada(device_token: str, dispositivo_label: str | None, dispositivo_id: str | None = None) -> Response:
+    horas = float(ConfigService.get("coleta_token_horas") or _HORAS_TOKEN_PADRAO)
+    resp = Response(_pagina_pareamento_ok(dispositivo_label))
+    resp.set_cookie(
+        _COOKIE_NOME, device_token, max_age=int(horas * 3600),
+        httponly=True, samesite="Lax", secure=False, path="/",
+    )
+    if dispositivo_id:
+        resp.set_cookie(
+            _COOKIE_DISPOSITIVO, dispositivo_id, max_age=_DISPOSITIVO_ID_DIAS * 86400,
+            httponly=True, samesite="Lax", secure=False, path="/",
+        )
+    return resp
 
 
 def _resolver_contexto_pareado(inventario: InventarioService) -> ContextoColeta | None:
@@ -159,10 +243,16 @@ def _layout(titulo: str, corpo: str) -> str:
   .titulo-cartao {{ font-size: 18px; font-weight: bold; margin: 0 0 12px; color: #1F5F5B; }}
   .barra-fundo {{ background: #E8E6DE; border-radius: 6px; height: 10px; overflow: hidden; margin-top: 10px; }}
   .barra-preenchida {{ background: #2E8A83; height: 100%; }}
+  label {{ display: block; font-size: 13px; color: #888780; margin: 12px 0 4px; }}
+  input[type="text"], select {{ width: 100%; box-sizing: border-box; padding: 10px;
+            border: 1px solid #E8E6DE; border-radius: 6px; font-size: 15px; }}
+  button {{ width: 100%; margin-top: 18px; padding: 12px; border: none; border-radius: 6px;
+            background: #1F5F5B; color: #fff; font-size: 15px; font-weight: bold; }}
+  .rodape-link {{ display: block; text-align: center; margin: 14px 16px 0; font-size: 13px; color: #1F5F5B; }}
 </style>
 </head>
 <body>
-<div class="topo">Centro de Uronefrologia — Patrimônio</div>
+<div class="topo">Centro de Uro-Nefrologia — Patrimônio</div>
 {corpo}
 </body>
 </html>"""
@@ -215,20 +305,92 @@ def _pagina_resultado(resultado: ResultadoLeitura) -> str:
     <span>{resultado.total_conferido}/{resultado.total_esperado}</span></div>
   <div class="barra-fundo"><div class="barra-preenchida" style="width:{progresso_pct}%"></div></div>
 </div>
+<a class="rodape-link" href="/localizacao">Trocar localização</a>
 """
     return _layout("Leitura registrada", corpo)
 
 
-def _pagina_pareamento_ok(contexto: ContextoColeta) -> str:
-    dispositivo = f" ({escape(contexto.dispositivo_label)})" if contexto.dispositivo_label else ""
+def _pagina_cadastro_dispositivo(convite: ConviteColeta, token: str) -> str:
+    if convite.localizacao_fixa_id:
+        campo_localizacao = (
+            f'<label>Localização</label>'
+            f'<input type="text" value="{escape(convite.localizacao_fixa)}" disabled>'
+            f'<input type="hidden" name="localizacao_id" value="{convite.localizacao_fixa_id}">'
+        )
+    else:
+        opcoes_html = "".join(
+            f'<option value="{loc_id}">{escape(nome)}</option>'
+            for loc_id, nome in convite.opcoes_localizacao
+        )
+        campo_localizacao = (
+            f'<label>Onde você está agora?</label>'
+            f'<select name="localizacao_id" required><option value="">Selecione...</option>{opcoes_html}</select>'
+        )
+
+    corpo = f"""
+<div class="cartao">
+  <p class="titulo-cartao">{escape(convite.descricao_sessao)}</p>
+  <p>Cadastre este aparelho para começar a ler as etiquetas dos bens.</p>
+  <form method="post" action="/parear">
+    <input type="hidden" name="token" value="{escape(token)}">
+    <label>Nome do aparelho (opcional)</label>
+    <input type="text" name="nome" maxlength="{_LIMITE_NOME}" placeholder="ex.: Celular do João">
+    {campo_localizacao}
+    <button type="submit">Cadastrar e começar a coletar</button>
+  </form>
+</div>
+"""
+    return _layout("Cadastro de dispositivo", corpo)
+
+
+def _pagina_pareamento_ok(dispositivo_label: str | None) -> str:
+    dispositivo = f" ({escape(dispositivo_label)})" if dispositivo_label else ""
     corpo = f"""
 <div class="cartao" style="background:#EAF3DE">
   <p class="titulo-cartao" style="color:#27500A">Dispositivo pareado{dispositivo}</p>
   <p>Agora é só ler a etiqueta de cada bem com a câmera do celular — a leitura
   é registrada automaticamente na sessão de inventário.</p>
 </div>
+<a class="rodape-link" href="/localizacao">Trocar localização</a>
 """
     return _layout("Pareamento confirmado", corpo)
+
+
+def _pagina_trocar_localizacao(dados: ConviteColeta, atual_id: int) -> str:
+    if dados.localizacao_fixa_id:
+        corpo = f"""
+<div class="cartao">
+  <p class="titulo-cartao">Localização fixa</p>
+  <p>Esta sessão está fixada em <strong>{escape(dados.localizacao_fixa)}</strong> — não é possível trocar.</p>
+</div>
+"""
+        return _layout("Localização fixa", corpo)
+
+    opcoes_html = "".join(
+        f'<option value="{loc_id}"{" selected" if loc_id == atual_id else ""}>{escape(nome)}</option>'
+        for loc_id, nome in dados.opcoes_localizacao
+    )
+    corpo = f"""
+<div class="cartao">
+  <p class="titulo-cartao">Trocar localização</p>
+  <form method="post" action="/localizacao">
+    <label>Onde você está agora?</label>
+    <select name="localizacao_id" required>{opcoes_html}</select>
+    <button type="submit">Confirmar</button>
+  </form>
+</div>
+"""
+    return _layout("Trocar localização", corpo)
+
+
+def _pagina_localizacao_trocada() -> str:
+    corpo = """
+<div class="cartao" style="background:#EAF3DE">
+  <p class="titulo-cartao" style="color:#27500A">Localização atualizada</p>
+  <p>As próximas leituras deste aparelho já usam a nova localização.</p>
+</div>
+"""
+    return _layout("Localização atualizada", corpo)
 
 
 def _pagina_erro(titulo: str, mensagem: str, status: int) -> tuple[str, int]:

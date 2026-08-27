@@ -1,5 +1,5 @@
 """
-SCE- Sistema de Controle de Estoque do Centro de Uronefrologia
+SCE- Sistema de Controle de Estoque do Centro de Uro-Nefrologia
 main.py- ponto de entrada da aplicação
 sprint 0- inicializa o banco, controi janela prinicipal e inicia o loop da GUI
 """

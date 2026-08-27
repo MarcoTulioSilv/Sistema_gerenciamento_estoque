@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 
 import customtkinter as ctk
 
-from zoneinfo import ZoneInfo
+from fuso_horario import formatar
 from gui.componentes.form_widgets import FeedbackBanner
 from Modulo_02_estoque import EstoqueService
 from Modulo_04_notificacoes import NotificacaoService
@@ -40,42 +40,6 @@ _COLUNAS_MOV = [
     ("Observação",   200),
     ("Resultado",     80),
 ]
-
-from zoneinfo import ZoneInfo
-from datetime import datetime
-
-def formatar_data_utc_para_local(data_banco):
-        if not data_banco:
-            return "—"
-        # 1. Se o dado chegar como texto, forçamos a limpeza e conversão
-        if isinstance(data_banco, str):
-            # Removemos os milissegundos cortando tudo o que vier a seguir ao ponto
-            data_str = data_banco.split('.')[0]
-            
-            # Verificamos o formato da string para a converter num objeto datetime
-            if "-" in data_str:
-                # Formato ISO (MySQL): 2026-06-19 19:24:00
-                data_banco = datetime.strptime(data_str, "%Y-%m-%d %H:%M:%S")
-            elif data_str.count(":") == 1: 
-                # Formato PT/BR sem segundos: 19/06/2026 19:24
-                data_banco = datetime.strptime(data_str, "%d/%m/%Y %H:%M")
-            else:
-                # Formato PT/BR com segundos: 19/06/2026 19:24:00
-                data_banco = datetime.strptime(data_str, "%d/%m/%Y %H:%M:%S")
-
-        # 2. Tendo garantidamente um objeto datetime, aplicamos a conversão de fuso horário
-        if isinstance(data_banco, datetime):
-            # Carimbamos a data como pertencente ao fuso UTC, caso seja ingénua (naive)
-            if data_banco.tzinfo is None:
-                data_utc_aware = data_banco.replace(tzinfo=ZoneInfo("UTC"))
-            else:
-                data_utc_aware = data_banco
-                
-            # Convertêmo-la para a hora local
-            data_local = data_utc_aware.astimezone(ZoneInfo("America/Sao_Paulo"))
-            return data_local.strftime("%d/%m/%Y %H:%M:%S")
-            
-        return str(data_banco)
 
 class TelaLog(ctk.CTkFrame):
     """T-19 — Log de operações do sistema (somente leitura)."""
@@ -225,7 +189,7 @@ class TelaLog(ctk.CTkFrame):
                             f"Lote {m.lote.num_lote}"
                         )
                     linhas.append({
-                        "data_hora":  m.data_hora.strftime("%d/%m/%Y %H:%M:%S"),
+                        "data_hora":  m.data_hora,
                         "_sort_dt":   m.data_hora,
                         "usuario":    m.usuario.nome[:14] if m.usuario else "Sistema",
                         "operacao":   _TIPO_LABEL.get(m.tipo.value, m.tipo.value),
@@ -247,7 +211,7 @@ class TelaLog(ctk.CTkFrame):
                             f"{a.lote.produto.nome[:18]} | Lote {a.lote.num_lote}"
                         )
                     linhas.append({
-                        "data_hora":  a.enviado_em.strftime("%d/%m/%Y %H:%M:%S"),
+                        "data_hora":  a.enviado_em,
                         "_sort_dt":   a.enviado_em,
                         "usuario":    "Sistema",
                         "operacao":   f"Alerta {a.tipo_alerta.value}",
@@ -264,7 +228,7 @@ class TelaLog(ctk.CTkFrame):
                 jobs = NotificacaoService.listar_job_logs_no_periodo(ini_dt, fim_dt, limite=100)
                 for j in jobs:
                     linhas.append({
-                        "data_hora":  j.executado_em.strftime("%d/%m/%Y %H:%M:%S"),
+                        "data_hora":  j.executado_em,
                         "_sort_dt":   j.executado_em,
                         "usuario":    "Scheduler",
                         "operacao":   j.job_nome[:20],
@@ -351,7 +315,7 @@ class TelaLog(ctk.CTkFrame):
             row.pack(fill="x")
             row.grid_columnconfigure(3, weight=1)  # Detalhe é a coluna que expande
 
-            data_formatada = formatar_data_utc_para_local(d["data_hora"])
+            data_formatada = formatar(d["data_hora"], "%d/%m/%Y %H:%M:%S")
             valores = [
                 data_formatada, d["usuario"], d["operacao"],
                 d["detalhe"],   d["qtd"],     d["nf"], d["obs"],

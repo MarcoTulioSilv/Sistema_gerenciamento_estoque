@@ -9,8 +9,18 @@ remotamente.
 ## 1. Preparar o servidor
 
 - [ ] Copiar o projeto atualizado (ou pelo menos `Modulo_06_dados/`,
-      `Modulo_05_admin/`, `Modulo_07_patrimonio/`, `servico_patrimonio.py`,
-      `requirements.txt`, `.env`) para o servidor 192.168.0.150.
+      `Modulo_05_admin/`, `Modulo_07_patrimonio/`, `assets/`,
+      `servico_patrimonio.py`, `fuso_horario.py`, `requirements.txt`,
+      `.env`) para o servidor 192.168.0.150.
+      `fuso_horario.py` é novo nesta rodada e fica solto na raiz do
+      projeto (não dentro de nenhum `Modulo_XX`) — é importado por
+      `Modulo_05_admin/usuario_service.py` (carregado assim que
+      `Modulo_05_admin` é importado), então esquecê-lo derruba o serviço
+      logo na inicialização com `ModuleNotFoundError`. `assets/` também é
+      novo na lista: `Modulo_07_patrimonio/etiqueta_builder.py` agora lê
+      um ícone de lá (`assets/etiqueta_logo_icone.png`) — não é usado
+      pelas rotas HTTP do serviço hoje, mas evita um `FileNotFoundError`
+      se isso mudar.
 - [ ] Confirmar que existe uma venv Python no servidor (ou criar uma nova:
       `python -m venv .venv`).
 - [ ] Instalar dependências na venv do servidor (SEM `--user` — a tarefa
@@ -18,11 +28,38 @@ remotamente.
   ```
   "<PYTHON_EXE_DO_SERVIDOR>" -m pip install -r requirements.txt
   ```
-  Agora inclui `flask==3.1.3` e `waitress==3.0.2`, novos nesta rodada.
+  Inclui `flask`, `waitress` (serviço em si) e, desde a rodada do
+  pareamento em duas fases, `Pillow` (converte o ícone da clínica pro
+  bitmap `^GFA` das etiquetas — mesma lib que o app desktop já usa via
+  customtkinter, mas aqui é dependência direta do servidor headless).
 - [ ] Confirmar `.env` configurado nesse servidor (mesma conexão MySQL já
       usada por `backup_script`/pelo próprio banco local).
 
-## 2. Confirmar configuração no banco
+## 2. Aplicar a migração de banco — OBRIGATÓRIO antes de subir o serviço
+
+O pareamento em duas fases (convite fixo da sessão + cadastro pelo
+celular) depende de uma tabela nova (`coleta_convite`) e uma coluna nova
+em `coleta_token` (`dispositivo_id`). **Sem isso, o serviço sobe
+normalmente, mas todo `GET/POST /parear` quebra** assim que alguém tenta
+ler o QR — a query bate numa tabela que não existe.
+
+- [ ] Rodar `documentacao/migrations/010_patrimonio_convite_dispositivo.sql`
+      contra o banco de produção **antes** de iniciar/reiniciar a tarefa
+      agendada com o código novo. É aditiva e reexecutável (mesmo padrão
+      das migrações 007-009) — pode rodar mesmo que já tenha sido
+      aplicada por engano.
+- [ ] Conferir que aplicou: a tabela `coleta_convite` existe e
+      `coleta_token` tem a coluna `dispositivo_id`.
+  ```sql
+  SELECT COUNT(*) FROM information_schema.TABLES
+   WHERE TABLE_SCHEMA = 'sce_db' AND TABLE_NAME = 'coleta_convite';
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+   WHERE TABLE_SCHEMA = 'sce_db' AND TABLE_NAME = 'coleta_token'
+     AND COLUMN_NAME = 'dispositivo_id';
+  ```
+  As duas devem devolver `1`.
+
+## 3. Confirmar configuração no banco
 
 - [ ] `configuracao.coleta_host` já deve ser `192.168.0.150` (o IP fixo
       desse servidor — não mudar, invalida toda etiqueta já impressa, R-08).
@@ -34,7 +71,7 @@ remotamente.
   UPDATE configuracao SET valor = '8080' WHERE chave = 'coleta_porta';
   ```
 
-## 3. Registrar o serviço como tarefa agendada
+## 4. Registrar o serviço como tarefa agendada
 
 - [ ] Abrir `instalar_tarefa_coleta.bat` e ajustar a linha `PYTHON_EXE` para
       o caminho real do Python **nesse servidor** (a tarefa roda como
@@ -54,7 +91,7 @@ remotamente.
   - `%LOCALAPPDATA%\SCE_Urofrologia\coleta_web_service.log` (log contínuo,
     com rotação)
 
-## 4. Firewall do servidor — ATENÇÃO, problema real encontrado em dev
+## 5. Firewall do servidor — ATENÇÃO, problema real encontrado em dev
 
 Durante o teste em ambiente de desenvolvimento, o Windows bloqueou TODA
 conexão de entrada mesmo com uma regra específica liberando a porta 8080,
@@ -93,22 +130,31 @@ Verificar isso no servidor **antes** de concluir que "não funciona":
       §7.2 — "porta do serviço de coleta liberada no firewall do servidor
       para a rede interna, e somente para ela").
 
-## 5. Validar de ponta a ponta
+## 6. Validar de ponta a ponta
 
 - [ ] De outra máquina/celular na rede interna, testar a consulta pública
       com um bem real já cadastrado:
   ```
   http://192.168.0.150:8080/p?t=<tombo de um bem existente>
   ```
-- [ ] Testar o fluxo completo de coleta: abrir uma sessão de inventário em
-      T-26, parear um celular pelo QR gerado ali, ler a etiqueta de um bem
-      do escopo da sessão, confirmar que o item mudou de status e que o
-      contador de progresso em T-26 atualiza.
+- [ ] Testar o fluxo completo de pareamento em duas fases (não é mais um
+      token direto por QR): abrir uma sessão em T-26, ir pro estágio de
+      coleta — o QR ali é um **convite fixo da sessão**, sempre o mesmo
+      enquanto ela estiver aberta. Ler com a câmera do celular deve abrir
+      um formulário simples (nome do aparelho e, se a sessão for de
+      escopo geral, a localização); confirmar aí é que cria o pareamento
+      de verdade — só a partir desse ponto o aparelho aparece em
+      "Dispositivos ativos" em T-26. Reabrir o mesmo link no mesmo
+      celular depois deve reconectar direto, sem mostrar o formulário de
+      novo nem duplicar o aparelho na lista.
+- [ ] Ler a etiqueta de um bem do escopo da sessão a partir do celular já
+      pareado, confirmar que o item mudou de status e que o contador de
+      progresso em T-26 atualiza (via polling, até 4s de atraso).
 - [ ] Reiniciar o servidor (ou pelo menos a tarefa) uma vez para confirmar
       que o serviço volta sozinho no boot, sem intervenção manual — é o
       requisito central do DAS §7.3 (execução permanente).
 
-## 6. Limpeza do ambiente de dev usado nos testes (esta máquina)
+## 7. Limpeza do ambiente de dev usado nos testes (esta máquina)
 
 Pendências deste ciclo de teste manual, ainda não revertidas nesta máquina
 de desenvolvimento:

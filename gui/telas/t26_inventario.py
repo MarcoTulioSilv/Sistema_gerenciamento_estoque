@@ -88,7 +88,6 @@ class TelaInventario(ctk.CTkFrame):
         self._painel = None
         self._timer_poll = None
         self._decisoes: dict[int, AjusteConfirmado] = {}
-        self._mostrar_lista_sessoes = False
         self._img_qr = None
 
         # Cabeçalho persistente (título + trilha + ações), reconstruído por estágio
@@ -278,14 +277,6 @@ class TelaInventario(ctk.CTkFrame):
         self._frame_lista_sessoes = ctk.CTkFrame(self._conteudo, fg_color="transparent")
         self._frame_lista_sessoes.pack(fill="both", expand=True, padx=0, pady=0)
         self._construir_lista_sessoes()
-
-    #def _alternar_lista_sessoes(self):
-    #    self._mostrar_lista_sessoes = not self._mostrar_lista_sessoes
-    #    if self._mostrar_lista_sessoes:
-    #        self._frame_lista_sessoes.pack(fill="both", expand=True, padx=0, pady=0)
-    #        self._construir_lista_sessoes()
-    #    else:
-    #        self._frame_lista_sessoes.pack_forget()
 
     def _ao_mudar_escopo(self):
         habilitado = self._var_escopo.get() == "localizacao"

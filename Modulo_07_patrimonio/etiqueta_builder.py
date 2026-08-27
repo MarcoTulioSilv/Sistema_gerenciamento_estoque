@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import io
 import logging
+import sys
 from pathlib import Path
 
 import segno
@@ -62,7 +63,17 @@ logger = logging.getLogger(__name__)
 # Ícone da clínica (já recortado sem a margem em branco do PNG original —
 # ver assets/logo_Centro_Uro_Nefrologia_sem_fundo_sem_letras.png) — fundo
 # transparente, RGB preto sólido com alfa variável.
-_LOGO_ARQUIVO = Path(__file__).resolve().parent.parent / "assets" / "etiqueta_logo_icone.png"
+#
+# Mesmo padrão de resolução de caminho já usado em
+# Modulo_03_relatorios/xlsx_builder.py para LOGO_ICON_PATH: __file__ não
+# aponta para um caminho real de disco quando o módulo roda a partir do
+# .exe empacotado pelo PyInstaller (fica dentro do bundle) — nesse caso
+# assets/ vive ao lado do executável, não dois níveis acima do .py.
+if getattr(sys, 'frozen', False):
+    _BASE_DIR = Path(sys.executable).parent
+else:
+    _BASE_DIR = Path(__file__).resolve().parent.parent
+_LOGO_ARQUIVO = _BASE_DIR / "assets" / "etiqueta_logo_icone.png"
 _logo_dimensoes_cache: tuple[int, int] | None = None
 
 

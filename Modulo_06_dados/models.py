@@ -336,6 +336,18 @@ class TipoSobraEnum(str, enum.Enum):
     nao_cadastrado = "nao_cadastrado"   # código lido não corresponde a tombo
 
 
+class TipoEventoLogEnum(str, enum.Enum):
+    """Tipos de evento do log de auditoria persistido (T-30)."""
+    bem_cadastrado         = "bem_cadastrado"
+    bem_transferido        = "bem_transferido"
+    bem_baixado            = "bem_baixado"
+    manutencao_registrada  = "manutencao_registrada"
+    sessao_aberta          = "sessao_aberta"
+    sessao_fechada         = "sessao_fechada"
+    sessao_cancelada       = "sessao_cancelada"
+    dispositivo_pareado    = "dispositivo_pareado"
+
+
 # ─── MODELOS DO MOD-07 ──────────────────────────────────────────────────────
 
 class Localizacao(Base):
@@ -822,6 +834,59 @@ class ManutencaoBem(Base):
 
     def __repr__(self):
         return f"<ManutencaoBem bem {self.bem_id} | {self.data_manutencao}>"
+
+
+class LogPatrimonio(Base):
+    """
+    Tabela: log_patrimonio — MOD-07 (T-30)
+
+    Log de auditoria PERSISTIDO — cada linha é gravada no momento em que o
+    evento acontece, na MESMA transação da operação que o originou (nunca
+    reconstruído por agregação de tabelas de estado, ao contrário de
+    LeituraRecente/listar_leituras_recentes, que serve a um propósito
+    diferente: log ao vivo de UMA sessão em andamento, não auditoria
+    persistente de todo o módulo).
+
+    `descricao` já vem formatada pronta para exibição — evita remontar a
+    string toda vez que a tela lista (T-30 não faz JOIN pesado nem lógica
+    de formatação na leitura, só no momento da escrita).
+
+    `bem_id` e `inventario_id` são nullable porque nem todo evento é sobre
+    um bem (sessão de inventário) nem toda sessão tem um bem específico
+    (cadastro/transferência/baixa). `usuario_id` nunca é nulo: mesmo o
+    pareamento de dispositivo, que não tem usuário autenticado (chamado
+    pelo ColetaWebService sem login), herda a autoria de
+    ColetaConvite.usuario_id — quem abriu a coleta no desktop.
+
+    Redundância intencional com `movimentacao_bem`/`manutencao_bem`: esta
+    tabela é a ÚNICA que cobre TODOS os tipos de evento (bem + sessão +
+    pareamento) num só lugar cronológico — as outras continuam sendo a
+    fonte granular para os relatórios de T-27, nada muda nelas.
+    """
+    __tablename__ = "log_patrimonio"
+
+    id:             Mapped[int]                = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tipo_evento:    Mapped[TipoEventoLogEnum]   = mapped_column(Enum(TipoEventoLogEnum), nullable=False)
+    bem_id:         Mapped[int | None]          = mapped_column(Integer, ForeignKey("bem_patrimonial.id"), nullable=True)
+    inventario_id:  Mapped[int | None]          = mapped_column(Integer, ForeignKey("inventario.id"), nullable=True)
+    usuario_id:     Mapped[int]                 = mapped_column(Integer, ForeignKey("usuario.id"), nullable=False)
+    descricao:      Mapped[str]                 = mapped_column(String(255), nullable=False)
+    criado_em:      Mapped[datetime]            = mapped_column(DateTime, nullable=False, default=func.now())
+
+    bem:        Mapped["BemPatrimonial | None"] = relationship(foreign_keys=[bem_id])
+    inventario: Mapped["Inventario | None"]     = relationship(foreign_keys=[inventario_id])
+    usuario:    Mapped["Usuario"]                = relationship(foreign_keys=[usuario_id])
+
+    __table_args__ = (
+        Index('idx_log_patrimonio_criado_em', 'criado_em'),
+        Index('idx_log_patrimonio_tipo_criado', 'tipo_evento', 'criado_em'),
+        Index('idx_log_patrimonio_bem', 'bem_id'),
+        Index('idx_log_patrimonio_inventario', 'inventario_id'),
+        Index('idx_log_patrimonio_usuario', 'usuario_id'),
+    )
+
+    def __repr__(self):
+        return f"<LogPatrimonio {self.tipo_evento} | {self.criado_em}>"
 
 
 class SchemaMigracao(Base):

@@ -50,6 +50,7 @@ from gui.telas.t25_movimentacao_baixa import TelaMovimentacaoBaixa
 from gui.telas.t28_localizacoes      import TelaLocalizacoes
 from gui.telas.t26_inventario        import TelaInventario
 from gui.telas.t27_relatorios        import TelaRelatoriosPatrimonio
+from gui.telas.t30_log_patrimonio    import TelaLogPatrimonio
 
 # tema global
 ctk.set_appearance_mode("light")
@@ -87,6 +88,19 @@ CTkButton._clicked = _safe_button_clicked
 
 class SCEApp(ctk.CTk):
     # Janela raiz do sistema, gerencia login e navegação entre telas
+
+    def report_callback_exception(self, exc, val, tb):
+        """
+        Substitui o handler padrão do Tkinter para exceção não tratada em
+        callback de widget (clique de botão, etc.). O padrão do Tkinter só
+        imprime a traceback em sys.stderr via print() — nunca passa pelo
+        `logging` configurado em main.py, então nunca chega no arquivo de
+        log (só aparece no terminal, porque o terminal mistura stdout e
+        stderr). logger.error(..., exc_info=...) grava nos dois lugares —
+        arquivo e terminal — com o mesmo texto que o Tkinter mostraria.
+        """
+        logger.error("Exceção não tratada em callback do Tkinter", exc_info=(exc, val, tb))
+
     def __init__(self):
         
         super().__init__()
@@ -369,6 +383,9 @@ class SCEApp(ctk.CTk):
         if destino == "relatorios_patrimonio":
             return TelaRelatoriosPatrimonio(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
 
+        if destino == "log_patrimonio":
+            return TelaLogPatrimonio(self._area_conteudo, usuario=self.usuario_logado, on_navigate=nav)
+
     def _on_navigate_com_extra(self, destino: str, extra=None):
         """Versão do _navegar que aceita parâmetro extra(ex: produto_id)"""
         self.resetar_timer_sessao()
@@ -520,6 +537,7 @@ class Sidebar(ctk.CTkFrame):
         ("relatorios_patrimonio","Relatórios",       ["admin", "ti"]),  # RF-35
         ("__label__"          ,"Acesso restrito",    None),
         ("localizacoes"       ,"Localizações",       ["ti"]),
+        ("log_patrimonio"     ,"Log de Patrimônio",  ["ti"]),  # T-30
     ]
 
     def __init__(self, master, usuario, on_navigate, on_logout, modo: str = "estoque", on_trocar_modo=None):

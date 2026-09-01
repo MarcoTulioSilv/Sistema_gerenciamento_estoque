@@ -50,6 +50,7 @@ _TELAS = {
     "inventario":        ("gui.telas.t26_inventario",        "TelaInventario",       None),
     "relatorios_patrimonio": ("gui.telas.t27_relatorios",    "TelaRelatoriosPatrimonio", None),
     "transferencias":     ("gui.telas.t09b_transferencia",    "TelaTransferencia",   None),
+    "log_patrimonio":     ("gui.telas.t30_log_patrimonio",   "TelaLogPatrimonio",   None),
 }
 
 

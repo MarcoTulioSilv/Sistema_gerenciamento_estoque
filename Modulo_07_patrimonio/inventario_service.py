@@ -31,7 +31,7 @@ from sqlalchemy.exc import IntegrityError
 from Modulo_06_dados import (
     get_session, BemPatrimonial, InventarioItem, ColetaToken,
     EscopoInventarioEnum, StatusInventarioEnum, StatusItemInventarioEnum, TipoSobraEnum,
-    SituacaoBemEnum,
+    SituacaoBemEnum, TipoEventoLogEnum,
 )
 from Modulo_05_admin import ConfigService
 
@@ -49,6 +49,7 @@ from .excecoes import (
 from .autorizacao import resolver_usuario_autorizado
 from .inventario_repo import InventarioRepo
 from .localizacao_repo import LocalizacaoRepo
+from .log_repo import LogRepo
 from .patrimonio_service import PatrimonioService
 
 logger = logging.getLogger(__name__)
@@ -144,6 +145,10 @@ class InventarioService:
                 inventario, total = InventarioRepo.criar_sessao_com_snapshot(
                     s, descricao=descricao, escopo=escopo_enum, usuario_id=usuario_id,
                     localizacao_id=localizacao_id,
+                )
+                LogRepo.registrar(
+                    s, TipoEventoLogEnum.sessao_aberta, usuario_id, inventario_id=inventario.id,
+                    descricao=f"Sessão de inventário aberta — {descricao} (escopo: {escopo}, {total} bem(ns)).",
                 )
         except IntegrityError as exc:
             # Corrida entre a checagem acima e o índice único de
@@ -247,6 +252,10 @@ class InventarioService:
             InventarioRepo.revogar_tokens_sessao(s, inventario_id)
             InventarioRepo.remover_convite(s, inventario_id)
             InventarioRepo.cancelar_sessao(s, inventario_id, usuario_id)
+            LogRepo.registrar(
+                s, TipoEventoLogEnum.sessao_cancelada, usuario_id, inventario_id=inventario_id,
+                descricao=f"Sessão de inventário cancelada — motivo: {motivo}",
+            )
 
         logger.info("Sessão de inventário cancelada: id=%s motivo=%r usuario_id=%s",
                     inventario_id, motivo, usuario_id)
@@ -296,6 +305,21 @@ class InventarioService:
                 )
 
             InventarioRepo.marcar_pendentes_como_nao_localizado(s, inventario_id)
+
+            contagem = InventarioRepo.contagem_itens_por_status(s, inventario_id)
+            ajustados = sum(1 for a in ajustes if a.aplicar)
+            LogRepo.registrar(
+                s, TipoEventoLogEnum.sessao_fechada, usuario_id, inventario_id=inventario_id,
+                descricao=(
+                    f"Sessão de inventário fechada — "
+                    f"{contagem[StatusItemInventarioEnum.encontrado.value]} encontrado(s), "
+                    f"{contagem[StatusItemInventarioEnum.divergente_local.value]} divergente(s) "
+                    f"({ajustados} ajustado(s)), "
+                    f"{contagem[StatusItemInventarioEnum.nao_localizado.value]} não localizado(s), "
+                    f"{contagem['sobras']} sobra(s)."
+                ),
+            )
+
             InventarioRepo.revogar_tokens_sessao(s, inventario_id)
             InventarioRepo.remover_convite(s, inventario_id)
             InventarioRepo.finalizar_sessao(s, inventario_id, usuario_id)
@@ -412,6 +436,11 @@ class InventarioService:
                 s, inventario_id=convite.inventario_id, localizacao_conferida_id=localizacao_id,
                 usuario_id=convite.usuario_id, horas_validade=horas,
                 dispositivo_label=dispositivo_label, dispositivo_id=dispositivo_id,
+            )
+            LogRepo.registrar(
+                s, TipoEventoLogEnum.dispositivo_pareado, convite.usuario_id,
+                inventario_id=convite.inventario_id,
+                descricao=f"Dispositivo pareado: {dispositivo_label or dispositivo_id}",
             )
 
         logger.info("Dispositivo cadastrado: inventario_id=%s localizacao_id=%s dispositivo=%r",

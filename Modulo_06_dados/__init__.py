@@ -14,6 +14,7 @@ from .models import  (
     ManutencaoBem, BaixaDocumento,
     Inventario, InventarioItem, InventarioSobra, ColetaToken, ColetaConvite,
     EscopoInventarioEnum, StatusInventarioEnum, StatusItemInventarioEnum, TipoSobraEnum,
+    LogPatrimonio, TipoEventoLogEnum,
 )
 
 __all__ = [
@@ -27,4 +28,5 @@ __all__ = [
     "ManutencaoBem", "BaixaDocumento",
     "Inventario", "InventarioItem", "InventarioSobra", "ColetaToken", "ColetaConvite",
     "EscopoInventarioEnum", "StatusInventarioEnum", "StatusItemInventarioEnum", "TipoSobraEnum",
+    "LogPatrimonio", "TipoEventoLogEnum",
 ]

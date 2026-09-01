@@ -333,6 +333,30 @@ class InventarioRepo:
                      synchronize_session=False))
         return bem_ids
 
+    @staticmethod
+    def contagem_itens_por_status(session, inventario_id: int) -> dict[str, int]:
+        """
+        Igual a resumo_sessao, mas na sessão do CHAMADOR — resumo_sessao abre
+        a própria get_read_session() e não enxergaria os ajustes desta
+        transação ainda não commitados (usado por fechar_sessao para compor
+        a descrição do log de auditoria, T-30, antes do commit).
+        """
+        linhas = (
+            session.query(InventarioItem.status, func.count(InventarioItem.id))
+            .filter(InventarioItem.inventario_id == inventario_id)
+            .group_by(InventarioItem.status)
+            .all()
+        )
+        contagem = {status.value: 0 for status in StatusItemInventarioEnum}
+        for status, total in linhas:
+            contagem[status.value] = total
+        contagem["sobras"] = (
+            session.query(func.count(InventarioSobra.id))
+            .filter(InventarioSobra.inventario_id == inventario_id)
+            .scalar() or 0
+        )
+        return contagem
+
     # ─── Sobras ──────────────────────────────────────────────────────────────
 
     @staticmethod

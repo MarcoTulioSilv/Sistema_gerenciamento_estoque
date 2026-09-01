@@ -35,7 +35,7 @@ from urllib.parse import urlparse, parse_qs
 
 from sqlalchemy.exc import IntegrityError
 
-from Modulo_06_dados import get_session, Localizacao, SituacaoBemEnum, MotivoBaixaEnum
+from Modulo_06_dados import get_session, Localizacao, SituacaoBemEnum, MotivoBaixaEnum, TipoEventoLogEnum
 from Modulo_05_admin import ConfigService
 
 from .dto import (
@@ -53,6 +53,7 @@ from .autorizacao import resolver_usuario_autorizado
 from .bem_repo import BemRepo
 from .localizacao_repo import LocalizacaoRepo
 from .manutencao_repo import ManutencaoRepo
+from .log_repo import LogRepo
 from .documento_baixa_repo import DocumentoBaixaRepo
 from .tombo_generator import TomboGenerator
 from . import etiqueta_builder
@@ -200,6 +201,10 @@ class PatrimonioService:
                     )
                 tombo = TomboGenerator.emitir(s)
                 bem = BemRepo.criar(s, tombo=tombo, dados=dados, usuario_id=usuario_id)
+                LogRepo.registrar(
+                    s, TipoEventoLogEnum.bem_cadastrado, usuario_id, bem_id=bem.id,
+                    descricao=f"Bem {bem.tombo} cadastrado em {loc.nome_completo}.",
+                )
         except IntegrityError as exc:
             raise TomboDuplicadoError(
                 "Falha ao emitir tombo: número já em uso. Tente novamente."
@@ -257,12 +262,21 @@ class PatrimonioService:
             raise BemBaixadoError(f"Bem {bem.tombo} está baixado e não pode ser transferido.")
         if localizacao_destino_id == bem.localizacao_id:
             raise MovimentacaoInvalidaError("Destino é igual à localização atual.")
-        if not LocalizacaoRepo.buscar_por_id(localizacao_destino_id):
+        loc_destino = LocalizacaoRepo.buscar_por_id(localizacao_destino_id)
+        if not loc_destino:
             raise LocalizacaoNaoEncontradaError(
                 f"Localização {localizacao_destino_id} não encontrada."
             )
+        nome_origem = bem.localizacao.nome_completo
 
-        bem = BemRepo.transferir(bem_id, localizacao_destino_id, motivo, usuario_id)
+        with get_session() as s:
+            bem = BemRepo.transferir(s, bem_id, localizacao_destino_id, motivo, usuario_id)
+            LogRepo.registrar(
+                s, TipoEventoLogEnum.bem_transferido, usuario_id, bem_id=bem_id,
+                descricao=(f"Bem {bem.tombo} transferido de {nome_origem} "
+                           f"para {loc_destino.nome_completo}."),
+            )
+
         logger.info("Bem transferido: id=%s destino=%s usuario_id=%s",
                      bem_id, localizacao_destino_id, usuario_id)
         return bem
@@ -317,6 +331,10 @@ class PatrimonioService:
                 numero_mtr=dados.numero_mtr, numero_laudo=dados.numero_laudo,
                 observacao=dados.observacao,
             )
+            LogRepo.registrar(
+                s, TipoEventoLogEnum.bem_baixado, usuario_id, bem_id=bem_id,
+                descricao=f"Bem {bem.tombo} baixado — motivo: {dados.motivo}.",
+            )
 
         logger.info("Bem baixado: id=%s usuario_id=%s", bem_id, usuario_id)
         return bem
@@ -364,7 +382,13 @@ class PatrimonioService:
         if bem.situacao == SituacaoBemEnum.baixado:
             raise BemBaixadoError(f"Bem {bem.tombo} está baixado e não pode receber manutenção.")
 
-        manutencao = ManutencaoRepo.criar(bem_id, dados, usuario_id)
+        with get_session() as s:
+            manutencao = ManutencaoRepo.criar(s, bem_id, dados, usuario_id)
+            LogRepo.registrar(
+                s, TipoEventoLogEnum.manutencao_registrada, usuario_id, bem_id=bem_id,
+                descricao=f"Manutenção registrada em {bem.tombo}: {dados.descricao[:100]}",
+            )
+
         logger.info("Manutenção registrada: bem_id=%s usuario_id=%s", bem_id, usuario_id)
         return manutencao
 
@@ -681,6 +705,20 @@ class PatrimonioService:
         """
         self._resolver_usuario_autorizado(usuario_id, "relatorios_patrimonio")
         return BemRepo.historico_movimentacao(data_ini, data_fim, localizacao_id)
+
+    def listar_log_periodo(self, usuario_id: int, data_ini: datetime, data_fim: datetime,
+                           tipo_evento: str | None = None) -> list:
+        """
+        Log de auditoria persistido de Patrimônio (T-30) num período —
+        cadastro/transferência/baixa de bem, manutenção, ciclo de vida de
+        sessão de inventário e pareamento de dispositivo de coleta.
+
+        Raises:
+            PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id, "log_patrimonio")
+        tipo_enum = TipoEventoLogEnum(tipo_evento) if tipo_evento else None
+        return LogRepo.listar_periodo(data_ini, data_fim, tipo_enum)
 
     def relatorio_historico_movimentacao(self, usuario_id: int, data_ini: datetime, data_fim: datetime,
                                          localizacao_id: int | None = None) -> str:

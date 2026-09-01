@@ -463,7 +463,7 @@ class TelaRetirada(ctk.CTkFrame):
             
 
         self._plano= plano
-        self._exibir_plano(plano)
+        self._exibir_plano_vencidos(plano)
 
     def _exibir_plano_vencidos(self, plano):
         for w in self._frame_plano.winfo_children():
@@ -558,7 +558,8 @@ class TelaRetirada(ctk.CTkFrame):
             except Exception as exc:
                 logger.error("Erro na baixa: %s", exc)
                 self._banner.erro(f"Erro ao registrar: {exc}")
-        
+            return  # Cenário A é autocontido — nunca cai na seleção manual (Cenário B/C) abaixo
+
         #----- Cenário B E C SELEÇÃO MANUAL DE LOTES -----------------------------------------------------------
         itens_manuais=[]
         for item_ui in self._lotes_ui_rows:

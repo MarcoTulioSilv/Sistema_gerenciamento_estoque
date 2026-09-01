@@ -48,16 +48,25 @@ ler o QR — a query bate numa tabela que não existe.
       agendada com o código novo. É aditiva e reexecutável (mesmo padrão
       das migrações 007-009) — pode rodar mesmo que já tenha sido
       aplicada por engano.
-- [ ] Conferir que aplicou: a tabela `coleta_convite` existe e
-      `coleta_token` tem a coluna `dispositivo_id`.
+- [ ] Rodar também `documentacao/migrations/011_patrimonio_log.sql`
+      (tabela `log_patrimonio`, T-30). A rota `POST /parear` deste mesmo
+      serviço grava um evento `dispositivo_pareado` nela a cada pareamento
+      confirmado — sem essa tabela, o **primeiro** celular a confirmar o
+      cadastro quebra a requisição (tabela inexistente), mesmo com a 010
+      já aplicada.
+- [ ] Conferir que aplicou: a tabela `coleta_convite` existe,
+      `coleta_token` tem a coluna `dispositivo_id`, e a tabela
+      `log_patrimonio` existe.
   ```sql
   SELECT COUNT(*) FROM information_schema.TABLES
    WHERE TABLE_SCHEMA = 'sce_db' AND TABLE_NAME = 'coleta_convite';
   SELECT COUNT(*) FROM information_schema.COLUMNS
    WHERE TABLE_SCHEMA = 'sce_db' AND TABLE_NAME = 'coleta_token'
      AND COLUMN_NAME = 'dispositivo_id';
+  SELECT COUNT(*) FROM information_schema.TABLES
+   WHERE TABLE_SCHEMA = 'sce_db' AND TABLE_NAME = 'log_patrimonio';
   ```
-  As duas devem devolver `1`.
+  As três devem devolver `1`.
 
 ## 3. Confirmar configuração no banco
 
@@ -147,6 +156,9 @@ Verificar isso no servidor **antes** de concluir que "não funciona":
       "Dispositivos ativos" em T-26. Reabrir o mesmo link no mesmo
       celular depois deve reconectar direto, sem mostrar o formulário de
       novo nem duplicar o aparelho na lista.
+- [ ] Conferir em T-30 (Log de Patrimônio, menu TI) que esse pareamento
+      gerou exatamente UMA linha "Dispositivo pareado" — e que reabrir o
+      link no mesmo celular (passo anterior) não gerou uma segunda.
 - [ ] Ler a etiqueta de um bem do escopo da sessão a partir do celular já
       pareado, confirmar que o item mudou de status e que o contador de
       progresso em T-26 atualiza (via polling, até 4s de atraso).

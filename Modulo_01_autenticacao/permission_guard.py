@@ -64,6 +64,8 @@ _PERMISSOES: dict[str,list[str]]={
     "cancelar_sessao_inventario":["admin", "ti"],
     # MOD-07 — Patrimônio (T-27 — relatórios)
     "relatorios_patrimonio": ["admin", "ti"],  # RF-35 — Gestora (admin) + TI
+    # MOD-07 — Patrimônio (T-30 — log de auditoria)
+    "log_patrimonio": ["ti"],
 }
 
 class PermissionGuard:

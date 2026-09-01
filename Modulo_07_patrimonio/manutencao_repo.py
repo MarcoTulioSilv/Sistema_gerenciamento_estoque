@@ -7,7 +7,7 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import joinedload
 
-from Modulo_06_dados import get_session, get_read_session, ManutencaoBem
+from Modulo_06_dados import get_read_session, ManutencaoBem
 from .dto import DadosManutencao
 
 logger = logging.getLogger(__name__)
@@ -16,21 +16,25 @@ logger = logging.getLogger(__name__)
 class ManutencaoRepo:
 
     @staticmethod
-    def criar(bem_id: int, dados: DadosManutencao, usuario_id: int) -> ManutencaoBem:
-        # Somente incremental (RN-23): sem UPDATE/DELETE em registro existente,
-        # e não toca bem_patrimonial nem movimentacao_bem (AD-24).
-        with get_session() as s:
-            manutencao = ManutencaoBem(
-                bem_id=bem_id,
-                data_manutencao=dados.data_manutencao,
-                descricao=dados.descricao,
-                usuario_id=usuario_id,
-                registrado_em=datetime.utcnow(),
-            )
-            s.add(manutencao)
-            s.flush()
-            s.expunge(manutencao)
-            return manutencao
+    def criar(session, bem_id: int, dados: DadosManutencao, usuario_id: int) -> ManutencaoBem:
+        """
+        Participa da MESMA sessão já aberta pelo chamador — permite ao
+        service compor o registro de manutenção e o log de auditoria (T-30)
+        numa única transação. Somente incremental (RN-23): sem UPDATE/DELETE
+        em registro existente, e não toca bem_patrimonial nem
+        movimentacao_bem (AD-24).
+        """
+        manutencao = ManutencaoBem(
+            bem_id=bem_id,
+            data_manutencao=dados.data_manutencao,
+            descricao=dados.descricao,
+            usuario_id=usuario_id,
+            registrado_em=datetime.utcnow(),
+        )
+        session.add(manutencao)
+        session.flush()
+        session.expunge(manutencao)
+        return manutencao
 
     @staticmethod
     def listar_por_bem(bem_id: int) -> list[ManutencaoBem]:

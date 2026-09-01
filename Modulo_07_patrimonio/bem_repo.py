@@ -131,29 +131,33 @@ class BemRepo:
             return bem
 
     @staticmethod
-    def transferir(bem_id: int, localizacao_destino_id: int, motivo: str, usuario_id: int) -> BemPatrimonial | None:
-        with get_session() as s:
-            bem = s.get(BemPatrimonial, bem_id)
-            if not bem:
-                return None
-            origem_id = bem.localizacao_id
-            bem.localizacao_id = localizacao_destino_id
+    def transferir(session, bem_id: int, localizacao_destino_id: int, motivo: str, usuario_id: int) -> BemPatrimonial | None:
+        """
+        Participa da MESMA sessão já aberta pelo chamador (mesmo padrão de
+        criar/baixar) — permite ao service compor a transferência e o
+        registro de log de auditoria (T-30) numa única transação.
+        """
+        bem = session.get(BemPatrimonial, bem_id)
+        if not bem:
+            return None
+        origem_id = bem.localizacao_id
+        bem.localizacao_id = localizacao_destino_id
 
-            mov = MovimentacaoBem(
-                bem_id=bem.id,
-                tipo=TipoMovimentacaoBemEnum.transferencia,
-                localizacao_origem_id=origem_id,
-                localizacao_destino_id=localizacao_destino_id,
-                motivo=motivo,
-                usuario_id=usuario_id,
-                data_hora=datetime.utcnow(),
-            )
-            s.add(mov)
-            s.flush()
-            s.expire(bem, ["localizacao"])  # recarrega para refletir o novo destino
-            _ = bem.localizacao
-            s.expunge(bem)
-            return bem
+        mov = MovimentacaoBem(
+            bem_id=bem.id,
+            tipo=TipoMovimentacaoBemEnum.transferencia,
+            localizacao_origem_id=origem_id,
+            localizacao_destino_id=localizacao_destino_id,
+            motivo=motivo,
+            usuario_id=usuario_id,
+            data_hora=datetime.utcnow(),
+        )
+        session.add(mov)
+        session.flush()
+        session.expire(bem, ["localizacao"])  # recarrega para refletir o novo destino
+        _ = bem.localizacao
+        session.expunge(bem)
+        return bem
 
     @staticmethod
     def baixar(

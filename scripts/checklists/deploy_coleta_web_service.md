@@ -8,19 +8,39 @@ remotamente.
 
 ## 1. Preparar o servidor
 
-- [ ] Copiar o projeto atualizado (ou pelo menos `Modulo_06_dados/`,
-      `Modulo_05_admin/`, `Modulo_07_patrimonio/`, `assets/`,
-      `servico_patrimonio.py`, `fuso_horario.py`, `requirements.txt`,
-      `.env`) para o servidor 192.168.0.150.
-      `fuso_horario.py` é novo nesta rodada e fica solto na raiz do
-      projeto (não dentro de nenhum `Modulo_XX`) — é importado por
-      `Modulo_05_admin/usuario_service.py` (carregado assim que
-      `Modulo_05_admin` é importado), então esquecê-lo derruba o serviço
-      logo na inicialização com `ModuleNotFoundError`. `assets/` também é
-      novo na lista: `Modulo_07_patrimonio/etiqueta_builder.py` agora lê
-      um ícone de lá (`assets/etiqueta_logo_icone.png`) — não é usado
-      pelas rotas HTTP do serviço hoje, mas evita um `FileNotFoundError`
-      se isso mudar.
+- [ ] Copiar o projeto **inteiro** (não uma lista curada de pastas) para
+      uma pasta **local e dedicada** no servidor — ex.:
+      `C:\SCE_ColetaWebService\` — nunca para uma pasta compartilhada já
+      existente (mesmo que seja local no C: e só "por conveniência"). A
+      Tarefa Agendada roda como **SYSTEM** e executa literalmente o `.py`
+      que estiver ali: se essa pasta for compartilhada e algum
+      processo/usuário tiver (ou vier a ter) permissão de escrita nela,
+      isso equivale a permitir execução de código arbitrário como SYSTEM
+      nesse servidor. Escrita restrita a Administradores. Mesmo padrão já
+      usado por `backup_script/` (roda local, não numa pasta
+      compartilhada).
+
+      **Por que o projeto inteiro, e não uma lista mínima**: uma lista
+      curada (só `Modulo_06_dados/`, `Modulo_05_admin/`,
+      `Modulo_07_patrimonio/`, `assets/`, `servico_patrimonio.py`,
+      `fuso_horario.py`) já ficou incompleta DUAS vezes — faltou
+      `fuso_horario.py` numa rodada, e depois faltaram `Modulo_04_notificacoes/`
+      (importado por `Modulo_05_admin/config_service.py` →
+      `GmailClient`) e `Modulo_01_autenticacao/` (importado por
+      `Modulo_07_patrimonio/autorizacao.py` → `PermissionGuard`) — ambos
+      puxados só por `servico_patrimonio.py` importar `Modulo_05_admin` e
+      `Modulo_07_patrimonio`, que carregam essas dependências no próprio
+      `__init__.py` do pacote. Nada em `servico_patrimonio.py` chega a
+      importar `gui/` (só `main.py`, o app desktop, importa isso), então
+      copiar tudo não tem custo real — só elimina essa classe inteira de
+      erro (`ModuleNotFoundError`) de uma vez.
+
+      Se você mantém uma pasta de staging separada pra montar o pacote
+      antes de levar ao servidor (ex.: uma pasta `ColetaWebService/` só
+      com uma cópia manual dos arquivos): descarte essa prática — ela é
+      exatamente o que ficou desatualizada aqui. Copie a árvore real do
+      projeto direto (excluindo só `.venv/`, `dist/`, `.git/`,
+      `__pycache__/`, `instalador/`).
 - [ ] Confirmar que existe uma venv Python no servidor (ou criar uma nova:
       `python -m venv .venv`).
 - [ ] Instalar dependências na venv do servidor (SEM `--user` — a tarefa

@@ -37,8 +37,10 @@ COR_AMBER_FONT   = "854F0B"   # âmbar escuro
 # cobria a marca d'água por cima. Uma imagem ancorada fica na camada de
 # desenho, ao lado do conteúdo, nunca atrás dele — não some.
 if getattr(sys, 'frozen', False):
-    # Se estiver rodando como um executável empacotado (.exe)
-    _BASE_DIR = Path(sys.executable).parent
+    # sys._MEIPASS (não sys.executable) é quem o PyInstaller sempre aponta
+    # para a pasta real dos `datas` empacotados — nas versões atuais (6.x)
+    # isso é uma subpasta _internal/ ao lado do .exe, não o .exe mesmo.
+    _BASE_DIR = Path(sys._MEIPASS)
 else:
     # Se estiver rodando no código-fonte (.py em desenvolvimento)
     _BASE_DIR = Path(__file__).resolve().parent.parent

@@ -67,10 +67,13 @@ logger = logging.getLogger(__name__)
 # Mesmo padrão de resolução de caminho já usado em
 # Modulo_03_relatorios/xlsx_builder.py para LOGO_ICON_PATH: __file__ não
 # aponta para um caminho real de disco quando o módulo roda a partir do
-# .exe empacotado pelo PyInstaller (fica dentro do bundle) — nesse caso
-# assets/ vive ao lado do executável, não dois níveis acima do .py.
+# .exe empacotado pelo PyInstaller (fica dentro do bundle). sys._MEIPASS
+# (não sys.executable) é quem o PyInstaller sempre aponta para a pasta
+# real dos `datas` empacotados — nas versões atuais (6.x) isso é uma
+# subpasta _internal/ ao lado do .exe, não o .exe mesmo; Path(sys.executable
+# ).parent quebrou justamente por assumir a estrutura antiga.
 if getattr(sys, 'frozen', False):
-    _BASE_DIR = Path(sys.executable).parent
+    _BASE_DIR = Path(sys._MEIPASS)
 else:
     _BASE_DIR = Path(__file__).resolve().parent.parent
 _LOGO_ARQUIVO = _BASE_DIR / "assets" / "etiqueta_logo_icone.png"

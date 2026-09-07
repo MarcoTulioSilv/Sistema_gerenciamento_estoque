@@ -1,5 +1,5 @@
 # =============================================================
-# SCE — Sistema de Controle de Estoque · Uronefrologia
+# SCE — Sistema de Controle de Estoque · Uro-Nefrologia
 # auto_updater.py  —  MOD-00 / utilitário de atualização
 #
 # Responsabilidade:

@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 import bcrypt
 
+from fuso_horario import formatar
 from Modulo_06_dados import get_session, get_read_session, Usuario, PerfilEnum
 
 logger = logging.getLogger(__name__)
@@ -25,12 +26,18 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DadosUsuario:
-    id:        int
-    nome:      str
-    login:     str
-    perfil:    PerfilEnum
-    ativo:     bool
-    criado_em: str   # já formatado para exibição
+    id:                 int
+    nome:               str
+    login:              str
+    perfil:             PerfilEnum
+    ativo:              bool
+    criado_em:          str   # já formatado para exibição
+    acesso_patrimonio:  bool = False  # RF-39 — permissão explícita, ortogonal ao perfil
+
+    @property
+    def pode_acessar_patrimonio(self) -> bool:
+        """RN-21 — TI acessa por definição; demais dependem de acesso_patrimonio."""
+        return self.perfil == PerfilEnum.ti or self.acesso_patrimonio
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -47,12 +54,13 @@ class UsuarioService:
             usuarios = s.query(Usuario).order_by(Usuario.nome).all()
             return [
                 DadosUsuario(
-                    id        = u.id,
-                    nome      = u.nome,
-                    login     = u.login,
-                    perfil    = u.perfil,
-                    ativo     = u.ativo,
-                    criado_em = u.criado_em.strftime("%d/%m/%Y") if u.criado_em else "—",
+                    id                = u.id,
+                    nome              = u.nome,
+                    login             = u.login,
+                    perfil            = u.perfil,
+                    ativo             = u.ativo,
+                    criado_em         = formatar(u.criado_em, "%d/%m/%Y"),
+                    acesso_patrimonio = u.acesso_patrimonio,
                 )
                 for u in usuarios
             ]
@@ -65,12 +73,13 @@ class UsuarioService:
             if not u:
                 return None
             return DadosUsuario(
-                id        = u.id,
-                nome      = u.nome,
-                login     = u.login,
-                perfil    = u.perfil,
-                ativo     = u.ativo,
-                criado_em = u.criado_em.strftime("%d/%m/%Y") if u.criado_em else "—",
+                id                = u.id,
+                nome              = u.nome,
+                login             = u.login,
+                perfil            = u.perfil,
+                ativo             = u.ativo,
+                criado_em         = formatar(u.criado_em, "%d/%m/%Y"),
+                acesso_patrimonio = u.acesso_patrimonio,
             )
 
     # ── Criação ───────────────────────────────────────────────────────────────
@@ -81,6 +90,7 @@ class UsuarioService:
         login:  str,
         senha:  str,
         perfil: PerfilEnum,
+        acesso_patrimonio: bool = False,
     ) -> DadosUsuario:
         """
         Cria um novo usuário.
@@ -101,12 +111,14 @@ class UsuarioService:
                 senha_hash = senha_hash,
                 perfil     = perfil,
                 ativo      = True,
+                acesso_patrimonio = acesso_patrimonio,
             )
             s.add(u)
             s.flush()
             resultado = DadosUsuario(
                 id=u.id, nome=u.nome, login=u.login,
                 perfil=u.perfil, ativo=u.ativo, criado_em="—",
+                acesso_patrimonio=u.acesso_patrimonio,
             )
 
         logger.info("Usuário criado: login=%s perfil=%s", login, perfil)
@@ -121,6 +133,7 @@ class UsuarioService:
         login:      str,
         perfil:     PerfilEnum,
         nova_senha: str | None = None,
+        acesso_patrimonio: bool = False,
     ) -> DadosUsuario:
         """
         Edita dados de um usuário existente.
@@ -150,6 +163,7 @@ class UsuarioService:
             u.nome   = nome.strip()
             u.login  = login.strip()
             u.perfil = perfil
+            u.acesso_patrimonio = acesso_patrimonio
 
             if nova_senha:
                 u.senha_hash = _hash_senha(nova_senha)
@@ -157,7 +171,8 @@ class UsuarioService:
             resultado = DadosUsuario(
                 id=u.id, nome=u.nome, login=u.login,
                 perfil=u.perfil, ativo=u.ativo,
-                criado_em=u.criado_em.strftime("%d/%m/%Y") if u.criado_em else "—",
+                criado_em=formatar(u.criado_em, "%d/%m/%Y"),
+                acesso_patrimonio=u.acesso_patrimonio,
             )
 
         logger.info("Usuário editado: id=%s login=%s", usuario_id, login)

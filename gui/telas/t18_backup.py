@@ -4,12 +4,11 @@ T-18 — Backup do banco de dados (UC-19, RNF-04) — perfil TI.
 Toda lógica de execução e log está em Modulo_05_admin.BackupManager.
 """
 import logging
-from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog
-from zoneinfo import ZoneInfo
 import customtkinter as ctk
 
+from fuso_horario import formatar
 from gui.componentes.form_widgets import FeedbackBanner, SecaoFormulario
 from Modulo_05_admin import BackupManager
 from Modulo_04_notificacoes import NotificacaoService
@@ -21,13 +20,6 @@ from gui.componentes.tema import (
 )
 
 _JOB_NOME_BACKUP_SERVIDOR = "backup_automatico_servidor"
-
-
-def _fmt_utc_local(dt: datetime) -> str:
-    """Converte um datetime UTC (naive) vindo do banco para horário local formatado."""
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
-    return dt.astimezone(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M:%S")
 
 
 class TelaBackup(ctk.CTkFrame):
@@ -178,7 +170,7 @@ class TelaBackup(ctk.CTkFrame):
             row.pack(fill="x")
             row.grid_columnconfigure(1, weight=1)
 
-            ctk.CTkLabel(row, text=_fmt_utc_local(executado_em), text_color="#3d3d3a",
+            ctk.CTkLabel(row, text=formatar(executado_em, "%d/%m/%Y %H:%M:%S"), text_color="#3d3d3a",
                          font=ctk.CTkFont(size=11), width=140, anchor="w"
                          ).grid(row=0, column=0, padx=(10, 4), pady=6, sticky="w")
 

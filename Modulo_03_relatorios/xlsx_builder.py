@@ -9,12 +9,14 @@ import tempfile
 from datetime import date, datetime, timedelta
 from pathlib  import Path
 from decimal  import Decimal
-from openpyxl.styles import PatternFill, Font, Alignment, Border, Side 
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+from openpyxl.drawing.image import Image as XLImage
+from fuso_horario import formatar
 from Modulo_06_dados import get_read_session, Movimentacao, Lote, Produto, Usuario
 from sqlalchemy.orm import joinedload
 from datetime import datetime as dt
-import io as _io_bg
 
 
 logger = logging.getLogger(__name__)
@@ -28,136 +30,50 @@ COR_LINHA_ALT    = "F2F1ED"   # cinza claro (linhas alternadas)
 COR_AMBER_FILL   = "FAEEDA"   # âmbar claro
 COR_AMBER_FONT   = "854F0B"   # âmbar escuro
  
-# imagem de fundo
+# Ícone da clínica nos relatórios — ancorado ao lado do título de cada
+# planilha (ver _aplicar_logo), não mais como "background" do Excel: o
+# background só aparece atrás de células SEM preenchimento — qualquer
+# linha com fundo colorido (cabeçalho, zebra, destaque de vencido/divergente)
+# cobria a marca d'água por cima. Uma imagem ancorada fica na camada de
+# desenho, ao lado do conteúdo, nunca atrás dele — não some.
 if getattr(sys, 'frozen', False):
-    # Se estiver rodando como um executável empacotado (.exe)
-    _BASE_DIR = Path(sys.executable).parent
+    # sys._MEIPASS (não sys.executable) é quem o PyInstaller sempre aponta
+    # para a pasta real dos `datas` empacotados — nas versões atuais (6.x)
+    # isso é uma subpasta _internal/ ao lado do .exe, não o .exe mesmo.
+    _BASE_DIR = Path(sys._MEIPASS)
 else:
     # Se estiver rodando no código-fonte (.py em desenvolvimento)
     _BASE_DIR = Path(__file__).resolve().parent.parent
-LOGO_BG_PATH= _BASE_DIR / "assets" / "logo_Centro_Uro_Nefrologia_sem_fundo.png"
- 
-
-MIME_MAP = {
-    "png":  "image/png",
-    "jpg":  "image/jpeg",
-    "jpeg": "image/jpeg",
-    "gif":  "image/gif",
-    "tiff": "image/tiff",
-}
+LOGO_ICON_PATH = _BASE_DIR / "assets" / "etiqueta_logo_icone.png"
 
 
-def _aplicar_background(xlsx_bytes: bytes) -> bytes:
+def _aplicar_logo(ws, row: int, coluna: int, altura_linha_pt: float = 25):
     """
-    Insere LOGO_BG_PATH como background (marca d'água) em todas as abas.
-    Retorna os bytes modificados; em caso de erro retorna xlsx_bytes intacto.
+    Ancora o ícone da clínica numa célula — sempre DENTRO da área de dados
+    da planilha (coluna A, reservada só pra ele), imediatamente ANTES do
+    título, nunca numa coluna extra depois da última usada (isso deixava
+    o ícone fora da faixa de dados, longe do olhar — quem abre o arquivo
+    só vê a tabela, não uma coluna vazia ao lado). Cada chamador desloca a
+    mesclagem do título uma coluna pra direita (de A1:{X}1 para B1:{X+1}1)
+    pra abrir espaço em A1, mantendo a mesma largura total da faixa.
+    Dimensiona pela altura da linha do título (pt → px aproximado),
+    preservando a proporção original do ícone.
     """
-    if not LOGO_BG_PATH.exists():
+    if not LOGO_ICON_PATH.exists():
         logger.warning(
-            "Logo de background não encontrada em '%s' — planilha sem marca d'água.",
-            LOGO_BG_PATH,
+            "Ícone da clínica não encontrado em '%s' — relatório sem logo.",
+            LOGO_ICON_PATH,
         )
-        return xlsx_bytes
+        return
     try:
-        img_bytes = LOGO_BG_PATH.read_bytes()
-        img_ext   = LOGO_BG_PATH.suffix.lstrip(".").lower()
-        return _injetar_background_ooxml(xlsx_bytes, img_bytes, img_ext)
+        img = XLImage(str(LOGO_ICON_PATH))
+        proporcao = img.width / img.height
+        altura_px = max(round(altura_linha_pt * 4 / 3) - 4, 14)
+        img.height = altura_px
+        img.width = round(altura_px * proporcao)
+        ws.add_image(img, f"{get_column_letter(coluna)}{row}")
     except Exception as exc:
-        logger.warning("Erro ao aplicar background: %s", exc)
-        return xlsx_bytes
-
-
-def _injetar_background_ooxml(
-    xlsx_bytes: bytes,
-    img_bytes:  bytes,
-    img_ext:    str = "png",
-) -> bytes:
-    """
-    Injeta a imagem como background OOXML em todas as abas do .xlsx.
-
-    Três requisitos do Excel para o background funcionar:
-      1. Imagem em xl/media/logo_background.<ext>
-      2. <Default Extension="png" ContentType="image/png"/> no Content_Types.xml
-      3. <picture r:id="rIdBG"/> dentro de <worksheet>
-      4. Relationship no _rels de cada aba
-    """
-    import zipfile
-    import io as _io
-
-    buf_in  = _io.BytesIO(xlsx_bytes)
-    buf_out = _io.BytesIO()
-    REL_TYPE   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
-    MEDIA_PATH = f"xl/media/logo_background.{img_ext}"
-    RID        = "rIdBG"
-    MIME       = MIME_MAP.get(img_ext, "image/png")
-
-    with zipfile.ZipFile(buf_in, "r") as zin, \
-         zipfile.ZipFile(buf_out, "w", zipfile.ZIP_DEFLATED) as zout:
-
-        nomes  = zin.namelist()
-        sheets = [n for n in nomes
-                  if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")]
-        img_gravada = False
-
-        for item in nomes:
-            data = zin.read(item)
-
-            # 1. Gravar imagem no media
-            if not img_gravada and item == (sheets[0] if sheets else ""):
-                zout.writestr(MEDIA_PATH, img_bytes)
-                img_gravada = True
-
-            # 2. Content_Types: registrar extensão PNG/JPEG
-            if item == "[Content_Types].xml":
-                xml = data.decode("utf-8")
-                entry = f'<Default Extension="{img_ext}" ContentType="{MIME}"/>'
-                if f'Extension="{img_ext}"' not in xml:
-                    xml = xml.replace(
-                        'xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
-                        f'xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' + entry,
-                    )
-                zout.writestr(item, xml.encode("utf-8"))
-
-            # 3. Sheet XML: injetar <picture> e namespace r:
-            elif item in sheets:
-                xml = data.decode("utf-8")
-                if "xmlns:r=" not in xml:
-                    xml = xml.replace(
-                        "<worksheet ",
-                        '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ',
-                    )
-                if "<picture " not in xml:
-                    xml = xml.replace(
-                        "</worksheet>",
-                        f'<picture r:id="{RID}"/></worksheet>',
-                    )
-                zout.writestr(item, xml.encode("utf-8"))
-
-            # 4. _rels: adicionar relationship da imagem
-            elif item.startswith("xl/worksheets/_rels/") and item.endswith(".rels"):
-                xml = data.decode("utf-8")
-                if RID not in xml:
-                    rel = (
-                        f'<Relationship Id="{RID}" Type="{REL_TYPE}" '                        f'Target="../{MEDIA_PATH[3:]}"/>'                    )
-                    xml = xml.replace("</Relationships>", rel + "</Relationships>")
-                zout.writestr(item, xml.encode("utf-8"))
-
-            else:
-                zout.writestr(item, data)
-
-        # 5. Criar _rels para sheets que não tinham
-        for sheet in sheets:
-            rels_path = (
-                sheet.replace("xl/worksheets/", "xl/worksheets/_rels/") + ".rels"
-            )
-            if rels_path not in nomes:
-                rels_xml = (
-                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'                    '<Relationships '                    'xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'                    f'<Relationship Id="{RID}" Type="{REL_TYPE}" '                    f'Target="../{MEDIA_PATH[3:]}"/>'                    "</Relationships>"
-                )
-                zout.writestr(rels_path, rels_xml.encode("utf-8"))
-
-    buf_out.seek(0)
-    return buf_out.read()
+        logger.warning("Erro ao inserir ícone da clínica no relatório: %s", exc)
 
 
 def _wb_styles():
@@ -280,9 +196,10 @@ class XlsxBuilder:
             # --- 1. CONFIGURAÇÃO DA LINHA 1 (PERÍODO E TOTAL) ---
             ws.row_dimensions[1].height = 25
             
-            # Mesclagem A1:D1 para o Período
-            ws.merge_cells('A1:D1')
-            cell_p = ws['A1']
+            # Coluna A reservada pro logo; título desloca uma coluna (B1:E1)
+            _aplicar_logo(ws, 1, 1, altura_linha_pt=25)
+            ws.merge_cells('B1:E1')
+            cell_p = ws['B1']
             cell_p.value = f"Período: {data_ini.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
             cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
             cell_p.alignment = Alignment(horizontal="center", vertical="center")
@@ -317,7 +234,7 @@ class XlsxBuilder:
                 font = st["vft"] if vencido else None
                 
                 _aplicar_linha(ws, i, [
-                    mov.data_hora.strftime("%d/%m/%Y %H:%M"),
+                    formatar(mov.data_hora, "%d/%m/%Y %H:%M"),
                     mov.lote.produto.nome,
                     mov.lote.num_lote,
                     mov.numero_nf or mov.lote.nota_fiscal,
@@ -330,11 +247,8 @@ class XlsxBuilder:
         # Congela as duas linhas superiores
         ws.freeze_panes = "A3"
 
-        _buf = _io_bg.BytesIO()
-        wb.save(_buf)
-        _bytes_final = _aplicar_background(_buf.getvalue())
         caminho = XlsxBuilder._nome_arquivo("movimentacao")
-        Path(caminho).write_bytes(_bytes_final)
+        wb.save(caminho)
         logger.info("Relatório movimentação gerado: %s", caminho)
         return caminho
  
@@ -374,9 +288,10 @@ class XlsxBuilder:
              # --- 1. CONFIGURAÇÃO DA LINHA 1 (PERÍODO E TOTAL) ---
             ws.row_dimensions[1].height = 25
             
-            # Mesclagem A1:D1 para o Período
-            ws.merge_cells('A1:K1')
-            cell_p = ws['A1']
+            # Coluna A reservada pro logo; título desloca uma coluna (B1:L1)
+            _aplicar_logo(ws, 1, 1, altura_linha_pt=25)
+            ws.merge_cells('B1:L1')
+            cell_p = ws['B1']
             cell_p.value = f"Estoque {date.today()}"
             cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
             cell_p.alignment = Alignment(horizontal="center", vertical="center")
@@ -419,11 +334,8 @@ class XlsxBuilder:
                 ], st, fill=fill, font=font)
  
         ws.freeze_panes = "A3"
-        _buf = _io_bg.BytesIO()
-        wb.save(_buf)
-        _bytes_final = _aplicar_background(_buf.getvalue())
         caminho = XlsxBuilder._nome_arquivo("estoque_atual")
-        Path(caminho).write_bytes(_bytes_final)
+        wb.save(caminho)
         logger.info("Relatório estoque atual gerado: %s", caminho)
         return caminho
  
@@ -465,13 +377,15 @@ class XlsxBuilder:
                 .all()
             )
             
-            # Mesclagem A1:D1 para o Período
-            ws.merge_cells('A1:H1')
-            cell_p = ws['A1']
+            # Coluna A reservada pro logo; título desloca uma coluna (B1:I1)
+            ws.row_dimensions[1].height = 25
+            _aplicar_logo(ws, 1, 1, altura_linha_pt=25)
+            ws.merge_cells('B1:I1')
+            cell_p = ws['B1']
             cell_p.value = f"Lotes a vencer Proximos 30 Dias consulta {date.today()}"
             cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
             cell_p.alignment = Alignment(horizontal="center", vertical="center")
-            
+
             _aplicar_header(ws, colunas, st, row_idx=2)
 
             for i, l in enumerate(lotes, 3):
@@ -495,11 +409,8 @@ class XlsxBuilder:
                 ], st, fill=fill, font=font)
  
         ws.freeze_panes = "A3"
-        _buf = _io_bg.BytesIO()
-        wb.save(_buf)
-        _bytes_final = _aplicar_background(_buf.getvalue())
         caminho = XlsxBuilder._nome_arquivo("a_vencer")
-        Path(caminho).write_bytes(_bytes_final)
+        wb.save(caminho)
         logger.info("Relatório a vencer gerado: %s (%d lotes)", caminho, len(lotes))
         return caminho
  
@@ -538,9 +449,14 @@ class XlsxBuilder:
                 return None
 
             # 2. Configura a Top Bar (Linha 1) - Título com a data do dia
+            # Coluna A reservada pro logo (com o mesmo fundo da barra do
+            # título, já que aqui o título tem cor de fundo própria);
+            # título desloca uma coluna (B1:M1)
             ws.row_dimensions[1].height = 30
-            ws.merge_cells('A1:L1')
-            cell_titulo = ws['A1']
+            ws['A1'].fill = PatternFill("solid", fgColor=COR_HEADER_FILL)
+            _aplicar_logo(ws, 1, 1, altura_linha_pt=30)
+            ws.merge_cells('B1:M1')
+            cell_titulo = ws['B1']
             cell_titulo.value = f"Lotes vencidos em estoque no dia {hoje.strftime('%d/%m/%Y')}"
             cell_titulo.font = Font(bold=True, color=COR_HEADER_FONT, size=12)
             cell_titulo.fill = PatternFill("solid", fgColor=COR_HEADER_FILL)
@@ -600,11 +516,8 @@ class XlsxBuilder:
                 ], st, fill=st["vf"], font=st["vft"], alignments=alinhamentos)
  
         ws.freeze_panes = "A3" # Congela Título e Cabeçalho
-        _buf = _io_bg.BytesIO()
-        wb.save(_buf)
-        _bytes_final = _aplicar_background(_buf.getvalue())
         caminho = XlsxBuilder._nome_arquivo("lotes_vencidos")
-        Path(caminho).write_bytes(_bytes_final)
+        wb.save(caminho)
         logger.info("Relatório lotes vencidos gerado: %s (%d lotes)", caminho, len(lotes))
         return caminho
 
@@ -626,16 +539,19 @@ class XlsxBuilder:
         st = _wb_styles()
 
         colunas = (
-            [("Produto/Grupo", 40)]
+            [("Produto/Grupo", 100)]
             + [(label, 12) for label in meses_labels]
             + [("Total Consumido", 16), ("Média Mensal", 14)]
         )
         n_cols = len(colunas)
-        ultima_letra = chr(ord('A') + n_cols - 1)
+        # Coluna A reservada pro logo; título ocupa B até uma coluna a mais
+        # que o total de dados (n_cols), pra manter a mesma largura de antes
+        ultima_letra = get_column_letter(n_cols + 1)
 
         ws.row_dimensions[1].height = 25
-        ws.merge_cells(f'A1:{ultima_letra}1')
-        cell_p = ws['A1']
+        _aplicar_logo(ws, 1, 1, altura_linha_pt=25)
+        ws.merge_cells(f'B1:{ultima_letra}1')
+        cell_p = ws['B1']
         cell_p.value = (f"Consumo médio — últimos {meses} meses "
                          f"({meses_labels[0]} a {meses_labels[-1]}, base: saídas de estoque)")
         cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
@@ -647,11 +563,303 @@ class XlsxBuilder:
         for i, linha in enumerate(dados, 3):
             _aplicar_linha(ws, i, linha, st, alignments=alinhamentos)
 
-        ws.freeze_panes = "B3"
-        _buf = _io_bg.BytesIO()
-        wb.save(_buf)
-        _bytes_final = _aplicar_background(_buf.getvalue())
+        # "A3" em vez de "B3": congela só as linhas 1-2 (título + cabeçalho),
+        # sem congelar coluna nenhuma. Um freeze de coluna (ex. "B3") cruzaria
+        # a célula mesclada do título (que ocupa A1 até a última coluna),
+        # cortando-a visualmente ao rolar a planilha para os lados.
+        ws.freeze_panes = "A3"
         caminho = XlsxBuilder._nome_arquivo("consumo_medio")
-        Path(caminho).write_bytes(_bytes_final)
+        wb.save(caminho)
         logger.info("Relatório consumo médio gerado: %s (%d linhas)", caminho, len(dados))
+        return caminho
+
+    # ── 6. Sessão de inventário (MOD-07) ────────────────────────────────────
+
+    @staticmethod
+    def relatorio_inventario(inventario, resumo, itens: list, sobras: list) -> Path:
+        """
+        Relatório de uma sessão de inventário (RF-34). Abas: resumo,
+        encontrados, divergências, não localizados, sobras — os itens já
+        vêm classificados por InventarioService, este método só distribui
+        pelas abas.
+        """
+        wb = Workbook()
+        st = _wb_styles()
+
+        ws_resumo = wb.active
+        ws_resumo.title = "Resumo o Inventário"
+        # Coluna A reservada pro logo; título desloca uma coluna (B1:C1)
+        ws_resumo.row_dimensions[1].height = 25
+        _aplicar_logo(ws_resumo, 1, 1, altura_linha_pt=25)
+        ws_resumo.merge_cells('B1:C1')
+        cell_p = ws_resumo['B1']
+        cell_p.value = f"Inventário #{inventario.id} — {inventario.descricao}"
+        cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=12)
+        cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+        escopo_label = (
+            "Geral" if inventario.escopo.value == "geral"
+            else (inventario.localizacao.nome_completo if inventario.localizacao else "—")
+        )
+        linhas_resumo = [
+            ("Escopo", escopo_label),
+            ("Status", resumo.status.replace("_", " ").title()),
+            ("Aberto em", formatar(inventario.aberto_em, "%d/%m/%Y %H:%M")),
+            ("Total esperado", resumo.total_esperado),
+            ("Encontrados", resumo.encontrados),
+            ("Divergentes", resumo.divergentes),
+            ("Não localizados", resumo.nao_localizados),
+            ("Sobras", resumo.sobras),
+        ]
+        _aplicar_header(ws_resumo, [("Indicador", 30), ("Valor", 40)], st, row_idx=2)
+        for i, (rotulo, valor) in enumerate(linhas_resumo, 3):
+            _aplicar_linha(ws_resumo, i, [rotulo, valor], st)
+        ws_resumo.freeze_panes = "A3"
+
+        def _sheet_itens(titulo: str, lista, fill=None, font=None):
+            ws = wb.create_sheet(titulo)
+            colunas = [
+                ("Tombo", 16), ("Descrição", 45), ("Localização esperada", 28),
+                ("Localização encontrada", 28), ("Conferido em", 18),
+                ("Conferido por", 22), ("Observação", 40),
+            ]
+            _aplicar_header(ws, colunas, st, row_idx=1)
+            for i, item in enumerate(lista, 2):
+                _aplicar_linha(ws, i, [
+                    item.bem.tombo,
+                    item.bem.descricao,
+                    item.localizacao_esperada.nome_completo if item.localizacao_esperada else "—",
+                    item.localizacao_encontrada.nome_completo if item.localizacao_encontrada else "—",
+                    formatar(item.conferido_em, "%d/%m/%Y %H:%M"),
+                    item.conferido_por_usuario.nome if item.conferido_por_usuario else "—",
+                    item.observacao or "",
+                ], st, fill=fill, font=font)
+            ws.freeze_panes = "A2"
+            return ws
+
+        encontrados      = [i for i in itens if i.status.value == "encontrado"]
+        divergentes      = [i for i in itens if i.status.value == "divergente_local"]
+        nao_localizados  = [i for i in itens if i.status.value == "nao_localizado"]
+
+        _sheet_itens("Encontrados", encontrados)
+        _sheet_itens("Divergências", divergentes, fill=st["af"], font=st["aft"])
+        _sheet_itens("Não localizados", nao_localizados, fill=st["vf"], font=st["vft"])
+
+        ws_sobras = wb.create_sheet("Sobras")
+        colunas_sobras = [
+            ("Código lido", 24), ("Tipo", 20), ("Localização", 28),
+            ("Registrado em", 18), ("Registrado por", 22), ("Descrição livre", 40),
+        ]
+        _aplicar_header(ws_sobras, colunas_sobras, st, row_idx=1)
+        for i, sobra in enumerate(sobras, 2):
+            _aplicar_linha(ws_sobras, i, [
+                sobra.codigo_lido,
+                sobra.tipo.value.replace("_", " ").title(),
+                sobra.localizacao.nome_completo if sobra.localizacao else "—",
+                formatar(sobra.registrado_em, "%d/%m/%Y %H:%M"),
+                sobra.registrado_por_usuario.nome if sobra.registrado_por_usuario else "—",
+                sobra.descricao_livre or "",
+            ], st, fill=st["af"], font=st["aft"])
+        ws_sobras.freeze_panes = "A2"
+
+        caminho = XlsxBuilder._nome_arquivo("inventario")
+        wb.save(caminho)
+        logger.info("Relatório de inventário gerado: %s (inventario_id=%s)", caminho, inventario.id)
+        return caminho
+
+    # ── 7. Bens ativos, agrupados por localização (MOD-07, T-27/RF-35) ──────
+
+    @staticmethod
+    def relatorio_bens_ativos(bens: list) -> Path:
+        """
+        Bens patrimoniais ativos, agrupados por localização — uma linha de
+        seção mesclada a cada troca de localização na sequência (`bens` já
+        vem ordenado por setor/sala, ver
+        PatrimonioService.listar_bens_ativos). Sem coluna de manutenção — ver
+        relatorio_manutencoes, separado por decisão de escopo.
+        """
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Bens ativos"
+        st = _wb_styles()
+
+        colunas = [("Tombo", 16), ("Descrição", 45), ("Marca/modelo", 25), ("Nota fiscal", 18)]
+
+        # Coluna A reservada pro logo; título desloca uma coluna (B1:E1)
+        ws.row_dimensions[1].height = 25
+        _aplicar_logo(ws, 1, 1, altura_linha_pt=25)
+        ws.merge_cells('B1:E1')
+        cell_p = ws['B1']
+        cell_p.value = f"Bens ativos — {len(bens)} bem(ns)"
+        cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+        cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+        def _nome_loc(bem):
+            return bem.localizacao.nome_completo if bem.localizacao else "—"
+
+        row = 2
+        localizacao_atual = None
+        for bem in bens:
+            nome_loc = _nome_loc(bem)
+            if nome_loc != localizacao_atual:
+                localizacao_atual = nome_loc
+                qtd_grupo = sum(1 for b in bens if _nome_loc(b) == nome_loc)
+                ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=len(colunas))
+                cell_sec = ws.cell(row=row, column=1, value=f"{nome_loc} ({qtd_grupo} bem(ns))")
+                cell_sec.font = st["hft"]
+                cell_sec.fill = st["hf"]
+                cell_sec.alignment = Alignment(horizontal="left", vertical="center")
+                for col in range(1, len(colunas) + 1):
+                    ws.cell(row=row, column=col).border = st["border"]
+                ws.row_dimensions[row].height = 22
+                row += 1
+                _aplicar_header(ws, colunas, st, row_idx=row)
+                row += 1
+
+            _aplicar_linha(ws, row, [
+                bem.tombo, bem.descricao, bem.marca_modelo or "—", bem.nota_fiscal or "—",
+            ], st)
+            row += 1
+
+        ws.freeze_panes = "A2"
+        caminho = XlsxBuilder._nome_arquivo("bens_ativos")
+        wb.save(caminho)
+        logger.info("Relatório de bens ativos gerado: %s (%d bens)", caminho, len(bens))
+        return caminho
+
+    # ── 8. Histórico de movimentação (MOD-07, T-27/RF-35) ───────────────────
+
+    _TIPO_MOV_LABEL = {
+        "cadastro": "Cadastro", "transferencia": "Transferência",
+        "ajuste_inventario": "Ajuste de inventário", "baixa": "Baixa",
+    }
+
+    @staticmethod
+    def relatorio_historico_movimentacao(movs: list, data_ini, data_fim) -> Path:
+        """Movimentações de bens patrimoniais num período, todas as origens/tipos."""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Histórico de Movimentação"
+        st = _wb_styles()
+
+        colunas = [
+            ("Data/Hora", 18), ("Tombo", 16), ("Descrição", 40), ("Tipo", 20),
+            ("Origem", 26), ("Destino", 26), ("Motivo", 30), ("Usuário", 20),
+        ]
+
+        # Coluna A reservada pro logo; título desloca uma coluna (B1:I1)
+        ws.row_dimensions[1].height = 25
+        _aplicar_logo(ws, 1, 1, altura_linha_pt=25)
+        ws.merge_cells('B1:I1')
+        cell_p = ws['B1']
+        cell_p.value = f"Período: {data_ini.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
+        cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+        cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+        _aplicar_header(ws, colunas, st, row_idx=2)
+
+        for i, mov in enumerate(movs, 3):
+            _aplicar_linha(ws, i, [
+                formatar(mov.data_hora, "%d/%m/%Y %H:%M"),
+                mov.bem.tombo,
+                mov.bem.descricao,
+                XlsxBuilder._TIPO_MOV_LABEL.get(mov.tipo.value, mov.tipo.value),
+                mov.localizacao_origem.nome_completo if mov.localizacao_origem else "—",
+                mov.localizacao_destino.nome_completo if mov.localizacao_destino else "—",
+                mov.motivo or "—",
+                mov.usuario.nome,
+            ], st)
+
+        ws.freeze_panes = "A3"
+        caminho = XlsxBuilder._nome_arquivo("historico_movimentacao_patrimonio")
+        wb.save(caminho)
+        logger.info("Relatório de histórico de movimentação gerado: %s (%d linhas)", caminho, len(movs))
+        return caminho
+
+    # ── 9. Bens descartados/inativados (MOD-07, T-27/RF-35) ─────────────────
+
+    _MOTIVO_BAIXA_LABEL = {
+        "descarte": "Descarte", "doacao": "Doação", "venda": "Venda",
+        "extravio": "Extravio", "obsolescencia": "Obsolescência", "sinistro": "Sinistro",
+    }
+
+    @staticmethod
+    def relatorio_bens_baixados(baixas: list, data_ini, data_fim) -> Path:
+        """Bens baixados (descartados/inativados) num período, com motivo e documentação."""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Bens Baixados"
+        st = _wb_styles()
+
+        colunas = [
+            ("Tombo", 16), ("Descrição", 40), ("Motivo", 20), ("Data baixa", 14),
+            ("Documento", 22), ("MTR", 16), ("Laudo", 16), ("Usuário", 20),
+        ]
+
+        # Coluna A reservada pro logo; título desloca uma coluna (B1:I1)
+        ws.row_dimensions[1].height = 25
+        _aplicar_logo(ws, 1, 1, altura_linha_pt=25)
+        ws.merge_cells('B1:I1')
+        cell_p = ws['B1']
+        cell_p.value = (f"Bens descartados/inativados — {data_ini.strftime('%d/%m/%Y')} "
+                        f"a {data_fim.strftime('%d/%m/%Y')}")
+        cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+        cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+        _aplicar_header(ws, colunas, st, row_idx=2)
+
+        for i, baixa in enumerate(baixas, 3):
+            _aplicar_linha(ws, i, [
+                baixa.bem.tombo,
+                baixa.bem.descricao,
+                XlsxBuilder._MOTIVO_BAIXA_LABEL.get(baixa.motivo.value, baixa.motivo.value),
+                baixa.data_baixa.strftime("%d/%m/%Y"),
+                baixa.documento or "—",
+                baixa.numero_mtr or "—",
+                baixa.numero_laudo or "—",
+                baixa.usuario.nome,
+            ], st, fill=st["vf"], font=st["vft"])
+
+        ws.freeze_panes = "A3"
+        caminho = XlsxBuilder._nome_arquivo("bens_baixados")
+        wb.save(caminho)
+        logger.info("Relatório de bens baixados gerado: %s (%d bens)", caminho, len(baixas))
+        return caminho
+
+    # ── 10. Manutenções (MOD-07, T-27/RF-35) ─────────────────────────────────
+
+    @staticmethod
+    def relatorio_manutencoes(manutencoes: list) -> Path:
+        """Manutenções realizadas em bens patrimoniais — todo o histórico ou um período."""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Manutenções"
+        st = _wb_styles()
+
+        colunas = [
+            ("Tombo", 16), ("Descrição", 40), ("Data manutenção", 16),
+            ("Serviço realizado", 50), ("Registrado por", 20),
+        ]
+
+        # Coluna A reservada pro logo; título desloca uma coluna (B1:F1)
+        ws.row_dimensions[1].height = 25
+        _aplicar_logo(ws, 1, 1, altura_linha_pt=25)
+        ws.merge_cells('B1:F1')
+        cell_p = ws['B1']
+        cell_p.value = f"Manutenções — {len(manutencoes)} registro(s)"
+        cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
+        cell_p.alignment = Alignment(horizontal="center", vertical="center")
+
+        _aplicar_header(ws, colunas, st, row_idx=2)
+
+        for i, m in enumerate(manutencoes, 3):
+            _aplicar_linha(ws, i, [
+                m.bem.tombo, m.bem.descricao, m.data_manutencao.strftime("%d/%m/%Y"),
+                m.descricao, m.usuario.nome,
+            ], st)
+
+        ws.freeze_panes = "A3"
+        caminho = XlsxBuilder._nome_arquivo("manutencoes")
+        wb.save(caminho)
+        logger.info("Relatório de manutenções gerado: %s (%d registros)", caminho, len(manutencoes))
         return caminho

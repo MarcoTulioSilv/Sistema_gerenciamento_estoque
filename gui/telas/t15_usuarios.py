@@ -246,9 +246,28 @@ class PainelUsuario(ctk.CTkFrame):
             sec1, values=list(_LABEL_PERFIL.keys()),
             width=200, height=32, corner_radius=6,
             fg_color=COR_CINZA_E, button_color=COR_AZUL_M, text_color="#3d3d3a",
+            command=self._ao_mudar_perfil,
         )
         self._opt_perfil.set("Técnico")
         self._opt_perfil.pack(anchor="w", padx=14, pady=(2, 8))
+
+        sec_patrim = SecaoFormulario(scroll, titulo="Acesso ao Patrimônio")
+        sec_patrim.pack(fill="x", pady=(0, 10))
+
+        self._var_patrimonio = ctk.BooleanVar(value=False)
+        self._chk_patrimonio = ctk.CTkCheckBox(
+            sec_patrim, text="Acesso ao módulo de Patrimônio",
+            variable=self._var_patrimonio,
+            text_color="#3d3d3a", font=ctk.CTkFont(size=12),
+        )
+        self._chk_patrimonio.pack(anchor="w", padx=14, pady=(0, 4))
+
+        self._lbl_nota_patrim = ctk.CTkLabel(
+            sec_patrim, text="", text_color="#888780",
+            font=ctk.CTkFont(size=10), anchor="w")
+        self._lbl_nota_patrim.pack(anchor="w", padx=14, pady=(0, 10))
+
+        self._ao_mudar_perfil(self._opt_perfil.get())
 
         sec2 = SecaoFormulario(scroll, titulo="Senha")
         sec2.pack(fill="x", pady=(0, 10))
@@ -281,6 +300,16 @@ class PainelUsuario(ctk.CTkFrame):
                       fg_color=COR_AZUL_M, hover_color="#1a5276",
                       command=self._salvar).pack(side="left")
 
+    def _ao_mudar_perfil(self, perfil_label: str):
+        """TI acessa o Patrimônio por definição (RF-39) — checkbox fica travada nesse caso."""
+        eh_ti = _LABEL_PERFIL.get(perfil_label) == PerfilEnum.ti
+        if eh_ti:
+            self._chk_patrimonio.configure(state="disabled")
+            self._lbl_nota_patrim.configure(text="TI tem acesso automático, independente desta opção.")
+        else:
+            self._chk_patrimonio.configure(state="normal")
+            self._lbl_nota_patrim.configure(text="Concessão exclusiva do perfil TI (RN-22).")
+
     def _carregar(self, uid: int):
         try:
             dados = UsuarioService.buscar(uid)
@@ -288,6 +317,8 @@ class PainelUsuario(ctk.CTkFrame):
                 self._campo_nome.set(dados.nome)
                 self._campo_login.set(dados.login)
                 self._opt_perfil.set(_PERFIS_LABEL.get(dados.perfil, dados.perfil.value))
+                self._var_patrimonio.set(dados.acesso_patrimonio)
+                self._ao_mudar_perfil(self._opt_perfil.get())
         except Exception as exc:
             self._banner.erro(f"Erro ao carregar: {exc}")
 
@@ -307,6 +338,8 @@ class PainelUsuario(ctk.CTkFrame):
             self._banner.erro("Selecione um perfil válido.")
             return
 
+        acesso_patrimonio = self._var_patrimonio.get()
+
         try:
             if self._usuario_id:
                 UsuarioService.editar(
@@ -315,6 +348,7 @@ class PainelUsuario(ctk.CTkFrame):
                     login      = login,
                     perfil     = perfil_enum,
                     nova_senha = senha or None,
+                    acesso_patrimonio = acesso_patrimonio,
                 )
                 msg = f"Usuário '{nome}' atualizado com sucesso."
             else:
@@ -323,6 +357,7 @@ class PainelUsuario(ctk.CTkFrame):
                     login  = login,
                     senha  = senha,
                     perfil = perfil_enum,
+                    acesso_patrimonio = acesso_patrimonio,
                 )
                 msg = f"Usuário '{nome}' criado com sucesso."
 

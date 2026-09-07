@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 
 import customtkinter as ctk
 
-from zoneinfo import ZoneInfo
+from fuso_horario import formatar
 from gui.componentes.form_widgets import FeedbackBanner
 from Modulo_02_estoque import EstoqueService
 from Modulo_04_notificacoes import NotificacaoService
@@ -40,42 +40,6 @@ _COLUNAS_MOV = [
     ("Observação",   200),
     ("Resultado",     80),
 ]
-
-from zoneinfo import ZoneInfo
-from datetime import datetime
-
-def formatar_data_utc_para_local(data_banco):
-        if not data_banco:
-            return "—"
-        # 1. Se o dado chegar como texto, forçamos a limpeza e conversão
-        if isinstance(data_banco, str):
-            # Removemos os milissegundos cortando tudo o que vier a seguir ao ponto
-            data_str = data_banco.split('.')[0]
-            
-            # Verificamos o formato da string para a converter num objeto datetime
-            if "-" in data_str:
-                # Formato ISO (MySQL): 2026-06-19 19:24:00
-                data_banco = datetime.strptime(data_str, "%Y-%m-%d %H:%M:%S")
-            elif data_str.count(":") == 1: 
-                # Formato PT/BR sem segundos: 19/06/2026 19:24
-                data_banco = datetime.strptime(data_str, "%d/%m/%Y %H:%M")
-            else:
-                # Formato PT/BR com segundos: 19/06/2026 19:24:00
-                data_banco = datetime.strptime(data_str, "%d/%m/%Y %H:%M:%S")
-
-        # 2. Tendo garantidamente um objeto datetime, aplicamos a conversão de fuso horário
-        if isinstance(data_banco, datetime):
-            # Carimbamos a data como pertencente ao fuso UTC, caso seja ingénua (naive)
-            if data_banco.tzinfo is None:
-                data_utc_aware = data_banco.replace(tzinfo=ZoneInfo("UTC"))
-            else:
-                data_utc_aware = data_banco
-                
-            # Convertêmo-la para a hora local
-            data_local = data_utc_aware.astimezone(ZoneInfo("America/Sao_Paulo"))
-            return data_local.strftime("%d/%m/%Y %H:%M:%S")
-            
-        return str(data_banco)
 
 class TelaLog(ctk.CTkFrame):
     """T-19 — Log de operações do sistema (somente leitura)."""
@@ -198,7 +162,13 @@ class TelaLog(ctk.CTkFrame):
             # Movimentações
             if tipo_sel in ("Todas as operações", "Entradas", "Saídas",
                             "Transferências", "Baixas (vencido)"):
-                movs = EstoqueService.listar_movimentacoes_no_periodo(ini_dt, fim_dt, limite=500)
+                # limite alto de propósito: a query já filtra pelo período (ini_dt/fim_dt)
+                # e ordena DESC — um limite baixo corta silenciosamente os registros
+                # mais ANTIGOS do período sempre que o total no intervalo passa do
+                # limite (ex.: mês corrente com bastante movimento esconde tudo antes
+                # dele, mesmo escolhendo uma data "De:" bem anterior). A paginação em
+                # tela (_itens_por_pagina, scroll infinito) já cuida de exibir aos poucos.
+                movs = EstoqueService.listar_movimentacoes_no_periodo(ini_dt, fim_dt, limite=5000)
                 _TIPO_LABEL = {
                     "entrada_manual": "Entrada manual",
                     "entrada_nfe":    "Entrada NF-e",
@@ -225,7 +195,7 @@ class TelaLog(ctk.CTkFrame):
                             f"Lote {m.lote.num_lote}"
                         )
                     linhas.append({
-                        "data_hora":  m.data_hora.strftime("%d/%m/%Y %H:%M:%S"),
+                        "data_hora":  m.data_hora,
                         "_sort_dt":   m.data_hora,
                         "usuario":    m.usuario.nome[:14] if m.usuario else "Sistema",
                         "operacao":   _TIPO_LABEL.get(m.tipo.value, m.tipo.value),
@@ -239,7 +209,7 @@ class TelaLog(ctk.CTkFrame):
 
             # Alertas
             if tipo_sel in ("Todas as operações", "Alertas enviados"):
-                alertas = NotificacaoService.listar_notificacoes_no_periodo(ini_dt, fim_dt, limite=200)
+                alertas = NotificacaoService.listar_notificacoes_no_periodo(ini_dt, fim_dt, limite=2000)
                 for a in alertas:
                     produto_lote = "—"
                     if a.lote and a.lote.produto:
@@ -247,7 +217,7 @@ class TelaLog(ctk.CTkFrame):
                             f"{a.lote.produto.nome[:18]} | Lote {a.lote.num_lote}"
                         )
                     linhas.append({
-                        "data_hora":  a.enviado_em.strftime("%d/%m/%Y %H:%M:%S"),
+                        "data_hora":  a.enviado_em,
                         "_sort_dt":   a.enviado_em,
                         "usuario":    "Sistema",
                         "operacao":   f"Alerta {a.tipo_alerta.value}",
@@ -261,10 +231,10 @@ class TelaLog(ctk.CTkFrame):
 
             # Jobs scheduler
             if tipo_sel in ("Todas as operações", "Jobs scheduler"):
-                jobs = NotificacaoService.listar_job_logs_no_periodo(ini_dt, fim_dt, limite=100)
+                jobs = NotificacaoService.listar_job_logs_no_periodo(ini_dt, fim_dt, limite=1000)
                 for j in jobs:
                     linhas.append({
-                        "data_hora":  j.executado_em.strftime("%d/%m/%Y %H:%M:%S"),
+                        "data_hora":  j.executado_em,
                         "_sort_dt":   j.executado_em,
                         "usuario":    "Scheduler",
                         "operacao":   j.job_nome[:20],
@@ -305,15 +275,21 @@ class TelaLog(ctk.CTkFrame):
 
 
     def _renderizar_proxima_pagina(self):
-        self._carregando_pagina = True 
-        
+        self._carregando_pagina = True
+
         inicio = self._pagina_atual * self._itens_por_pagina
         fim = inicio + self._itens_por_pagina
-        
+
         lote_linhas = self._lista_filtrada_atual[inicio:fim]
-        self._renderizar(lote_linhas, limpar_tela=False)
-        
-        self._pagina_atual += 1
+        if lote_linhas:
+            self._renderizar(lote_linhas, limpar_tela=False)
+            self._pagina_atual += 1
+        elif self._pagina_atual == 0:
+            # Primeira página sem nenhum resultado — chama _renderizar mesmo
+            # vazia para exibir "Nenhum registro encontrado" (sem incrementar
+            # _pagina_atual, então o monitor de scroll não insiste depois).
+            self._renderizar([], limpar_tela=False)
+
         self.after(100, lambda: setattr(self, '_carregando_pagina', False))
 
     def _monitorar_scroll(self):
@@ -345,32 +321,48 @@ class TelaLog(ctk.CTkFrame):
 
         col_widths = [c[1] for c in _COLUNAS_MOV]
 
+        # Fontes criadas UMA vez e reaproveitadas em toda linha/lote — criar
+        # um CTkFont novo por célula (era o padrão anterior) soma centenas de
+        # objetos por lote de paginação, e piora a cada novo lote carregado
+        # via scroll infinito (era um fator real no travamento da paginação
+        # depois de alguns lotes: o canvas ia ficando cada vez mais pesado).
+        if not hasattr(self, "_font_linha"):
+            self._font_linha = ctk.CTkFont(size=11)
+            self._font_badge = ctk.CTkFont(size=9, weight="bold")
+
         for i, d in enumerate(linhas):
             bg = COR_BRANCO if i % 2 == 0 else COR_CINZA_E
             row = ctk.CTkFrame(self._scroll, fg_color=bg, corner_radius=0)
             row.pack(fill="x")
             row.grid_columnconfigure(3, weight=1)  # Detalhe é a coluna que expande
 
-            data_formatada = formatar_data_utc_para_local(d["data_hora"])
+            data_formatada = formatar(d["data_hora"], "%d/%m/%Y %H:%M:%S")
             valores = [
                 data_formatada, d["usuario"], d["operacao"],
                 d["detalhe"],   d["qtd"],     d["nf"], d["obs"],
             ]
             for col, (val, larg) in enumerate(zip(valores, col_widths)):
                 ctk.CTkLabel(row, text=val, text_color="#3d3d3a",
-                             font=ctk.CTkFont(size=11), width=larg,
+                             font=self._font_linha, width=larg,
                              anchor="w").grid(row=0, column=col, padx=4, pady=5, sticky="w")
 
             # Resultado (badge)
             fg_r = "#EAF3DE" if d["cor_res"] == COR_VERDE else "#FCEBEB"
             ctk.CTkLabel(row, text=d["resultado"],
                          fg_color=fg_r, text_color=d["cor_res"],
-                         font=ctk.CTkFont(size=9, weight="bold"),
+                         font=self._font_badge,
                          corner_radius=6, padx=6, pady=2, width=80).grid(
                 row=0, column=7, padx=4, pady=5)
 
         self._lbl_rodape.configure(
             text=f"{len(linhas)} registro(s) exibidos — somente leitura.")
+
+        # Força o canvas do CTkScrollableFrame a recalcular a região de
+        # rolagem AGORA — sem isso, o yview() consultado pelo monitor de
+        # scroll (_monitorar_scroll) pode ficar temporariamente desatualizado
+        # em relação às linhas recém-adicionadas, e depois de alguns lotes a
+        # detecção de "chegou perto do fim" para de disparar corretamente.
+        self._scroll.update_idletasks()
     
     def limpar_memoria(self):
         """Limpa as centenas de registros de log baixados do banco."""

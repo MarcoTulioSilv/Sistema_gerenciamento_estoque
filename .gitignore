@@ -29,6 +29,8 @@ backups/
 # backup.env já cai em "*.env" acima; backup.env.example fica versionado.
 backup_script/Backups_SCE/
 backup_script/*.sql
+# gerado pelo instalar_tarefa.bat no servidor (caminho do Python é local)
+backup_script/executar_backup.bat
 
 # ─── IDEs ────────────────────────────────────────────────
 .idea/

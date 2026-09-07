@@ -41,11 +41,31 @@ _PERMISSOES: dict[str,list[str]]={
     # Ações de negócio (usadas pelos serviços)
     "registrar_entrada":  ["tecnico","admin", "ti"],
     "registrar_retirada": ["tecnico","admin", "ti"],
+    "registrar_transferencia": ["tecnico","admin", "ti"],
     "gerar_relatorio":    ["admin", "ti"],
     "alterar_estoque_minimo": ["admin", "ti"],
     "gerenciar_usuarios": ["ti"],
     "acessar_backup":     ["ti"],
     "ver_log":            ["ti"],
+    # MOD-07 — Patrimônio (Sprint 9)
+    "bens_patrimoniais":     ["tecnico", "admin", "ti"],
+    "novo_bem":               ["tecnico", "admin", "ti"],
+    "movimentar_bem":         ["tecnico", "admin", "ti"],
+    "baixar_bem":             ["admin", "ti"],
+    "cadastrar_localizacao":  ["ti"],
+    "editar_localizacao":     ["ti"],
+    "desativar_localizacao":  ["ti"],
+    # MOD-07 — Patrimônio v1.8 (Sprint 10, Bloco 4)
+    "localizacoes":          ["ti"],                     # T-28 — RF-27
+    "registrar_manutencao":  ["tecnico", "admin", "ti"],  # RF-38
+    # MOD-07 — Patrimônio (Sprint 11 — InventarioService / T-26)
+    "abrir_sessao_inventario":   ["admin", "ti"],
+    "fechar_sessao_inventario":  ["admin", "ti"],
+    "cancelar_sessao_inventario":["admin", "ti"],
+    # MOD-07 — Patrimônio (T-27 — relatórios)
+    "relatorios_patrimonio": ["admin", "ti"],  # RF-35 — Gestora (admin) + TI
+    # MOD-07 — Patrimônio (T-30 — log de auditoria)
+    "log_patrimonio": ["ti"],
 }
 
 class PermissionGuard:

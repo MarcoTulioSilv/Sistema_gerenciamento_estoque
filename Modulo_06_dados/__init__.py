@@ -8,7 +8,13 @@ from .models import  (
     Usuario, Produto, Lote, Movimentacao,
     NotificacaoLog, JobLog, Configuracao, RelatorioAgendamento, GrupoConsumo,
     PerfilEnum, CentroAlocacaoEnum, UnidadeEstoqueEnum,
-    TipoMovimentacaoEnum, TipoAlertaEnum, PeriodicidadeEnum, TipoRelatorioEnum, VwSaldoProduto
+    TipoMovimentacaoEnum, TipoAlertaEnum, PeriodicidadeEnum, TipoRelatorioEnum, VwSaldoProduto,
+    Localizacao, BemPatrimonial, MovimentacaoBem, BaixaBem,
+    SituacaoBemEnum, TipoMovimentacaoBemEnum, MotivoBaixaEnum,
+    ManutencaoBem, BaixaDocumento,
+    Inventario, InventarioItem, InventarioSobra, ColetaToken, ColetaConvite,
+    EscopoInventarioEnum, StatusInventarioEnum, StatusItemInventarioEnum, TipoSobraEnum,
+    LogPatrimonio, TipoEventoLogEnum,
 )
 
 __all__ = [
@@ -16,5 +22,11 @@ __all__ = [
     "Usuario", "Produto", "Lote", "Movimentacao",
     "NotificacaoLog", "JobLog", "Configuracao", "RelatorioAgendamento", "GrupoConsumo",
     "PerfilEnum", "CentroAlocacaoEnum", "UnidadeEstoqueEnum",
-    "TipoMovimentacaoEnum", "TipoAlertaEnum", "PeriodicidadeEnum", "TipoRelatorioEnum", "VwSaldoProduto"
+    "TipoMovimentacaoEnum", "TipoAlertaEnum", "PeriodicidadeEnum", "TipoRelatorioEnum", "VwSaldoProduto",
+    "Localizacao", "BemPatrimonial", "MovimentacaoBem", "BaixaBem",
+    "SituacaoBemEnum", "TipoMovimentacaoBemEnum", "MotivoBaixaEnum",
+    "ManutencaoBem", "BaixaDocumento",
+    "Inventario", "InventarioItem", "InventarioSobra", "ColetaToken", "ColetaConvite",
+    "EscopoInventarioEnum", "StatusInventarioEnum", "StatusItemInventarioEnum", "TipoSobraEnum",
+    "LogPatrimonio", "TipoEventoLogEnum",
 ]

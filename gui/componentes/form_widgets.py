@@ -548,6 +548,12 @@ class FeedbackBanner(ctk.CTkFrame):
             self.after_cancel(self._timer)
             self._timer=None
             self._lbl.pack_forget()
+            self.configure(height=1)
 
     def _ocultar(self):
+        # CTkFrame não encolhe sozinho quando o único filho é removido
+        # (pack_propagate não recalcula a altura do canvas interno) — sem
+        # o configure(height=1) explícito, o banner deixa um espaço vazio
+        # do tamanho da última mensagem exibida.
         self._lbl.pack_forget()
+        self.configure(height=1)

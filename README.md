@@ -1,6 +1,6 @@
 # SCE — Sistema de Controle de Estoque
 
-Aplicação desktop para gestão de estoque hospitalar/farmacêutico do **Centro de Uronefrologia**, com rastreabilidade de insumos e medicamentos (EAN, lotes, validade e fracionamento), envio automático de relatórios por e-mail e importação de notas fiscais (DANFE) para entrada de produtos.
+Aplicação desktop para gestão de estoque hospitalar/farmacêutico do **Centro de Uro-Nefrologia**, com rastreabilidade de insumos e medicamentos (EAN, lotes, validade e fracionamento), envio automático de relatórios por e-mail e importação de notas fiscais (DANFE) para entrada de produtos.
 
 ## Stack tecnológica
 

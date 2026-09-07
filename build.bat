@@ -2,7 +2,7 @@
 setlocal
 
 :: ── Configuração ──────────────────────────────────────────────
-set VERSION=1.0.5
+set VERSION=1.1.1
 set SHARE=\\192.168.0.150\SCE_Updates
 if exist .env (
     for /f "tokens=2 delims==" %%s in ('findstr /b "UPDATE_SHARE=" .env') do set SHARE=%%s
@@ -12,7 +12,7 @@ set INSTALLER=SCE_Setup_%VERSION%.exe
 
 echo.
 echo ╔══════════════════════════════════════════╗
-echo ║   SCE Uronefrologia — Build %VERSION%    ║
+echo ║   SCE Uro-Nefrologia — Build %VERSION%   ║
 echo ╚══════════════════════════════════════════╝
 echo.
 

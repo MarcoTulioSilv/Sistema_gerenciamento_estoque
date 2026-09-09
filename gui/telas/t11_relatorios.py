@@ -5,11 +5,13 @@ Tela T-11 — Central de relatórios com Visualização, Envio e Filtros Dinâmi
 import logging
 import shutil
 import threading
+import unicodedata
 from datetime import date, datetime
 from tkinter import ttk, filedialog, messagebox
 import customtkinter as ctk
 from fuso_horario import formatar
 from gui.componentes.form_widgets import FeedbackBanner
+from gui.componentes.filtro_multiselect import FiltroMultiSelect
 from Modulo_03_relatorios import RelatorioService
 
 logger = logging.getLogger(__name__)
@@ -135,10 +137,11 @@ class TelaCentralRelatorios(ctk.CTkFrame):
         self._card_est.configurar_acao(
             lambda: self._abrir_tabela(
                 "Estoque Atual",
-                ["Produto", "Centro", "Lote", "NF", "Fab.", "Venc.", "Qtd Ini", "Qtd Atual", "Vlr Unit", "Vlr Total", "Situação"],
+                ["Produto", "Centro", "Lote","Unidade","NF", "Fab.", "Venc.", "Qtd Ini", "Qtd Atual", "Vlr Unit", "Vlr Total", "Situação"],
                 RelatorioService.buscar_dados_estoque_atual,
                 RelatorioService.gerar_e_enviar_estoque_atual,
-                filtros_config=[("Centro:", 1), ("Situação:", 10)]
+                RelatorioService.gerar_estoque_atual,
+                filtros_config=[("Centro:", 1), ("Situação:", 11)],
             )
         )
 
@@ -153,10 +156,12 @@ class TelaCentralRelatorios(ctk.CTkFrame):
         self._card_venc.configurar_acao(
             lambda: self._abrir_tabela(
                 "A Vencer (30 Dias)",
-                ["Produto", "Centro", "Lote", "NF", "Vencimento", "Dias Restantes", "Qtd.", "Urgência"],
+                ["Produto", "Centro", "Lote", "Unidade", "NF", "Vencimento", "Dias Restantes", "Qtd.", "Urgência"],
                 RelatorioService.buscar_dados_a_vencer,
                 RelatorioService.gerar_e_enviar_a_vencer,
-                filtros_config=[("Centro:", 1), ("Urgência:", 7)]
+                RelatorioService.gerar_a_vencer,
+                filtros_config=[("Centro:", 1), ("Urgência:", 8)],
+                args_base=(30,),
             )
         )
 
@@ -174,7 +179,8 @@ class TelaCentralRelatorios(ctk.CTkFrame):
                 ["Produto", "Centro", "Fornecedor", "Lote", "NF", "Vencimento", "Dias Vencido", "Qtd.", "Valor Estoque"],
                 RelatorioService.buscar_dados_lotes_vencidos,
                 RelatorioService.gerar_e_enviar_lotes_vencidos,
-                filtros_config=[("Centro:", 1)]
+                RelatorioService.gerar_lotes_vencidos,
+                filtros_config=[("Centro:", 1)],
             )
         )
 
@@ -221,8 +227,9 @@ class TelaCentralRelatorios(ctk.CTkFrame):
             f"Consumo Médio ({meses} meses: {rotulos_meses[0]} a {rotulos_meses[-1]})",
             colunas,
             lambda: RelatorioService.buscar_dados_consumo_medio(meses)[1],
-            lambda: RelatorioService.enviar_consumo_medio(meses),
-            func_gerar_arquivo=lambda: RelatorioService.gerar_consumo_medio(meses),
+            RelatorioService.enviar_consumo_medio,
+            RelatorioService.gerar_consumo_medio,
+            args_base=(meses,),
         )
 
     def _iniciar_vis_movimentacao(self):
@@ -237,18 +244,34 @@ class TelaCentralRelatorios(ctk.CTkFrame):
         
         self._abrir_tabela(
             f"Movimentação ({ini.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')})",
-            ["Data/Hora", "Produto", "Lote", "NF", "Tipo", "Qtd.", "Usuário", "Observação"],
+            ["Data/Hora", "Produto", "Lote", "Unidade", "NF", "Tipo", "Qtd.", "Usuário", "Observação"],
             lambda: RelatorioService.buscar_dados_movimentacao(ini, fim),
-            lambda: RelatorioService.gerar_e_enviar_movimentacao(ini, fim),
-            filtros_config=[("Tipo:", 4), ("Usuário:", 6)]
+            RelatorioService.gerar_e_enviar_movimentacao,
+            RelatorioService.gerar_movimentacao,
+            filtros_config=[("Tipo:", 5), ("Usuário:", 7)],
+            args_base=(ini, fim),
+            func_mapear_usuarios=lambda: RelatorioService.mapear_usuarios_movimentacao(ini, fim),
         )
 
     # ── Tela 2: Visualização da Tabela com Filtros ────────────────────────────
 
-    def _abrir_tabela(self, titulo_relatorio, colunas, func_buscar_dados, func_enviar_email,
-                       filtros_config=None, func_gerar_arquivo=None):
+    def _abrir_tabela(self, titulo_relatorio, colunas, func_buscar_dados, servico_enviar,
+                       servico_gerar=None, filtros_config=None, args_base=(),
+                       func_mapear_usuarios=None):
+        """
+        `servico_enviar`/`servico_gerar` são as referências "puras" do
+        método de serviço (não closures pré-montadas) — a chamada final só
+        é montada no clique de Enviar/Baixar, lendo o estado ATUAL dos
+        filtros (`self._filtros_atuais()`), porque os widgets de filtro
+        ainda nem existem no momento em que este método começa a rodar.
+        `args_base` são os argumentos fixos do relatório (período/dias);
+        os argumentos de filtro (multi-seleção) são concatenados depois,
+        na mesma ordem de `filtros_config`.
+        """
         self._limpar_container()
         self._lbl_titulo_topbar.configure(text=f"Central de relatórios → {titulo_relatorio}")
+        self._func_mapear_usuarios = func_mapear_usuarios
+        self._usuario_nome_para_id = {}
 
         # 1. Barra de Ferramentas Superior
         toolbar = ctk.CTkFrame(self._container, fg_color=COR_BRANCO, height=50, corner_radius=6)
@@ -263,15 +286,18 @@ class TelaCentralRelatorios(ctk.CTkFrame):
         btn_enviar = ctk.CTkButton(
             toolbar, text="✉️ Enviar por E-mail (XLSX)", width=180, height=32,
             fg_color=COR_VERDE, hover_color="#147556",
-            command=lambda: self._disparar_envio_email(func_enviar_email)
+            command=lambda: self._disparar_envio_email(
+                lambda: servico_enviar(*args_base, *self._filtros_atuais(), self._termo_busca_atual()))
         )
         btn_enviar.pack(side="right", padx=12, pady=9)
 
-        if func_gerar_arquivo is not None:
+        if servico_gerar is not None:
             btn_baixar = ctk.CTkButton(
                 toolbar, text="💾 Baixar (XLSX)", width=150, height=32,
                 fg_color=COR_AZUL, hover_color="#163a5c",
-                command=lambda: self._disparar_download(func_gerar_arquivo)
+                command=lambda: self._disparar_download(
+                    lambda: servico_gerar(*args_base, *self._filtros_atuais(), self._termo_busca_atual()),
+                    titulo_relatorio)
             )
             btn_baixar.pack(side="right", padx=(0, 6), pady=9)
 
@@ -294,20 +320,14 @@ class TelaCentralRelatorios(ctk.CTkFrame):
         self._entry_busca.pack(side="left", fill="x", expand=True, padx=(12, 8), pady=10)
         self._entry_busca.bind("<KeyRelease>", lambda e: self._aplicar_filtros())
 
-        self._combos_filtro = []
+        self._filtros_multiselect = []
         if filtros_config:
             for label_texto, col_idx in filtros_config:
-                lbl = ctk.CTkLabel(frame_filtros, text=label_texto, font=ctk.CTkFont(size=11, weight="bold"), text_color="#5F5E5A")
-                lbl.pack(side="left", padx=(6, 2), pady=10)
-                
-                combo = ctk.CTkComboBox(
-                    frame_filtros, values=["Todos"], width=135, height=32, corner_radius=6,
-                    fg_color=COR_CINZA_E, border_color=COR_CINZA_B, text_color="#3d3d3a",
-                    command=lambda val: self._aplicar_filtros()
+                filtro = FiltroMultiSelect(
+                    frame_filtros, label=label_texto, on_change=self._aplicar_filtros,
                 )
-                combo.set("Todos")
-                combo.pack(side="left", padx=(0, 8), pady=10)
-                self._combos_filtro.append((combo, col_idx))
+                filtro.pack(side="left", padx=(0, 8), pady=10)
+                self._filtros_multiselect.append((filtro, col_idx, label_texto))
 
         btn_limpar = ctk.CTkButton(
             frame_filtros, text="✖ Limpar", width=80, height=32,
@@ -327,7 +347,7 @@ class TelaCentralRelatorios(ctk.CTkFrame):
         
         for col in colunas:
             self._tree.heading(col, text=col)
-            if col in ("Produto", "Observação", "Fornecedor"):
+            if col in ("Produto", "Fornecedor"):
                 self._tree.column(col, width=240, minwidth=180, anchor="w", stretch=True)
             elif col == "Produto/Grupo":
                 self._tree.column(col, width=260, minwidth=200, anchor="w", stretch=True)
@@ -363,36 +383,71 @@ class TelaCentralRelatorios(ctk.CTkFrame):
         def _carregar():
             try:
                 dados = func_buscar_dados()
-                self.after(0, lambda: self._configurar_dados_iniciais(dados, titulo_relatorio))
+                usuarios_map = func_mapear_usuarios() if func_mapear_usuarios else {}
+                self.after(0, lambda: self._configurar_dados_iniciais(dados, titulo_relatorio, usuarios_map))
             except Exception as exc:
                 logger.error("Erro ao buscar dados do relatório: %s", exc)
                 self.after(0, lambda: self._banner.erro(f"Erro ao consultar banco: {exc}"))
 
         threading.Thread(target=_carregar, daemon=True).start()
 
-    def _configurar_dados_iniciais(self, dados, titulo_relatorio):
-        """Salva a lista original na memória, popula os comboboxes de filtro e desenha a tabela."""
+    def _configurar_dados_iniciais(self, dados, titulo_relatorio, usuarios_map=None):
+        """Salva a lista original na memória, popula os filtros e desenha a tabela."""
         self._dados_originais = dados
         self._titulo_relatorio_atual = titulo_relatorio
+        self._usuario_nome_para_id = usuarios_map or {}
 
-        # Popula as opções únicas de cada Combobox dinamicamente
-        for combo, col_idx in self._combos_filtro:
-            unicos = sorted(list(set(
-                str(linha[col_idx]).strip() for linha in dados 
+        # Popula as opções únicas de cada filtro dinamicamente
+        for filtro, col_idx, _ in self._filtros_multiselect:
+            unicos = sorted(set(
+                str(linha[col_idx]).strip() for linha in dados
                 if linha[col_idx] and str(linha[col_idx]).strip() not in ("", "—")
-            )))
-            combo.configure(values=["Todos"] + unicos)
-            combo.set("Todos")
+            ))
+            filtro.configurar_valores(unicos)
 
         self._aplicar_filtros()
 
     def _limpar_filtros_ui(self):
-        """Reseta o campo de busca e todos os comboboxes."""
+        """Reseta o campo de busca e todos os filtros."""
         if hasattr(self, "_entry_busca"):
             self._entry_busca.delete(0, "end")
-        for combo, _ in self._combos_filtro:
-            combo.set("Todos")
+        for filtro, _, _ in self._filtros_multiselect:
+            filtro.limpar()
         self._aplicar_filtros()
+
+    def _termo_busca_atual(self) -> str | None:
+        """
+        Termo digitado na caixa de pesquisa AGORA (lido no clique de Enviar/
+        Baixar, mesmo motivo de `_filtros_atuais`) — sem isso, "Baixar"/
+        "Enviar por e-mail" ignoravam a busca textual mesmo já respeitando
+        os checkboxes de filtro, então o arquivo podia trazer mais linhas
+        do que a pré-visualização em tela. `_TIPO_MOV_HUMANIZADO`/afins nos
+        serviços aplicam o mesmo teste de substring, sem diferenciar caixa,
+        usado em `_aplicar_filtros`.
+        """
+        termo = self._entry_busca.get().strip()
+        return termo or None
+
+    def _filtros_atuais(self) -> tuple:
+        """
+        Estado ATUAL de cada filtro multi-seleção, na mesma ordem declarada
+        em `filtros_config` — é isso que vira os argumentos extras de
+        `servico_enviar`/`servico_gerar` (ver `_abrir_tabela`). Lista vazia
+        == sem filtro (equivalente ao antigo "Todos"). O filtro de
+        "Usuário:" é o único caso especial: mostra nome, mas o serviço
+        espera `usuario_id` — traduzido aqui via `self._usuario_nome_para_id`
+        (populado por `func_mapear_usuarios` em `_configurar_dados_iniciais`).
+        """
+        resultado = []
+        for filtro, _, label_texto in self._filtros_multiselect:
+            marcados = filtro.selecionados()
+            if label_texto == "Usuário:" and marcados:
+                marcados = [
+                    self._usuario_nome_para_id[nome] for nome in marcados
+                    if nome in self._usuario_nome_para_id
+                ]
+            resultado.append(marcados)
+        return tuple(resultado)
 
     def _aplicar_filtros(self):
         """Filtra a lista em memória em tempo real e re-renderiza o Treeview."""
@@ -406,17 +461,16 @@ class TelaCentralRelatorios(ctk.CTkFrame):
             # 1. Filtro de Texto Geral (pesquisa em todas as colunas da linha)
             if termo and not any(termo in str(val).lower() for val in linha):
                 continue
-            
-            # 2. Filtros Específicos de Combobox (Tipo, Usuário, Centro...)
-            passou_combos = True
-            for combo, col_idx in self._combos_filtro:
-                val_combo = combo.get()
-                if val_combo != "Todos":
-                    if str(linha[col_idx]).strip().lower() != val_combo.lower():
-                        passou_combos = False
-                        break
-            
-            if passou_combos:
+
+            # 2. Filtros Específicos multi-seleção (Tipo, Usuário, Centro...)
+            passou_filtros = True
+            for filtro, col_idx, _ in self._filtros_multiselect:
+                marcados = filtro.selecionados()
+                if marcados and str(linha[col_idx]).strip() not in marcados:
+                    passou_filtros = False
+                    break
+
+            if passou_filtros:
                 dados_filtrados.append(linha)
 
         self._renderizar_treeview(dados_filtrados)
@@ -512,11 +566,11 @@ class TelaCentralRelatorios(ctk.CTkFrame):
 
         threading.Thread(target=_run, daemon=True).start()
 
-    def _disparar_download(self, func_gerar_arquivo):
+    def _disparar_download(self, func_gerar_arquivo, titulo_relatorio="relatorio"):
         destino = filedialog.asksaveasfilename(
             defaultextension=".xlsx",
             filetypes=[("Planilha Excel", "*.xlsx")],
-            initialfile=f"consumo_medio_{date.today().strftime('%Y%m%d')}.xlsx",
+            initialfile=f"{_slug(titulo_relatorio)}_{date.today().strftime('%Y%m%d')}.xlsx",
         )
         if not destino:
             return  # usuário cancelou o diálogo
@@ -739,3 +793,12 @@ def _parse_date(texto: str):
 def _primeiro_do_mes() -> str:
     hoje = date.today()
     return date(hoje.year, hoje.month, 1).strftime("%d/%m/%Y")
+
+
+def _slug(texto: str) -> str:
+    """Nome de arquivo seguro a partir do título do relatório (sem acentos/símbolos)."""
+    normalizado = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
+    limpo = "".join(c if c.isalnum() else "_" for c in normalizado)
+    while "__" in limpo:
+        limpo = limpo.replace("__", "_")
+    return limpo.strip("_").lower() or "relatorio"

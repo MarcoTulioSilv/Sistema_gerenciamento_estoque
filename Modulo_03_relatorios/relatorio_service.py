@@ -7,13 +7,17 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime as dt
 from datetime import date, datetime, time, timedelta
 from pathlib  import Path
-from .xlsx_builder import XlsxBuilder
+from .xlsx_builder import (
+    XlsxBuilder, _TIPO_MOV_HUMANIZADO,
+    SITUACAO_NORMAL, SITUACAO_ATENCAO, SITUACAO_VENCIDO,
+    URGENCIA_CRITICO, URGENCIA_URGENTE, URGENCIA_ATENCAO,
+)
 from .grupo_consumo_repo import GrupoConsumoRepo
 from fuso_horario import formatar
 from Modulo_04_notificacoes.gmail_client import GmailClient
 from Modulo_06_dados import (
     get_read_session, RelatorioAgendamento, get_session, JobLog, GrupoConsumo,
-    Movimentacao, Lote, Produto, Usuario, TipoMovimentacaoEnum,
+    Movimentacao, Lote, Produto, Usuario, TipoMovimentacaoEnum, CentroAlocacaoEnum,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,11 +32,16 @@ class RelatorioService:
     # ── Geração + envio sob demanda (RF-20) ───────────────────────────────
  
     @staticmethod
-    def gerar_e_enviar_movimentacao(data_ini: date, data_fim: date) -> Path:
-        """RF-15: gera relatório de movimentação e envia por e-mail."""
-        
- 
-        caminho = XlsxBuilder.movimentacao(data_ini, data_fim)
+    def gerar_movimentacao(data_ini: date, data_fim: date, tipos: list[str] | None = None,
+                           usuario_ids: list[int] | None = None, termo: str | None = None) -> Path:
+        """Gera o XLSX de movimentação sem enviar e-mail (usado por e-mail e download)."""
+        return XlsxBuilder.movimentacao(data_ini, data_fim, tipos, usuario_ids, termo)
+
+    @staticmethod
+    def gerar_e_enviar_movimentacao(data_ini: date, data_fim: date, tipos: list[str] | None = None,
+                                    usuario_ids: list[int] | None = None, termo: str | None = None) -> Path:
+        """RF-15: gera relatório de movimentação (filtrado, se informado) e envia por e-mail."""
+        caminho = RelatorioService.gerar_movimentacao(data_ini, data_fim, tipos, usuario_ids, termo)
         assunto = (f"SCE — Relatório de Movimentação "
                    f"{data_ini.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}")
         corpo = _html_corpo(
@@ -44,12 +53,20 @@ class RelatorioService:
         GmailClient.enviar(assunto, corpo, anexos=[caminho])
         _registrar_envio("movimentacao")
         return caminho
- 
+
     @staticmethod
-    def gerar_e_enviar_estoque_atual() -> Path:
-        """RF-16: gera relatório de estoque atual e envia por e-mail."""
- 
-        caminho = XlsxBuilder.estoque_atual()
+    def gerar_estoque_atual(centros: list[str] | None = None,
+                            situacoes: list[str] | None = None,
+                            termo: str | None = None) -> Path:
+        """Gera o XLSX de estoque atual sem enviar e-mail (usado por e-mail e download)."""
+        return XlsxBuilder.estoque_atual(centros, situacoes, termo)
+
+    @staticmethod
+    def gerar_e_enviar_estoque_atual(centros: list[str] | None = None,
+                                     situacoes: list[str] | None = None,
+                                     termo: str | None = None) -> Path:
+        """RF-16: gera relatório de estoque atual (filtrado, se informado) e envia por e-mail."""
+        caminho = RelatorioService.gerar_estoque_atual(centros, situacoes, termo)
         assunto = f"SCE — Relatório de Estoque Atual — {date.today().strftime('%d/%m/%Y')}"
         corpo   = _html_corpo(
             titulo    = "Relatório de Estoque Atual",
@@ -59,12 +76,18 @@ class RelatorioService:
         GmailClient.enviar(assunto, corpo, anexos=[caminho])
         _registrar_envio("estoque_atual")
         return caminho
- 
+
     @staticmethod
-    def gerar_e_enviar_a_vencer(dias: int = 30) -> Path:
-        """RF-17: gera relatório de produtos a vencer e envia por e-mail."""
- 
-        caminho = XlsxBuilder.a_vencer(dias)
+    def gerar_a_vencer(dias: int = 30, centros: list[str] | None = None,
+                       urgencias: list[str] | None = None, termo: str | None = None) -> Path:
+        """Gera o XLSX de produtos a vencer sem enviar e-mail (usado por e-mail e download)."""
+        return XlsxBuilder.a_vencer(dias, centros, urgencias, termo)
+
+    @staticmethod
+    def gerar_e_enviar_a_vencer(dias: int = 30, centros: list[str] | None = None,
+                                urgencias: list[str] | None = None, termo: str | None = None) -> Path:
+        """RF-17: gera relatório de produtos a vencer (filtrado, se informado) e envia por e-mail."""
+        caminho = RelatorioService.gerar_a_vencer(dias, centros, urgencias, termo)
         assunto = f"SCE — Lotes a Vencer nos Próximos {dias} Dias"
         corpo   = _html_corpo(
             titulo    = f"Lotes a Vencer — Próximos {dias} dias",
@@ -74,12 +97,16 @@ class RelatorioService:
         GmailClient.enviar(assunto, corpo, anexos=[caminho])
         _registrar_envio("a_vencer")
         return caminho
- 
+
     @staticmethod
-    def gerar_e_enviar_lotes_vencidos() -> Path:
-        """RF-22: gera relatório de lotes vencidos e envia por e-mail."""
- 
-        caminho = XlsxBuilder.lotes_vencidos()
+    def gerar_lotes_vencidos(centros: list[str] | None = None, termo: str | None = None) -> Path:
+        """Gera o XLSX de lotes vencidos sem enviar e-mail (usado por e-mail e download)."""
+        return XlsxBuilder.lotes_vencidos(centros, termo)
+
+    @staticmethod
+    def gerar_e_enviar_lotes_vencidos(centros: list[str] | None = None, termo: str | None = None) -> Path:
+        """RF-22: gera relatório de lotes vencidos (filtrado, se informado) e envia por e-mail."""
+        caminho = RelatorioService.gerar_lotes_vencidos(centros, termo)
         if caminho is None:
             return None
         assunto = f"SCE — ⚠ Lotes Vencidos em Estoque — {date.today().strftime('%d/%m/%Y')}"
@@ -95,15 +122,23 @@ class RelatorioService:
         return caminho
 
     @staticmethod
-    def gerar_consumo_medio(meses: int) -> Path:
-        """Gera o relatório de consumo médio (sem enviar e-mail — usado por e-mail e download)."""
+    def gerar_consumo_medio(meses: int, termo: str | None = None) -> Path:
+        """
+        Gera o relatório de consumo médio (sem enviar e-mail — usado por
+        e-mail e download). `termo` — mesma busca textual da caixa de
+        pesquisa em T-11 (aplicada aqui, não na consulta, já que os dados
+        já vêm agregados por rótulo/mês de `buscar_dados_consumo_medio`).
+        """
         rotulos_meses, dados = RelatorioService.buscar_dados_consumo_medio(meses)
+        if termo:
+            termo_lower = termo.strip().lower()
+            dados = [linha for linha in dados if any(termo_lower in str(v).lower() for v in linha)]
         return XlsxBuilder.consumo_medio(dados, rotulos_meses)
 
     @staticmethod
-    def enviar_consumo_medio(meses: int) -> Path:
+    def enviar_consumo_medio(meses: int, termo: str | None = None) -> Path:
         """Gera o relatório de consumo médio e envia por e-mail. Sob demanda — sem agendamento."""
-        caminho = RelatorioService.gerar_consumo_medio(meses)
+        caminho = RelatorioService.gerar_consumo_medio(meses, termo)
         assunto = f"SCE — Consumo Médio por Produto (últimos {meses} meses)"
         corpo   = _html_corpo(
             titulo    = "Consumo Médio por Produto",
@@ -114,14 +149,16 @@ class RelatorioService:
         return caminho
 
     #── Busca de dados para exibição na UI ───────────────────────────────────────────────
-    def buscar_dados_movimentacao(data_ini: date, data_fim: date) -> list[list]:
-        """Retorna os dados puros de movimentação para a tabela visual da UI."""
+    @staticmethod
+    def buscar_dados_movimentacao(data_ini: date, data_fim: date, tipos: list[str] | None = None,
+                                  usuario_ids: list[int] | None = None) -> list[list]:
+        """Retorna os dados puros de movimentação (filtrados, se informado) para a tabela visual da UI."""
 
         inicio = dt.combine(data_ini, dt.min.time())
         fim    = dt.combine(data_fim, dt.max.time())
 
         with get_read_session() as s:
-            movs = (
+            query = (
                 s.query(Movimentacao)
                 .join(Lote).join(Produto).join(Usuario)
                 .options(
@@ -129,48 +166,83 @@ class RelatorioService:
                     joinedload(Movimentacao.usuario),
                 )
                 .filter(Movimentacao.data_hora.between(inicio, fim))
-                .order_by(Movimentacao.data_hora.desc())
-                .all()
             )
+            if tipos:
+                enums = [_TIPO_MOV_HUMANIZADO[t] for t in tipos if t in _TIPO_MOV_HUMANIZADO]
+                if enums:
+                    query = query.filter(Movimentacao.tipo.in_(enums))
+            if usuario_ids:
+                query = query.filter(Movimentacao.usuario_id.in_(usuario_ids))
+            movs = query.order_by(Movimentacao.data_hora.desc()).all()
             return [
                 [
                     formatar(m.data_hora, "%d/%m/%Y %H:%M"),
                     m.lote.produto.nome,
                     m.lote.num_lote,
+                    m.lote.unidade_estoque.value,
                     m.numero_nf or m.lote.nota_fiscal or "—",
                     m.tipo.value.replace("_", " ").title(),
                     m.quantidade,
                     m.usuario.nome,
-                    m.observacao or ""
+                    m.observacao or "",
+                    
                 ] for m in movs
             ]
+
     @staticmethod
-    def buscar_dados_estoque_atual() -> list[list]:
-        """Retorna a posição do estoque para exibição na UI."""
+    def mapear_usuarios_movimentacao(data_ini: date, data_fim: date) -> dict[str, int]:
+        """
+        {nome: usuario_id} de quem tem ao menos uma movimentação no período —
+        usado por T-11 para traduzir o filtro de Usuário (mostra nome,
+        checkbox) em usuario_ids antes de chamar gerar_movimentacao/
+        gerar_e_enviar_movimentacao. Mesmo critério de população do combo
+        antigo: só usuários que aparecem no período, não todo o cadastro.
+        """
+        inicio = dt.combine(data_ini, dt.min.time())
+        fim    = dt.combine(data_fim, dt.max.time())
+        with get_read_session() as s:
+            linhas = (
+                s.query(Usuario.nome, Usuario.id)
+                .join(Movimentacao, Movimentacao.usuario_id == Usuario.id)
+                .filter(Movimentacao.data_hora.between(inicio, fim))
+                .distinct()
+                .all()
+            )
+            return {nome: id_ for nome, id_ in linhas}
+    @staticmethod
+    def buscar_dados_estoque_atual(centros: list[str] | None = None,
+                                   situacoes: list[str] | None = None) -> list[list]:
+        """Retorna a posição do estoque (filtrada, se informado) para exibição na UI."""
 
         hoje = date.today()
         with get_read_session() as s:
-            lotes = (
+            query = (
                 s.query(Lote).join(Produto)
                 .options(joinedload(Lote.produto))
                 .filter(Produto.ativo == True, Lote.quantidade_atual > 0)
-                .order_by(Produto.nome, Lote.data_vencimento)
-                .all()
             )
+            if centros:
+                enums = [CentroAlocacaoEnum(c.lower()) for c in centros]
+                query = query.filter(Lote.centro_alocacao.in_(enums))
+            lotes = query.order_by(Produto.nome, Lote.data_vencimento).all()
             dados = []
             for l in lotes:
                 vencido = False if l.data_vencimento is None else l.data_vencimento < hoje
                 diff = None if l.data_vencimento is None else (l.data_vencimento - hoje).days
-                
-                if diff is None: sit = "Normal"
-                elif vencido: sit = "VENCIDO"
-                elif diff <= 15: sit = f"Vence em {diff}d"
-                else: sit = "Normal"
+
+                if diff is None: sit = SITUACAO_NORMAL
+                elif vencido: sit = SITUACAO_VENCIDO
+                elif diff <= 15: sit = SITUACAO_ATENCAO
+                else: sit = SITUACAO_NORMAL
+
+                if situacoes and sit not in situacoes:
+                    continue
 
                 dados.append([
                     l.produto.nome,
                     l.centro_alocacao.value.capitalize(),
                     l.num_lote,
+                    l.unidade_estoque.value,
                     l.nota_fiscal or "—",
                     l.data_fabricacao.strftime("%d/%m/%Y") if l.data_fabricacao else "—",
                     l.data_vencimento.strftime("%d/%m/%Y") if l.data_vencimento else "—",
@@ -178,18 +250,20 @@ class RelatorioService:
                     l.quantidade_atual,
                     f"R$ {float(l.valor_unitario):,.2f}",
                     f"R$ {float(l.valor_total):,.2f}",
-                    sit
+                    sit,
+                    
                 ])
             return dados
 
     @staticmethod
-    def buscar_dados_a_vencer(dias: int = 30) -> list[list]:
-        """Retorna produtos próximos ao vencimento para a UI."""
+    def buscar_dados_a_vencer(dias: int = 30, centros: list[str] | None = None,
+                              urgencias: list[str] | None = None) -> list[list]:
+        """Retorna produtos próximos ao vencimento (filtrados, se informado) para a UI."""
 
         hoje = date.today()
         limite = hoje + timedelta(days=dias)
         with get_read_session() as s:
-            lotes = (
+            query = (
                 s.query(Lote).join(Produto)
                 .options(joinedload(Lote.produto))
                 .filter(
@@ -197,36 +271,54 @@ class RelatorioService:
                     Lote.data_vencimento >= hoje, Lote.data_vencimento <= limite,
                     Lote.data_vencimento.isnot(None),
                 )
-                .order_by(Lote.data_vencimento).all()
             )
-            return [
-                [
+            if centros:
+                enums = [CentroAlocacaoEnum(c.lower()) for c in centros]
+                query = query.filter(Lote.centro_alocacao.in_(enums))
+            lotes = query.order_by(Lote.data_vencimento).all()
+
+            dados = []
+            for l in lotes:
+                diff = (l.data_vencimento - hoje).days
+                if diff <= 2: urgencia = URGENCIA_CRITICO
+                elif diff <= 7: urgencia = URGENCIA_URGENTE
+                else: urgencia = URGENCIA_ATENCAO
+
+                if urgencias and urgencia not in urgencias:
+                    continue
+
+                dados.append([
                     l.produto.nome,
                     l.centro_alocacao.value.capitalize(),
                     l.num_lote,
+                    l.unidade_estoque.value,
                     l.nota_fiscal or "—",
                     l.data_vencimento.strftime("%d/%m/%Y"),
-                    f"{(l.data_vencimento - hoje).days} dias",
+                    f"{diff} dias",
                     l.quantidade_atual,
-                    "Crítico" if (l.data_vencimento - hoje).days <= 2 else "Urgente"
-                ] for l in lotes
-            ]
+                    urgencia,
+                    
+                ])
+            return dados
 
     @staticmethod
-    def buscar_dados_lotes_vencidos() -> list[list]:
-        """Retorna os lotes vencidos para a UI."""
+    def buscar_dados_lotes_vencidos(centros: list[str] | None = None) -> list[list]:
+        """Retorna os lotes vencidos (filtrados, se informado) para a UI."""
 
         hoje = date.today()
         with get_read_session() as s:
-            lotes = (
+            query = (
                 s.query(Lote).join(Produto)
                 .options(joinedload(Lote.produto))
                 .filter(
                     Produto.ativo == True, Lote.quantidade_atual > 0,
                     Lote.data_vencimento < hoje, Lote.data_vencimento.isnot(None),
                 )
-                .order_by(Lote.data_vencimento).all()
             )
+            if centros:
+                enums = [CentroAlocacaoEnum(c.lower()) for c in centros]
+                query = query.filter(Lote.centro_alocacao.in_(enums))
+            lotes = query.order_by(Lote.data_vencimento).all()
             return [
                 [
                     l.produto.nome,
@@ -459,23 +551,23 @@ _NOMES_MES = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
 
 def _ultimos_n_meses(n: int, hoje: date) -> list[tuple[date, date, str]]:
     """
-    Últimos `n` meses de calendário (mais antigo -> mais recente), cada um
-    como (inicio, fim, rótulo "Mmm/AAAA"). O mês corrente entra parcial
-    (do dia 1 até hoje).
+    Últimos `n` meses de calendário FECHADOS (mais antigo -> mais recente),
+    cada um como (inicio, fim, rótulo "Mmm/AAAA"). O mês em andamento nunca
+    entra — só meses já encerrados, para não puxar a média para baixo com
+    um mês parcial (ex.: só 10 dias de saída contando como mês cheio).
     """
     periodos = []
-    ano, mes = hoje.year, hoje.month
+    mes, ano = hoje.month - 1, hoje.year
+    if mes == 0:
+        mes, ano = 12, ano - 1
     for i in range(n):
         m, a = mes - i, ano
         while m <= 0:
             m += 12
             a -= 1
         inicio = date(a, m, 1)
-        if a == ano and m == mes:
-            fim = hoje
-        else:
-            prox = date(a + 1, 1, 1) if m == 12 else date(a, m + 1, 1)
-            fim = prox - timedelta(days=1)
+        prox = date(a + 1, 1, 1) if m == 12 else date(a, m + 1, 1)
+        fim = prox - timedelta(days=1)
         periodos.append((inicio, fim, f"{_NOMES_MES[m]}/{a}"))
     periodos.reverse()
     return periodos

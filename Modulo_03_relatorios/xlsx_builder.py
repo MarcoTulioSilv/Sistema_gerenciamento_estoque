@@ -14,7 +14,10 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.drawing.image import Image as XLImage
 from fuso_horario import formatar
-from Modulo_06_dados import get_read_session, Movimentacao, Lote, Produto, Usuario
+from Modulo_06_dados import (
+    get_read_session, Movimentacao, Lote, Produto, Usuario,
+    TipoMovimentacaoEnum, CentroAlocacaoEnum,
+)
 from sqlalchemy.orm import joinedload
 from datetime import datetime as dt
 
@@ -29,7 +32,25 @@ COR_VENCIDO_FONT = "A32D2D"   # vermelho escuro
 COR_LINHA_ALT    = "F2F1ED"   # cinza claro (linhas alternadas)
 COR_AMBER_FILL   = "FAEEDA"   # âmbar claro
 COR_AMBER_FONT   = "854F0B"   # âmbar escuro
- 
+
+# Reverso do rótulo humanizado exibido na tela/planilha (tipo.value.replace
+# ("_"," ").title()) para o enum — usado para filtrar por tipo selecionado
+# no checkbox multi-seleção (T-11), que trabalha com o rótulo, não o enum
+# cru. Gerado a partir do próprio enum: nunca desalinha do rótulo exibido.
+_TIPO_MOV_HUMANIZADO = {t.value.replace("_", " ").title(): t for t in TipoMovimentacaoEnum}
+
+# Categorias fixas de Situação (Estoque atual) e Urgência (A vencer) —
+# usadas tanto para os valores calculados em Python (não são coluna do
+# banco, não dá pra filtrar via SQL) quanto para popular o checkbox de
+# filtro na tela. Mesmas categorias em relatorio_service.py (fonte da
+# tabela em tela) e aqui (fonte do XLSX) — mantidas idênticas de propósito.
+SITUACAO_NORMAL   = "Normal"
+SITUACAO_ATENCAO  = "Vence em breve (≤15d)"
+SITUACAO_VENCIDO  = "VENCIDO"
+URGENCIA_CRITICO  = "Crítico"
+URGENCIA_URGENTE  = "Urgente"
+URGENCIA_ATENCAO  = "Atenção"
+
 # Ícone da clínica nos relatórios — ancorado ao lado do título de cada
 # planilha (ver _aplicar_logo), não mais como "background" do Excel: o
 # background só aparece atrás de células SEM preenchimento — qualquer
@@ -159,27 +180,37 @@ class XlsxBuilder:
     # ── 1. Movimentação por período ────────────────────────────────────────
  
     @staticmethod
-    def movimentacao(data_ini: date, data_fim: date) -> Path:
+    def movimentacao(data_ini: date, data_fim: date, tipos: list[str] | None = None,
+                      usuario_ids: list[int] | None = None, termo: str | None = None) -> Path:
         """
         Relatório de movimentações (entradas e saídas) no período com células mescladas.
-        RF-15: inclui produto, lote, NF, tipo, quantidade, usuário e data.
+        RF-15: inclui produto, lote, NF, tipo, quantidade, usuário, data e unidade.
+
+        `tipos`/`usuario_ids` — filtro opcional (multi-seleção em T-11):
+        lista vazia/None = sem filtro (todos). `tipos` recebe os rótulos
+        humanizados exibidos na tela (ex.: "Entrada Manual"), traduzidos
+        para o enum via _TIPO_MOV_HUMANIZADO. `termo` — mesma busca textual
+        da caixa de pesquisa em T-11 (substring, sem diferenciar
+        maiúsculas/minúsculas, em qualquer coluna) — garante que "Baixar"/
+        "Enviar por e-mail" tragam exatamente o que está na tela, não só o
+        que os checkboxes de filtro cobrem.
         """
         wb = Workbook()
         ws = wb.active
         ws.title = "Movimentação"
         st = _wb_styles()
- 
+
         colunas = [
-            ("Data/Hora", 18), ("Produto", 50), ("Lote", 14),
+            ("Data/Hora", 18), ("Produto", 50), ("Lote", 14),("Unidade", 12),
             ("Nota Fiscal", 14), ("Tipo", 16), ("Quantidade", 12),
-            ("Usuário", 20), ("Observação", 45),
+            ("Usuário", 20), ("Observação", 45), 
         ]
         inicio = dt.combine(data_ini, dt.min.time())
         fim    = dt.combine(data_fim, dt.max.time())
         hoje = date.today()
 
         with get_read_session() as s:
-            movs = (
+            query = (
                 s.query(Movimentacao)
                 .join(Lote)
                 .join(Produto)
@@ -189,13 +220,41 @@ class XlsxBuilder:
                     joinedload(Movimentacao.usuario),
                 )
                 .filter(Movimentacao.data_hora.between(inicio, fim))
-                .order_by(Movimentacao.data_hora.desc())
-                .all()
             )
-            
+            if tipos:
+                enums = [_TIPO_MOV_HUMANIZADO[t] for t in tipos if t in _TIPO_MOV_HUMANIZADO]
+                if enums:
+                    query = query.filter(Movimentacao.tipo.in_(enums))
+            if usuario_ids:
+                query = query.filter(Movimentacao.usuario_id.in_(usuario_ids))
+            movs = query.order_by(Movimentacao.data_hora.desc()).all()
+
+            # Monta as linhas ANTES de escrever no arquivo, para aplicar o
+            # termo de busca (mesma lógica de _aplicar_filtros em T-11:
+            # substring em qualquer coluna, sem diferenciar caixa) e já
+            # saber o total real de linhas que vão pro arquivo.
+            termo_lower = termo.strip().lower() if termo else None
+            linhas_dados = []
+            for mov in movs:
+                valores = [
+                    formatar(mov.data_hora, "%d/%m/%Y %H:%M"),
+                    mov.lote.produto.nome,
+                    mov.lote.num_lote,
+                    mov.lote.unidade_estoque.value,
+                    mov.numero_nf or mov.lote.nota_fiscal,
+                    mov.tipo.value.replace("_", " ").title(),
+                    mov.quantidade,
+                    mov.usuario.nome,
+                    mov.observacao or "",
+                ]
+                if termo_lower and not any(termo_lower in str(v).lower() for v in valores):
+                    continue
+                vencido = False if mov.lote.data_vencimento is None else mov.lote.data_vencimento < hoje
+                linhas_dados.append((valores, vencido))
+
             # --- 1. CONFIGURAÇÃO DA LINHA 1 (PERÍODO E TOTAL) ---
             ws.row_dimensions[1].height = 25
-            
+
             # Coluna A reservada pro logo; título desloca uma coluna (B1:E1)
             _aplicar_logo(ws, 1, 1, altura_linha_pt=25)
             ws.merge_cells('B1:E1')
@@ -207,43 +266,32 @@ class XlsxBuilder:
             # Mesclagem G1:H1 para o Total de Movimentações
             ws.merge_cells('G1:H1')
             cell_t = ws['G1']
-            cell_t.value = f"Total: {len(movs)} registros"
+            cell_t.value = f"Total: {len(linhas_dados)} registros"
             cell_t.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
             cell_t.alignment = Alignment(horizontal="center", vertical="center")
 
             # --- 2. LINHA 2: TÍTULOS DAS COLUNAS ---
             _aplicar_header(ws, colunas, st, row_idx=2)
- 
+
             # Definição de alinhamentos para os dados
             alinhamentos_da_linha = [
                 st["center"], # Data/Hora
                 st["left"],   # Produto
                 st["center"], # Lote
+                st["center"], # Unidade
                 st["center"], # Nota Fiscal
                 st["center"], # Tipo
                 st["center"], # Quantidade
                 st["center"], # Usuário
-                st["left"]    # Observação
+                st["left"],   # Observação
             ]
 
             # --- 3. LINHA 3 EM DIANTE: DADOS ---
-            for i, mov in enumerate(movs, 3):
-
-                vencido = False if mov.lote.data_vencimento is None else mov.lote.data_vencimento < hoje
+            for i, (valores, vencido) in enumerate(linhas_dados, 3):
                 fill = st["vf"] if vencido else None
                 font = st["vft"] if vencido else None
-                
-                _aplicar_linha(ws, i, [
-                    formatar(mov.data_hora, "%d/%m/%Y %H:%M"),
-                    mov.lote.produto.nome,
-                    mov.lote.num_lote,
-                    mov.numero_nf or mov.lote.nota_fiscal,
-                    mov.tipo.value.replace("_", " ").title(),
-                    mov.quantidade,
-                    mov.usuario.nome,
-                    mov.observacao or "",
-                ], st, fill=fill, font=font, alignments=alinhamentos_da_linha)
-                
+                _aplicar_linha(ws, i, valores, st, fill=fill, font=font, alignments=alinhamentos_da_linha)
+
         # Congela as duas linhas superiores
         ws.freeze_panes = "A3"
 
@@ -255,42 +303,53 @@ class XlsxBuilder:
     # ── 2. Estoque atual ───────────────────────────────────────────────────
  
     @staticmethod
-    def estoque_atual() -> Path:
+    def estoque_atual(centros: list[str] | None = None,
+                       situacoes: list[str] | None = None,
+                       termo: str | None = None) -> Path:
         """
         Posição atual do estoque por lote.
-        RF-16: produto, lote, NF, datas, saldo, valor e situação.
+        RF-16: produto, lote, NF, datas, saldo, valor, situação e unidade.
         Lotes vencidos em vermelho (RF-22).
+
+        `centros` filtra via SQL (`Lote.centro_alocacao`). `situacoes` é
+        calculado em Python linha a linha (não é coluna do banco) contra as
+        categorias fixas SITUACAO_NORMAL/ATENCAO/VENCIDO — filtro aplicado
+        depois de calcular `situacao` de cada lote, não na query. `termo` —
+        mesma busca textual da caixa de pesquisa em T-11.
         """
-        
+
         wb = Workbook()
         ws = wb.active
         ws.title = "Estoque Atual"
         st = _wb_styles()
- 
+
         colunas = [
-            ("Produto", 35), ("Centro", 14), ("Lote", 14),
+            ("Produto", 35), ("Centro", 14), ("Lote", 14),("Unidade", 12),
             ("Nota Fiscal", 14), ("Fabricação", 14), ("Vencimento", 14),
             ("Qtd. Inicial", 12), ("Qtd. Atual", 12),
             ("Vlr. Unit. (R$)", 14), ("Vlr. Total (R$)", 14), ("Situação", 16),
+            
         ]
 
- 
+
         hoje = date.today()
         with get_read_session() as s:
-            lotes = (
+            query = (
                 s.query(Lote)
                 .join(Produto)
                 .options(joinedload(Lote.produto))
                 .filter(Produto.ativo == True, Lote.quantidade_atual > 0)
-                .order_by(Produto.nome, Lote.data_vencimento)
-                .all()
             )
+            if centros:
+                enums = [CentroAlocacaoEnum(c.lower()) for c in centros]
+                query = query.filter(Lote.centro_alocacao.in_(enums))
+            lotes = query.order_by(Produto.nome, Lote.data_vencimento).all()
              # --- 1. CONFIGURAÇÃO DA LINHA 1 (PERÍODO E TOTAL) ---
             ws.row_dimensions[1].height = 25
             
-            # Coluna A reservada pro logo; título desloca uma coluna (B1:L1)
+            # Coluna A reservada pro logo; título desloca uma coluna (B1:M1)
             _aplicar_logo(ws, 1, 1, altura_linha_pt=25)
-            ws.merge_cells('B1:L1')
+            ws.merge_cells('B1:M1')
             cell_p = ws['B1']
             cell_p.value = f"Estoque {date.today()}"
             cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
@@ -298,31 +357,33 @@ class XlsxBuilder:
 
             # --- 2. LINHA 2: TÍTULOS DAS COLUNAS ---
             _aplicar_header(ws, colunas, st, row_idx=2)
-            for i, l in enumerate(lotes, 3):
+            linha_atual = 3
+            termo_lower = termo.strip().lower() if termo else None
+            for l in lotes:
 
                 diff  = None if l.data_vencimento is None else (l.data_vencimento - hoje).days
                 vencido = False if l.data_vencimento is None else l.data_vencimento < hoje
                 if diff is None:
-                    situacao = "Normal"
+                    situacao = SITUACAO_NORMAL
                     fill, font = None, None
+                elif vencido:
+                    situacao = SITUACAO_VENCIDO
+                    fill, font = st["vf"], st["vft"]
+                elif diff <= 15:
+                    situacao = SITUACAO_ATENCAO
+                    fill, font = st["af"], st["aft"]
                 else:
-                    if vencido:
-                        situacao = "VENCIDO"
-                        fill, font = st["vf"], st["vft"]
-                    elif diff <= 7:
-                        situacao = f"Vence em {diff}d"
-                        fill, font = st["af"], st["aft"]
-                    elif diff <= 15:
-                        situacao = f"Vence em {diff}d"
-                        fill, font = st["af"], st["aft"]
-                    else:
-                        situacao = "Normal"
-                        fill, font = None, None
- 
-                _aplicar_linha(ws, i, [
+                    situacao = SITUACAO_NORMAL
+                    fill, font = None, None
+
+                if situacoes and situacao not in situacoes:
+                    continue
+
+                valores = [
                     l.produto.nome,
                     l.centro_alocacao.value.capitalize(),
                     l.num_lote,
+                    l.unidade_estoque.value,
                     l.nota_fiscal,
                     l.data_fabricacao.strftime("%d/%m/%Y") if l.data_fabricacao else "—",
                     l.data_vencimento.strftime("%d/%m/%Y") if l.data_vencimento else "—",
@@ -331,7 +392,13 @@ class XlsxBuilder:
                     float(l.valor_unitario),
                     float(l.valor_total),
                     situacao,
-                ], st, fill=fill, font=font)
+                ]
+                if termo_lower and not any(termo_lower in str(v).lower() for v in valores):
+                    continue
+
+                i = linha_atual
+                linha_atual += 1
+                _aplicar_linha(ws, i, valores, st, fill=fill, font=font)
  
         ws.freeze_panes = "A3"
         caminho = XlsxBuilder._nome_arquivo("estoque_atual")
@@ -342,27 +409,35 @@ class XlsxBuilder:
     # ── 3. Produtos a vencer em 30 dias ────────────────────────────────────
  
     @staticmethod
-    def a_vencer(dias: int = 30) -> Path:
+    def a_vencer(dias: int = 30, centros: list[str] | None = None,
+                 urgencias: list[str] | None = None, termo: str | None = None) -> Path:
         """
         Lista lotes com vencimento nos próximos N dias (padrão 30).
-        RF-17: ordenado por data de vencimento crescente.
+        RF-17: ordenado por data de vencimento crescente. Inclui unidade.
+
+        `centros` filtra via SQL. `urgencias` é calculado em Python (não é
+        coluna do banco) contra as categorias fixas URGENCIA_CRITICO/
+        URGENTE/ATENCAO — filtro aplicado depois de calcular a urgência de
+        cada lote, não na query. `termo` — mesma busca textual da caixa de
+        pesquisa em T-11.
         """
         wb = Workbook()
         ws = wb.active
         ws.title = f"A Vencer ({dias}d)"
         st = _wb_styles()
- 
+
         colunas = [
-            ("Produto", 35), ("Centro", 14), ("Lote", 14),
+            ("Produto", 35), ("Centro", 14), ("Lote", 14),("Unidade", 12),
             ("Nota Fiscal", 14), ("Vencimento", 14),
             ("Dias restantes", 14), ("Qtd. Atual", 12), ("Situação", 16),
+            
         ]
- 
+
         hoje   = date.today()
         limite = hoje + timedelta(days=dias)
- 
+
         with get_read_session() as s:
-            lotes = (
+            query = (
                 s.query(Lote)
                 .join(Produto)
                 .options(joinedload(Lote.produto))
@@ -373,14 +448,16 @@ class XlsxBuilder:
                     Lote.data_vencimento <= limite,
                     Lote.data_vencimento.isnot(None),
                 )
-                .order_by(Lote.data_vencimento)
-                .all()
             )
-            
-            # Coluna A reservada pro logo; título desloca uma coluna (B1:I1)
+            if centros:
+                enums = [CentroAlocacaoEnum(c.lower()) for c in centros]
+                query = query.filter(Lote.centro_alocacao.in_(enums))
+            lotes = query.order_by(Lote.data_vencimento).all()
+
+            # Coluna A reservada pro logo; título desloca uma coluna (B1:J1)
             ws.row_dimensions[1].height = 25
             _aplicar_logo(ws, 1, 1, altura_linha_pt=25)
-            ws.merge_cells('B1:I1')
+            ws.merge_cells('B1:J1')
             cell_p = ws['B1']
             cell_p.value = f"Lotes a vencer Proximos 30 Dias consulta {date.today()}"
             cell_p.font = Font(bold=True, color=COR_HEADER_FILL, size=11)
@@ -388,25 +465,37 @@ class XlsxBuilder:
 
             _aplicar_header(ws, colunas, st, row_idx=2)
 
-            for i, l in enumerate(lotes, 3):
+            linha_atual = 3
+            termo_lower = termo.strip().lower() if termo else None
+            for l in lotes:
                 diff = (l.data_vencimento - hoje).days
                 if diff <= 2:
-                    fill, font, sit = st["vf"], st["vft"], "Crítico"
+                    fill, font, sit = st["vf"], st["vft"], URGENCIA_CRITICO
                 elif diff <= 7:
-                    fill, font, sit = st["af"], st["aft"], "Urgente"
+                    fill, font, sit = st["af"], st["aft"], URGENCIA_URGENTE
                 else:
-                    fill, font, sit = None, None, "Atenção"
- 
-                _aplicar_linha(ws, i, [
+                    fill, font, sit = None, None, URGENCIA_ATENCAO
+
+                if urgencias and sit not in urgencias:
+                    continue
+
+                valores = [
                     l.produto.nome,
                     l.centro_alocacao.value.capitalize(),
                     l.num_lote,
+                    l.unidade_estoque.value,
                     l.nota_fiscal,
                     l.data_vencimento.strftime("%d/%m/%Y"),
                     diff,
                     l.quantidade_atual,
                     sit,
-                ], st, fill=fill, font=font)
+                ]
+                if termo_lower and not any(termo_lower in str(v).lower() for v in valores):
+                    continue
+
+                i = linha_atual
+                linha_atual += 1
+                _aplicar_linha(ws, i, valores, st, fill=fill, font=font)
  
         ws.freeze_panes = "A3"
         caminho = XlsxBuilder._nome_arquivo("a_vencer")
@@ -417,21 +506,22 @@ class XlsxBuilder:
     # ── 4. Lotes vencidos em estoque ───────────────────────────────────────
  
     @staticmethod
-    def lotes_vencidos() -> Path:
+    def lotes_vencidos(centros: list[str] | None = None, termo: str | None = None) -> Path:
         """
         Lista lotes com data de vencimento anterior a hoje com saldo > 0.
-        RF-22: todos destacados em vermelho.
+        RF-22: todos destacados em vermelho. `centros` filtra via SQL.
+        `termo` — mesma busca textual da caixa de pesquisa em T-11.
         """
         wb = Workbook()
         ws = wb.active
         ws.title = "Lotes Vencidos"
         st = _wb_styles()
- 
+
         hoje = date.today()
-        
+
         with get_read_session() as s:
             # 1. Busca os lotes primeiro para ter os dados de contagem e valor
-            lotes = (
+            query = (
                 s.query(Lote)
                 .join(Produto)
                 .options(joinedload(Lote.produto))
@@ -441,10 +531,36 @@ class XlsxBuilder:
                     Lote.data_vencimento < hoje,
                     Lote.data_vencimento.isnot(None),
                 )
-                .order_by(Lote.data_vencimento)
-                .all()
             )
-            if not lotes:
+            if centros:
+                enums = [CentroAlocacaoEnum(c.lower()) for c in centros]
+                query = query.filter(Lote.centro_alocacao.in_(enums))
+            lotes = query.order_by(Lote.data_vencimento).all()
+
+            # Monta as linhas ANTES de escrever, para aplicar o termo de
+            # busca (mesma lógica de _aplicar_filtros em T-11) e já saber
+            # o total/valor real que vão pro arquivo.
+            termo_lower = termo.strip().lower() if termo else None
+            linhas_dados = []
+            for l in lotes:
+                dias_vencido = (hoje - l.data_vencimento).days
+                valor_em_estoque = l.valor_unitario * l.quantidade_atual
+                valores = [
+                    l.produto.nome,
+                    l.centro_alocacao.value.capitalize(),
+                    l.produto.fornecedor or "—",
+                    l.num_lote,
+                    l.nota_fiscal,
+                    l.data_vencimento.strftime("%d/%m/%Y"),
+                    dias_vencido,
+                    l.quantidade_atual,
+                    float(valor_em_estoque),
+                ]
+                if termo_lower and not any(termo_lower in str(v).lower() for v in valores):
+                    continue
+                linhas_dados.append((valores, valor_em_estoque))
+
+            if not linhas_dados:
                 logger.info("Nenhum lote vencido em estoque encontrado.")
                 return None
 
@@ -471,11 +587,11 @@ class XlsxBuilder:
             ]
             _aplicar_header(ws, colunas, st, row_idx=2)
 
-            valor_total_geral = sum(l.valor_unitario * l.quantidade_atual for l in lotes)
-            
+            valor_total_geral = sum(valor for _, valor in linhas_dados)
+
             cell_resumo = ws['J2']
             cell_resumo.value = (
-                f"Total de Lotes: {len(lotes)} vencidos")
+                f"Total de Lotes: {len(linhas_dados)} vencidos")
             
             # Estilo do quadro de resumo
             cell_resumo.font = Font(bold=True, color=COR_HEADER_FONT, size=11)
@@ -498,27 +614,14 @@ class XlsxBuilder:
             alinhamentos = [st["left"], st["center"], st["left"], st["center"], 
                             st["center"], st["center"], st["center"], st["center"], st["center"]]
 
-            for i, l in enumerate(lotes, 3):
-                dias_vencido = (hoje - l.data_vencimento).days
-                valor_em_estoque = l.valor_unitario * l.quantidade_atual
- 
+            for i, (valores, _) in enumerate(linhas_dados, 3):
                 # Todos vencidos → destaque em vermelho (RF-22)
-                _aplicar_linha(ws, i, [
-                    l.produto.nome,
-                    l.centro_alocacao.value.capitalize(),
-                    l.produto.fornecedor or "—",
-                    l.num_lote,
-                    l.nota_fiscal,
-                    l.data_vencimento.strftime("%d/%m/%Y"),
-                    dias_vencido,
-                    l.quantidade_atual,
-                    float(valor_em_estoque),
-                ], st, fill=st["vf"], font=st["vft"], alignments=alinhamentos)
- 
+                _aplicar_linha(ws, i, valores, st, fill=st["vf"], font=st["vft"], alignments=alinhamentos)
+
         ws.freeze_panes = "A3" # Congela Título e Cabeçalho
         caminho = XlsxBuilder._nome_arquivo("lotes_vencidos")
         wb.save(caminho)
-        logger.info("Relatório lotes vencidos gerado: %s (%d lotes)", caminho, len(lotes))
+        logger.info("Relatório lotes vencidos gerado: %s (%d lotes)", caminho, len(linhas_dados))
         return caminho
 
     # ── 5. Consumo médio por produto ────────────────────────────────────────

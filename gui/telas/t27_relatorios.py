@@ -18,6 +18,7 @@ from fuso_horario import formatar
 
 from gui.componentes.form_widgets import FeedbackBanner
 from gui.componentes.tabela_scroll import TabelaScroll
+from gui.componentes.filtro_multiselect import FiltroMultiSelect
 from Modulo_07_patrimonio import PatrimonioService, InventarioService, PatrimonioError
 
 logger = logging.getLogger(__name__)
@@ -126,17 +127,19 @@ class TelaRelatoriosPatrimonio(ctk.CTkFrame):
     def _montar_filtros(self):
         for w in self._area_filtros.winfo_children():
             w.destroy()
+        self._filtro_localizacao = None
 
-        labels_loc = ["Todas as localizações"] + [loc.nome_completo for loc in self._localizacoes]
+        labels_loc = [loc.nome_completo for loc in self._localizacoes]
 
         if self._tipo_atual == "bens_ativos":
-            ctk.CTkLabel(self._area_filtros, text="Localização:").pack(side="left", padx=(0, 6))
-            self._opt_localizacao = ctk.CTkOptionMenu(
-                self._area_filtros, values=labels_loc, width=220, height=32,
-                fg_color=COR_BRANCO, button_color=COR_PETROLEO_M, text_color="#161614")
-            self._opt_localizacao.pack(side="left")
+            self._filtro_localizacao = FiltroMultiSelect(
+                self._area_filtros, label="Localização:", valores=labels_loc, largura=220)
+            self._filtro_localizacao.pack(side="left")
 
         elif self._tipo_atual == "divergencias":
+            # Seleção única de propósito: divergências pertencem a UMA
+            # campanha de inventário específica — misturar várias sessões
+            # combinaria resultados de campanhas diferentes, sem sentido.
             ctk.CTkLabel(self._area_filtros, text="Sessão:").pack(side="left", padx=(0, 6))
             rotulos = [self._rotulo_sessao(s) for s in self._sessoes] or ["Nenhuma sessão encontrada"]
             self._opt_sessao = ctk.CTkOptionMenu(
@@ -145,19 +148,23 @@ class TelaRelatoriosPatrimonio(ctk.CTkFrame):
             self._opt_sessao.pack(side="left")
 
         elif self._tipo_atual == "historico_movimentacao":
-            ctk.CTkLabel(self._area_filtros, text="Localização:").pack(side="left", padx=(0, 6))
-            self._opt_localizacao = ctk.CTkOptionMenu(
-                self._area_filtros, values=labels_loc, width=200, height=32,
-                fg_color=COR_BRANCO, button_color=COR_PETROLEO_M, text_color="#161614")
-            self._opt_localizacao.pack(side="left", padx=(0, 16))
+            self._filtro_localizacao = FiltroMultiSelect(
+                self._area_filtros, label="Localização:", valores=labels_loc, largura=200)
+            self._filtro_localizacao.pack(side="left", padx=(0, 16))
             self._campo_data_ini, self._campo_data_fim = self._adicionar_campos_periodo(
                 padrao_ini=date.today() - timedelta(days=30))
 
         elif self._tipo_atual == "bens_baixados":
+            self._filtro_localizacao = FiltroMultiSelect(
+                self._area_filtros, label="Localização:", valores=labels_loc, largura=200)
+            self._filtro_localizacao.pack(side="left", padx=(0, 16))
             self._campo_data_ini, self._campo_data_fim = self._adicionar_campos_periodo(
                 padrao_ini=date.today() - timedelta(days=90))
 
         elif self._tipo_atual == "manutencoes":
+            self._filtro_localizacao = FiltroMultiSelect(
+                self._area_filtros, label="Localização:", valores=labels_loc, largura=200)
+            self._filtro_localizacao.pack(side="left", padx=(0, 16))
             ctk.CTkLabel(self._area_filtros, text="(opcional — vazio mostra tudo)",
                         text_color="#888780", font=ctk.CTkFont(size=10)).pack(side="left", padx=(0, 8))
             self._campo_data_ini, self._campo_data_fim = self._adicionar_campos_periodo(padrao_ini=None)
@@ -179,11 +186,18 @@ class TelaRelatoriosPatrimonio(ctk.CTkFrame):
         status = _STATUS_SESSAO_LABEL.get(sessao.status.value, sessao.status.value)
         return f"#{sessao.id} — {sessao.descricao} ({status}, {formatar(sessao.aberto_em, '%d/%m/%Y')})"
 
-    def _loc_id_por_label(self, label: str):
-        for loc in self._localizacoes:
-            if loc.nome_completo == label:
-                return loc.id
-        return None
+    def _loc_ids_selecionadas(self) -> list[int] | None:
+        """
+        Ids das localizações marcadas no filtro atual (`self._filtro_localizacao`),
+        ou None se nenhuma marcada (equivale a "todas" — mesma semântica de
+        `FiltroMultiSelect.selecionados()`, lista vazia == sem filtro).
+        """
+        if not self._filtro_localizacao:
+            return None
+        labels = set(self._filtro_localizacao.selecionados())
+        if not labels:
+            return None
+        return [loc.id for loc in self._localizacoes if loc.nome_completo in labels]
 
     def _sessao_id_selecionada(self):
         rotulo = self._opt_sessao.get()
@@ -213,15 +227,15 @@ class TelaRelatoriosPatrimonio(ctk.CTkFrame):
         chamarem do mesmo jeito não importa o tipo.
         """
         if self._tipo_atual == "bens_ativos":
-            loc_id = self._loc_id_por_label(self._opt_localizacao.get())
-            bens = self._servico.listar_bens_ativos(self._usuario.id, loc_id)
+            loc_ids = self._loc_ids_selecionadas()
+            bens = self._servico.listar_bens_ativos(self._usuario.id, loc_ids)
             colunas = [("Tombo", 90), ("Descrição", 260), ("Marca/modelo", 160),
                       ("Localização", 200), ("Nota fiscal", 120)]
             linhas = [[b.tombo, b.descricao, b.marca_modelo or "—",
                       b.localizacao.nome_completo if b.localizacao else "—", b.nota_fiscal or "—"]
                      for b in bens]
-            gerar = lambda: self._servico.relatorio_bens_ativos(self._usuario.id, loc_id)
-            enviar = lambda: self._servico.enviar_relatorio_bens_ativos(self._usuario.id, loc_id)
+            gerar = lambda: self._servico.relatorio_bens_ativos(self._usuario.id, loc_ids)
+            enviar = lambda: self._servico.enviar_relatorio_bens_ativos(self._usuario.id, loc_ids)
             return colunas, linhas, gerar, enviar
 
         if self._tipo_atual == "divergencias":
@@ -239,12 +253,12 @@ class TelaRelatoriosPatrimonio(ctk.CTkFrame):
             return colunas, linhas, gerar, enviar
 
         if self._tipo_atual == "historico_movimentacao":
-            loc_id = self._loc_id_por_label(self._opt_localizacao.get())
+            loc_ids = self._loc_ids_selecionadas()
             data_ini = self._parse_data(self._campo_data_ini)
             data_fim = self._parse_data(self._campo_data_fim)
             dt_ini = datetime.combine(data_ini, datetime.min.time())
             dt_fim = datetime.combine(data_fim, datetime.max.time())
-            movs = self._servico.listar_historico_movimentacao(self._usuario.id, dt_ini, dt_fim, loc_id)
+            movs = self._servico.listar_historico_movimentacao(self._usuario.id, dt_ini, dt_fim, loc_ids)
             colunas = [("Data/Hora", 130), ("Tombo", 90), ("Descrição", 220), ("Tipo", 140),
                       ("Origem", 180), ("Destino", 180), ("Motivo", 200), ("Usuário", 140)]
             _tipo_label = {"cadastro": "Cadastro", "transferencia": "Transferência",
@@ -255,14 +269,15 @@ class TelaRelatoriosPatrimonio(ctk.CTkFrame):
                       m.localizacao_destino.nome_completo if m.localizacao_destino else "—",
                       m.motivo or "—", m.usuario.nome]
                      for m in movs]
-            gerar = lambda: self._servico.relatorio_historico_movimentacao(self._usuario.id, dt_ini, dt_fim, loc_id)
-            enviar = lambda: self._servico.enviar_historico_movimentacao(self._usuario.id, dt_ini, dt_fim, loc_id)
+            gerar = lambda: self._servico.relatorio_historico_movimentacao(self._usuario.id, dt_ini, dt_fim, loc_ids)
+            enviar = lambda: self._servico.enviar_historico_movimentacao(self._usuario.id, dt_ini, dt_fim, loc_ids)
             return colunas, linhas, gerar, enviar
 
         if self._tipo_atual == "bens_baixados":
+            loc_ids = self._loc_ids_selecionadas()
             data_ini = self._parse_data(self._campo_data_ini)
             data_fim = self._parse_data(self._campo_data_fim)
-            baixas = self._servico.listar_bens_baixados(self._usuario.id, data_ini, data_fim)
+            baixas = self._servico.listar_bens_baixados(self._usuario.id, data_ini, data_fim, loc_ids)
             colunas = [("Tombo", 90), ("Descrição", 220), ("Motivo", 140), ("Data baixa", 100),
                       ("Documento", 160), ("MTR", 120), ("Laudo", 120), ("Usuário", 140)]
             _motivo_label = {"descarte": "Descarte", "doacao": "Doação", "venda": "Venda",
@@ -271,21 +286,22 @@ class TelaRelatoriosPatrimonio(ctk.CTkFrame):
                       b.data_baixa.strftime("%d/%m/%Y"), b.documento or "—",
                       b.numero_mtr or "—", b.numero_laudo or "—", b.usuario.nome]
                      for b in baixas]
-            gerar = lambda: self._servico.relatorio_bens_baixados(self._usuario.id, data_ini, data_fim)
-            enviar = lambda: self._servico.enviar_relatorio_bens_baixados(self._usuario.id, data_ini, data_fim)
+            gerar = lambda: self._servico.relatorio_bens_baixados(self._usuario.id, data_ini, data_fim, loc_ids)
+            enviar = lambda: self._servico.enviar_relatorio_bens_baixados(self._usuario.id, data_ini, data_fim, loc_ids)
             return colunas, linhas, gerar, enviar
 
         # manutencoes
+        loc_ids = self._loc_ids_selecionadas()
         data_ini = self._parse_data(self._campo_data_ini, obrigatoria=False)
         data_fim = self._parse_data(self._campo_data_fim, obrigatoria=False)
-        manutencoes = self._servico.listar_manutencoes(self._usuario.id, data_ini, data_fim)
+        manutencoes = self._servico.listar_manutencoes(self._usuario.id, data_ini, data_fim, loc_ids)
         colunas = [("Tombo", 90), ("Descrição", 220), ("Data manutenção", 130),
                   ("Serviço realizado", 320), ("Registrado por", 140)]
         linhas = [[m.bem.tombo, m.bem.descricao, m.data_manutencao.strftime("%d/%m/%Y"),
                   m.descricao, m.usuario.nome]
                  for m in manutencoes]
-        gerar = lambda: self._servico.relatorio_manutencoes(self._usuario.id, data_ini, data_fim)
-        enviar = lambda: self._servico.enviar_relatorio_manutencoes(self._usuario.id, data_ini, data_fim)
+        gerar = lambda: self._servico.relatorio_manutencoes(self._usuario.id, data_ini, data_fim, loc_ids)
+        enviar = lambda: self._servico.enviar_relatorio_manutencoes(self._usuario.id, data_ini, data_fim, loc_ids)
         return colunas, linhas, gerar, enviar
 
     def _visualizar(self):

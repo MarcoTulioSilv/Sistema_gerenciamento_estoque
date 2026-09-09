@@ -13,7 +13,7 @@ env/
 
 # ─── Logs da aplicação ───────────────────────────────────
 *.log
-sce.log
+sce.log 
 
 # ─── Build PyInstaller ────────────────────────────────────
 build/

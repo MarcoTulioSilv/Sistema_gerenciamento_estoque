@@ -7,7 +7,7 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import joinedload
 
-from Modulo_06_dados import get_read_session, ManutencaoBem
+from Modulo_06_dados import get_read_session, ManutencaoBem, BemPatrimonial
 from .dto import DadosManutencao
 
 logger = logging.getLogger(__name__)
@@ -61,14 +61,23 @@ class ManutencaoRepo:
             return item
 
     @staticmethod
-    def listar_periodo(data_ini: date | None = None, data_fim: date | None = None) -> list[ManutencaoBem]:
-        """Manutenções de TODOS os bens (T-27, RF-35). Sem datas, devolve tudo."""
+    def listar_periodo(data_ini: date | None = None, data_fim: date | None = None,
+                       localizacao_ids: list[int] | None = None) -> list[ManutencaoBem]:
+        """
+        Manutenções de TODOS os bens (T-27, RF-35). Sem datas, devolve tudo.
+        `localizacao_ids` filtra pela localização ATUAL do bem — manutenção
+        não move o bem (AD-24), então localização do bem já é a de quando
+        o serviço foi feito.
+        """
         with get_read_session() as s:
             q = s.query(ManutencaoBem).options(
                 joinedload(ManutencaoBem.bem), joinedload(ManutencaoBem.usuario)
             )
             if data_ini and data_fim:
                 q = q.filter(ManutencaoBem.data_manutencao.between(data_ini, data_fim))
+            if localizacao_ids:
+                q = (q.join(BemPatrimonial, ManutencaoBem.bem_id == BemPatrimonial.id)
+                       .filter(BemPatrimonial.localizacao_id.in_(localizacao_ids)))
             itens = q.order_by(ManutencaoBem.data_manutencao.desc()).all()
             s.expunge_all()
             return itens

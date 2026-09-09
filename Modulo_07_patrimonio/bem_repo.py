@@ -34,6 +34,8 @@ class BemRepo:
                 ))
             if filtro.localizacao_id is not None:
                 q = q.filter(BemPatrimonial.localizacao_id == filtro.localizacao_id)
+            if filtro.localizacao_ids:
+                q = q.filter(BemPatrimonial.localizacao_id.in_(filtro.localizacao_ids))
             if filtro.situacao:
                 q = q.filter(BemPatrimonial.situacao == SituacaoBemEnum(filtro.situacao))
             elif filtro.apenas_ativos:
@@ -252,6 +254,8 @@ class BemRepo:
                 ))
             if filtro.localizacao_id is not None:
                 q = q.filter(BemPatrimonial.localizacao_id == filtro.localizacao_id)
+            if filtro.localizacao_ids:
+                q = q.filter(BemPatrimonial.localizacao_id.in_(filtro.localizacao_ids))
             if filtro.situacao:
                 q = q.filter(BemPatrimonial.situacao == SituacaoBemEnum(filtro.situacao))
             elif filtro.apenas_ativos:
@@ -284,13 +288,14 @@ class BemRepo:
     @staticmethod
     def historico_movimentacao(
         data_ini: datetime, data_fim: datetime,
-        localizacao_id: int | None = None,
+        localizacao_ids: list[int] | None = None,
     ) -> list[MovimentacaoBem]:
         """
         Movimentações de TODOS os bens num período (T-27, RF-35) — diferente
         de historico(bem_id), que já sabe de qual bem se trata, aqui é
         necessário carregar o próprio bem (joinedload) para o relatório saber
-        de quem é cada linha.
+        de quem é cada linha. `localizacao_ids` casa origem OU destino em
+        qualquer uma das localizações selecionadas (multi-seleção em T-27).
         """
         with get_read_session() as s:
             q = (s.query(MovimentacaoBem)
@@ -301,24 +306,32 @@ class BemRepo:
                      joinedload(MovimentacaoBem.usuario),
                  )
                  .filter(MovimentacaoBem.data_hora.between(data_ini, data_fim)))
-            if localizacao_id is not None:
+            if localizacao_ids:
                 q = q.filter(or_(
-                    MovimentacaoBem.localizacao_origem_id == localizacao_id,
-                    MovimentacaoBem.localizacao_destino_id == localizacao_id,
+                    MovimentacaoBem.localizacao_origem_id.in_(localizacao_ids),
+                    MovimentacaoBem.localizacao_destino_id.in_(localizacao_ids),
                 ))
             itens = q.order_by(MovimentacaoBem.data_hora).all()
             s.expunge_all()
             return itens
 
     @staticmethod
-    def listar_baixas(data_ini: date, data_fim: date) -> list[BaixaBem]:
-        """Baixas registradas num período (T-27, RF-35)."""
+    def listar_baixas(data_ini: date, data_fim: date,
+                      localizacao_ids: list[int] | None = None) -> list[BaixaBem]:
+        """
+        Baixas registradas num período (T-27, RF-35). `localizacao_ids`
+        filtra pela localização ATUAL do bem (baixa não zera
+        bem_patrimonial.localizacao_id — o bem continua "lotado" ali, só
+        sai da situação ativa).
+        """
         with get_read_session() as s:
-            itens = (s.query(BaixaBem)
-                     .options(joinedload(BaixaBem.bem), joinedload(BaixaBem.usuario))
-                     .filter(BaixaBem.data_baixa.between(data_ini, data_fim))
-                     .order_by(BaixaBem.data_baixa)
-                     .all())
+            q = (s.query(BaixaBem)
+                 .join(BemPatrimonial, BaixaBem.bem_id == BemPatrimonial.id)
+                 .options(joinedload(BaixaBem.bem), joinedload(BaixaBem.usuario))
+                 .filter(BaixaBem.data_baixa.between(data_ini, data_fim)))
+            if localizacao_ids:
+                q = q.filter(BemPatrimonial.localizacao_id.in_(localizacao_ids))
+            itens = q.order_by(BaixaBem.data_baixa).all()
             s.expunge_all()
             return itens
 

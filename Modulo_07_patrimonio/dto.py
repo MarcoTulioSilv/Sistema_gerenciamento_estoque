@@ -86,6 +86,7 @@ class FiltroBens:
     """Filtros da listagem de bens (T-23). Campos None são ignorados."""
     texto: str | None = None                 # busca em tombo e descrição
     localizacao_id: int | None = None
+    localizacao_ids: list[int] | None = None  # multi-seleção (T-27) — soma com localizacao_id se ambos vierem
     situacao: str | None = None
     apenas_ativos: bool = True
     ordenar_por: str = "tombo"               # tombo | descricao | localizacao

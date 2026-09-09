@@ -654,48 +654,48 @@ class PatrimonioService:
     # chamam listar_* por baixo, pra não duplicar a busca. Todos exigem
     # "relatorios_patrimonio" (admin/ti — RF-35, técnico sem acesso).
 
-    def listar_bens_ativos(self, usuario_id: int, localizacao_id: int | None = None) -> list:
+    def listar_bens_ativos(self, usuario_id: int, localizacao_ids: list[int] | None = None) -> list:
         """
         Bens ativos, ordenados por localização (setor/sala) — o builder do
         XLSX usa essa ordem pra agrupar visualmente por localização. Sem
-        `localizacao_id`, cobre a clínica inteira (N grupos); com, cobre só
-        aquela localização (1 grupo) — mesma consulta, o filtro é que muda o
-        escopo.
+        `localizacao_ids`, cobre a clínica inteira (N grupos); com, cobre só
+        as localizações selecionadas — mesma consulta, o filtro é que muda
+        o escopo.
 
         Raises:
             PermissaoNegadaError
         """
         self._resolver_usuario_autorizado(usuario_id, "relatorios_patrimonio")
-        filtro = FiltroBens(localizacao_id=localizacao_id, apenas_ativos=True, ordenar_por="localizacao")
+        filtro = FiltroBens(localizacao_ids=localizacao_ids, apenas_ativos=True, ordenar_por="localizacao")
         return BemRepo.listar(filtro)
 
-    def relatorio_bens_ativos(self, usuario_id: int, localizacao_id: int | None = None) -> str:
+    def relatorio_bens_ativos(self, usuario_id: int, localizacao_ids: list[int] | None = None) -> str:
         """
         Gera o XLSX de bens ativos, agrupado por localização (RF-35).
 
         Raises:
             PermissaoNegadaError
         """
-        bens = self.listar_bens_ativos(usuario_id, localizacao_id)
+        bens = self.listar_bens_ativos(usuario_id, localizacao_ids)
         from Modulo_03_relatorios.xlsx_builder import XlsxBuilder
         caminho = XlsxBuilder.relatorio_bens_ativos(bens)
-        logger.info("Relatório de bens ativos gerado: usuario_id=%s localizacao_id=%s",
-                    usuario_id, localizacao_id)
+        logger.info("Relatório de bens ativos gerado: usuario_id=%s localizacao_ids=%s",
+                    usuario_id, localizacao_ids)
         return str(caminho)
 
-    def enviar_relatorio_bens_ativos(self, usuario_id: int, localizacao_id: int | None = None) -> None:
+    def enviar_relatorio_bens_ativos(self, usuario_id: int, localizacao_ids: list[int] | None = None) -> None:
         """
         Gera e envia por e-mail o relatório de bens ativos.
 
         Raises:
             PermissaoNegadaError
         """
-        caminho = self.relatorio_bens_ativos(usuario_id, localizacao_id)
+        caminho = self.relatorio_bens_ativos(usuario_id, localizacao_ids)
         self._enviar_email_relatorio(
             "Bens ativos", "Listagem de bens patrimoniais ativos, agrupada por localização.", caminho)
 
     def listar_historico_movimentacao(self, usuario_id: int, data_ini: datetime, data_fim: datetime,
-                                      localizacao_id: int | None = None) -> list:
+                                      localizacao_ids: list[int] | None = None) -> list:
         """
         Movimentações (cadastro, transferência, ajuste de inventário, baixa)
         de todos os bens num período.
@@ -704,7 +704,7 @@ class PatrimonioService:
             PermissaoNegadaError
         """
         self._resolver_usuario_autorizado(usuario_id, "relatorios_patrimonio")
-        return BemRepo.historico_movimentacao(data_ini, data_fim, localizacao_id)
+        return BemRepo.historico_movimentacao(data_ini, data_fim, localizacao_ids)
 
     def listar_log_periodo(self, usuario_id: int, data_ini: datetime, data_fim: datetime,
                            tipo_evento: str | None = None) -> list:
@@ -721,14 +721,14 @@ class PatrimonioService:
         return LogRepo.listar_periodo(data_ini, data_fim, tipo_enum)
 
     def relatorio_historico_movimentacao(self, usuario_id: int, data_ini: datetime, data_fim: datetime,
-                                         localizacao_id: int | None = None) -> str:
+                                         localizacao_ids: list[int] | None = None) -> str:
         """
         Gera o XLSX de histórico de movimentação por bem, num período (RF-35).
 
         Raises:
             PermissaoNegadaError
         """
-        movs = self.listar_historico_movimentacao(usuario_id, data_ini, data_fim, localizacao_id)
+        movs = self.listar_historico_movimentacao(usuario_id, data_ini, data_fim, localizacao_ids)
         from Modulo_03_relatorios.xlsx_builder import XlsxBuilder
         caminho = XlsxBuilder.relatorio_historico_movimentacao(movs, data_ini, data_fim)
         logger.info("Relatório de histórico de movimentação gerado: usuario_id=%s período=%s..%s",
@@ -736,70 +736,77 @@ class PatrimonioService:
         return str(caminho)
 
     def enviar_historico_movimentacao(self, usuario_id: int, data_ini: datetime, data_fim: datetime,
-                                      localizacao_id: int | None = None) -> None:
+                                      localizacao_ids: list[int] | None = None) -> None:
         """
         Gera e envia por e-mail o relatório de histórico de movimentação.
 
         Raises:
             PermissaoNegadaError
         """
-        caminho = self.relatorio_historico_movimentacao(usuario_id, data_ini, data_fim, localizacao_id)
+        caminho = self.relatorio_historico_movimentacao(usuario_id, data_ini, data_fim, localizacao_ids)
         self._enviar_email_relatorio(
             "Histórico de movimentação",
             f"Movimentações de bens patrimoniais entre {data_ini:%d/%m/%Y} e {data_fim:%d/%m/%Y}.",
             caminho)
 
-    def listar_bens_baixados(self, usuario_id: int, data_ini: date, data_fim: date) -> list:
+    def listar_bens_baixados(self, usuario_id: int, data_ini: date, data_fim: date,
+                             localizacao_ids: list[int] | None = None) -> list:
         """
-        Bens descartados/inativados (baixados) num período.
+        Bens descartados/inativados (baixados) num período. `localizacao_ids`
+        filtra pela localização atual do bem (baixa não zera a localização).
 
         Raises:
             PermissaoNegadaError
         """
         self._resolver_usuario_autorizado(usuario_id, "relatorios_patrimonio")
-        return BemRepo.listar_baixas(data_ini, data_fim)
+        return BemRepo.listar_baixas(data_ini, data_fim, localizacao_ids)
 
-    def relatorio_bens_baixados(self, usuario_id: int, data_ini: date, data_fim: date) -> str:
+    def relatorio_bens_baixados(self, usuario_id: int, data_ini: date, data_fim: date,
+                                localizacao_ids: list[int] | None = None) -> str:
         """
         Gera o XLSX de bens descartados/inativados num período (RF-35).
 
         Raises:
             PermissaoNegadaError
         """
-        baixas = self.listar_bens_baixados(usuario_id, data_ini, data_fim)
+        baixas = self.listar_bens_baixados(usuario_id, data_ini, data_fim, localizacao_ids)
         from Modulo_03_relatorios.xlsx_builder import XlsxBuilder
         caminho = XlsxBuilder.relatorio_bens_baixados(baixas, data_ini, data_fim)
         logger.info("Relatório de bens baixados gerado: usuario_id=%s período=%s..%s",
                     usuario_id, data_ini, data_fim)
         return str(caminho)
 
-    def enviar_relatorio_bens_baixados(self, usuario_id: int, data_ini: date, data_fim: date) -> None:
+    def enviar_relatorio_bens_baixados(self, usuario_id: int, data_ini: date, data_fim: date,
+                                       localizacao_ids: list[int] | None = None) -> None:
         """
         Gera e envia por e-mail o relatório de bens descartados/inativados.
 
         Raises:
             PermissaoNegadaError
         """
-        caminho = self.relatorio_bens_baixados(usuario_id, data_ini, data_fim)
+        caminho = self.relatorio_bens_baixados(usuario_id, data_ini, data_fim, localizacao_ids)
         self._enviar_email_relatorio(
             "Bens descartados/inativados",
             f"Baixas patrimoniais registradas entre {data_ini:%d/%m/%Y} e {data_fim:%d/%m/%Y}.",
             caminho)
 
     def listar_manutencoes(self, usuario_id: int, data_ini: date | None = None,
-                           data_fim: date | None = None) -> list:
+                           data_fim: date | None = None,
+                           localizacao_ids: list[int] | None = None) -> list:
         """
         Manutenções realizadas em bens, opcionalmente filtradas por período —
-        sem as duas datas, devolve todo o histórico.
+        sem as duas datas, devolve todo o histórico. `localizacao_ids`
+        filtra pela localização atual do bem.
 
         Raises:
             PermissaoNegadaError
         """
         self._resolver_usuario_autorizado(usuario_id, "relatorios_patrimonio")
-        return ManutencaoRepo.listar_periodo(data_ini, data_fim)
+        return ManutencaoRepo.listar_periodo(data_ini, data_fim, localizacao_ids)
 
     def relatorio_manutencoes(self, usuario_id: int, data_ini: date | None = None,
-                              data_fim: date | None = None) -> str:
+                              data_fim: date | None = None,
+                              localizacao_ids: list[int] | None = None) -> str:
         """
         Gera o XLSX de manutenções realizadas (RF-35 — complementa "bens
         ativos", que não traz mais essa coluna).
@@ -807,21 +814,22 @@ class PatrimonioService:
         Raises:
             PermissaoNegadaError
         """
-        manutencoes = self.listar_manutencoes(usuario_id, data_ini, data_fim)
+        manutencoes = self.listar_manutencoes(usuario_id, data_ini, data_fim, localizacao_ids)
         from Modulo_03_relatorios.xlsx_builder import XlsxBuilder
         caminho = XlsxBuilder.relatorio_manutencoes(manutencoes)
         logger.info("Relatório de manutenções gerado: usuario_id=%s", usuario_id)
         return str(caminho)
 
     def enviar_relatorio_manutencoes(self, usuario_id: int, data_ini: date | None = None,
-                                     data_fim: date | None = None) -> None:
+                                     data_fim: date | None = None,
+                                     localizacao_ids: list[int] | None = None) -> None:
         """
         Gera e envia por e-mail o relatório de manutenções.
 
         Raises:
             PermissaoNegadaError
         """
-        caminho = self.relatorio_manutencoes(usuario_id, data_ini, data_fim)
+        caminho = self.relatorio_manutencoes(usuario_id, data_ini, data_fim, localizacao_ids)
         periodo = f" entre {data_ini:%d/%m/%Y} e {data_fim:%d/%m/%Y}" if data_ini and data_fim else ""
         self._enviar_email_relatorio(
             "Manutenções", f"Manutenções registradas em bens patrimoniais{periodo}.", caminho)

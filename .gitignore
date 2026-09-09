@@ -9,6 +9,7 @@ env/
 # ─── Configuração sensível ───────────────────────────────
 .env
 *.env
+.env.op
 
 # ─── Logs da aplicação ───────────────────────────────────
 *.log

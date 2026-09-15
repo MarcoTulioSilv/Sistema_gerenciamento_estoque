@@ -413,8 +413,12 @@ class EstoqueService:
                     )
                 else:
                     if item.saldo_restante == 0:
-                        # Lote 100% esgotado na origem: apenas muda o centro de alocação (sem criar espelho)
+                        # Lote 100% transferido: é a MESMA linha que muda de centro (sem
+                        # criar espelho), então a quantidade zerada no passo 1 (que assume
+                        # que o lote fica na origem) precisa ser restaurada aqui — senão o
+                        # lote "muda de endereço" com saldo 0, perdendo a quantidade inteira.
                         lote_origem.centro_alocacao = CentroAlocacaoEnum(destino_centro)
+                        lote_origem.quantidade_atual = item.qtd_a_retirar
                         criar_espelho = False
                     else:
                         # Transferência parcial: mantém o mesmo num_lote da origem —

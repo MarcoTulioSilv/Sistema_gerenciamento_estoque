@@ -45,6 +45,18 @@ def _ler_db_config() -> dict[str, str]:
     }
 
 
+def _mysqldump_exe() -> str:
+    """
+    Caminho do executável do mysqldump. Por padrão usa "mysqldump" (depende
+    do PATH da máquina) — se uma atualização do MySQL remover o client do
+    PATH (ou trocar de pasta, ex.: instalador que deixa só o Workbench),
+    definir MYSQLDUMP_EXE no .env com o caminho completo do .exe evita
+    depender do PATH de novo.
+    """
+    env = dotenv_values(".env")
+    return env.get("MYSQLDUMP_EXE", os.getenv("MYSQLDUMP_EXE", "mysqldump"))
+
+
 class BackupManager:
     """Gerencia backups do banco de dados via mysqldump."""
 
@@ -94,7 +106,7 @@ class BackupManager:
 
         try:
             cmd = [
-                "mysqldump",
+                _mysqldump_exe(),
                 f"--host={cfg['host']}",
                 f"--port={cfg['port']}",
                 f"--user={cfg['user']}",
@@ -131,8 +143,10 @@ class BackupManager:
 
         except FileNotFoundError:
             msg = (
-                "Comando 'mysqldump' não encontrado. "
-                "Instale o MySQL Client e adicione ao PATH do sistema."
+                f"Comando '{_mysqldump_exe()}' não encontrado. "
+                "Instale o MySQL Client (ou reinstale-o, se uma atualização do MySQL "
+                "o removeu) e adicione ao PATH do sistema — ou defina MYSQLDUMP_EXE "
+                "no .env com o caminho completo do mysqldump.exe."
             )
             detalhe = msg
             logger.error(msg)

@@ -261,9 +261,15 @@ def gerar_zpl(bens, host: str, porta: str) -> bytes:
     x_qr = round(POS_QR_X_MM * DOTS_POR_MM)
     y_qr = round(POS_QR_Y_MM * DOTS_POR_MM)
     x_texto = round(POS_TEXTO_X_MM * DOTS_POR_MM)
-    y_nome_l1 = round(POS_NOME_Y_MM * DOTS_POR_MM)
+    # POS_NOME_Y_MM/POS_TOMBO_Y_MM foram calibrados como baseline (é como o
+    # PDF/ReportLab interpreta `y` em drawString — modelo aprovado). O ZPL,
+    # porém, usa `^FO x,y` + `^A0` com y = TOPO da caixa do texto, não
+    # baseline. Sem esse ajuste, o texto nasce ~1 altura de fonte mais baixo
+    # no ZPL do que no PDF — foi o que colou o tombo no código de barras
+    # (30mm + 11mm de altura = 41mm, código de barras começa em 38mm).
+    y_nome_l1 = round(POS_NOME_Y_MM * DOTS_POR_MM) - h_nome_dots
     y_nome_l2 = y_nome_l1 + entrelinha_dots
-    y_tombo = round(POS_TOMBO_Y_MM * DOTS_POR_MM)
+    y_tombo = round(POS_TOMBO_Y_MM * DOTS_POR_MM) - h_tombo_dots
     x_code = round(POS_CODE128_X_MM * DOTS_POR_MM)
     y_code = round(POS_CODE128_Y_MM * DOTS_POR_MM)
 

@@ -151,6 +151,41 @@ POS_CODE128_Y_MM = ETIQUETA_ALTURA_MM - CODE128_ALTURA_MM - 4.0
 POS_LOGO_Y_MM = LOGO_MARGEM_TOPO_MM
 
 
+# ─── Layout do modelo COMPACTO (50×30mm) ───────────────────────────────────────
+#
+# Segunda opção de etiqueta, pedida pela gestão pra um papel menor. Mantém o
+# QR (mesma versão 3 / ECC M do modelo padrão — a URL não muda de tamanho),
+# só com módulo físico menor; remove o nome da clínica. Validado com a
+# gestão via esboço comparativo e teste de leitura real num celular antes de
+# entrar em produção — módulo pequeno ainda não testado na impressora física
+# (mesma limitação já citada no topo do arquivo pro modelo padrão).
+COMPACTA_LARGURA_MM = 50.0
+COMPACTA_ALTURA_MM = 30.0
+
+COMPACTA_QR_MODULO_MM = 0.5  # padrão usa 1,0mm — mesma versão/ECC, só menor fisicamente
+COMPACTA_QR_TAMANHO_MM = QR_MODULOS * COMPACTA_QR_MODULO_MM  # 14,5mm
+COMPACTA_QR_MARGEM_MM = 2.0
+COMPACTA_POS_QR_X_MM = COMPACTA_QR_MARGEM_MM
+COMPACTA_POS_QR_Y_MM = COMPACTA_QR_MARGEM_MM
+
+COMPACTA_LOGO_ALTURA_MM = 6.0 * 1.25  # 7,5mm
+COMPACTA_LOGO_MARGEM_DIREITA_MM = 2.0
+
+# Linha 1 (QR + ícone + tombo): o QR define a faixa vertical (é o maior
+# elemento); ícone e tombo são centralizados nela, não têm Y fixo próprio —
+# ver _campo_texto_centralizado_zpl / _tombo_centralizado_pdf.
+COMPACTA_GAP_APOS_QR_MM = 1.5       # entre o QR e a coluna do tombo
+COMPACTA_GAP_ANTES_ICONE_MM = 1.5   # entre a coluna do tombo e o ícone
+
+COMPACTA_CODE128_LARGURA_MM = 46.0  # referência pro PDF (estica a imagem,
+                                     # mesmo mecanismo do modelo padrão); no
+                                     # ZPL a largura real varia com o tombo
+COMPACTA_CODE128_ALTURA_MM = 9.0
+COMPACTA_CODE128_MODULO_MM = 0.375  # mesmo módulo do modelo padrão
+COMPACTA_POS_CODE128_X_MM = 2.0
+COMPACTA_POS_CODE128_Y_MM = COMPACTA_ALTURA_MM - COMPACTA_CODE128_ALTURA_MM - 2.0  # 19,0mm
+
+
 class EtiquetaBuilderError(Exception):
     """Erro interno de geração — o service traduz para as exceções do MOD-07."""
 
@@ -350,24 +385,26 @@ def _desenhar_qr(c, matriz: list[list[bool]], x_mm: float, y_topo_mm: float,
             c.rect(x_pt, y_linha_pt, modulo_pt, modulo_pt, fill=1, stroke=0)
 
 
-def _desenhar_code128(c, tombo: str, x_mm: float, y_topo_mm: float, altura_pagina_mm: float):
+def _desenhar_code128(c, tombo: str, x_mm: float, y_topo_mm: float, altura_pagina_mm: float,
+                      largura_mm: float = CODE128_LARGURA_MM, altura_mm: float = CODE128_ALTURA_MM,
+                      modulo_mm: float = CODE128_MODULO_MM):
     from reportlab.lib.units import mm as MM
     from reportlab.lib.utils import ImageReader
 
     code = Code128(tombo, writer=ImageWriter())
     buf = io.BytesIO()
     code.write(buf, options={
-        "module_width": CODE128_MODULO_MM,
-        "module_height": CODE128_ALTURA_MM,
+        "module_width": modulo_mm,
+        "module_height": altura_mm,
         "quiet_zone": 0.0,
         "write_text": False,
     })
     buf.seek(0)
     imagem = ImageReader(buf)
 
-    y_base_pt = (altura_pagina_mm - y_topo_mm - CODE128_ALTURA_MM) * MM
+    y_base_pt = (altura_pagina_mm - y_topo_mm - altura_mm) * MM
     c.drawImage(imagem, x_mm * MM, y_base_pt,
-                width=CODE128_LARGURA_MM * MM, height=CODE128_ALTURA_MM * MM,
+                width=largura_mm * MM, height=altura_mm * MM,
                 preserveAspectRatio=False, mask="auto")
 
 
@@ -412,13 +449,14 @@ def _desenhar_etiqueta(c, bem, host: str, porta: str, origem_x_mm: float,
     c.drawString((origem_x_mm + POS_TEXTO_X_MM) * MM, y_tombo_pt, bem.tombo)
 
 
-def _desenhar_marcas_corte(c, x0_mm: float, y0_topo_mm: float, altura_pagina_mm: float):
+def _desenhar_marcas_corte(c, x0_mm: float, y0_topo_mm: float, altura_pagina_mm: float,
+                           largura_mm: float = ETIQUETA_LARGURA_MM, altura_mm: float = ETIQUETA_ALTURA_MM):
     from reportlab.lib.units import mm as MM
     tam = 3.0  # mm de comprimento de cada traço de corte
     x1 = x0_mm * MM
-    x2 = (x0_mm + ETIQUETA_LARGURA_MM) * MM
+    x2 = (x0_mm + largura_mm) * MM
     y1 = (altura_pagina_mm - y0_topo_mm) * MM
-    y2 = (altura_pagina_mm - y0_topo_mm - ETIQUETA_ALTURA_MM) * MM
+    y2 = (altura_pagina_mm - y0_topo_mm - altura_mm) * MM
 
     c.setLineWidth(0.3)
     for x in (x1, x2):
@@ -466,6 +504,221 @@ def gerar_pdf_folha(bens, host: str, porta: str) -> bytes:
         y0_topo_mm = margem_mm + row * ETIQUETA_ALTURA_MM
         _desenhar_etiqueta(c, bem, host, porta, x0_mm, y0_topo_mm, a4_altura_mm)
         _desenhar_marcas_corte(c, x0_mm, y0_topo_mm, a4_altura_mm)
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+# ─── Modelo COMPACTO (50×30mm) ──────────────────────────────────────────────────
+#
+# QR + ícone + tombo na linha 1, code128 na linha 2 — sem nome da clínica.
+# Reaproveita os geradores de bitmap/QR/ícone/barcode de cima sem alteração;
+# só a MONTAGEM (posições, e a fonte auto-ajustável do tombo) é nova.
+
+def _fonte_mm_que_cabe(texto: str, largura_disp_mm: float, altura_disp_mm: float,
+                       fonte: str = "Helvetica-Bold", folga: float = 0.92) -> float:
+    """
+    Maior fonte (convenção deste arquivo: valor em "mm nominal", igual
+    TOMBO_FONTE_MM) que faz `texto` caber em largura_disp_mm sem passar de
+    altura_disp_mm — com 8% de folga pra não encostar nas bordas da coluna.
+
+    Existe porque, no modelo compacto, a coluna disponível pro tombo muda de
+    tamanho conforme o resto do layout (QR ocupa a maior parte da linha 1) —
+    um tamanho de fonte fixo ou estourava a coluna ou desperdiçava espaço.
+    """
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    from reportlab.lib.units import mm as MM
+
+    largura_mm_a_1mm = stringWidth(texto, fonte, 1 * MM) / MM
+    fonte_por_largura = largura_disp_mm / largura_mm_a_1mm
+    return min(fonte_por_largura, altura_disp_mm) * folga
+
+
+def _tombo_centralizado_pdf(c, texto: str, x_esq_mm: float, x_dir_mm: float,
+                            y_topo_mm: float, y_fundo_mm: float, altura_pagina_mm: float,
+                            fonte: str = "Helvetica-Bold") -> float:
+    """
+    Desenha `texto` centralizado (horizontal e verticalmente) na coluna
+    [x_esq_mm, x_dir_mm] × [y_topo_mm, y_fundo_mm], na maior fonte que cabe
+    (_fonte_mm_que_cabe). Devolve a fonte usada, em mm nominal.
+    """
+    from reportlab.lib.units import mm as MM
+
+    fonte_mm = _fonte_mm_que_cabe(texto, x_dir_mm - x_esq_mm, y_fundo_mm - y_topo_mm, fonte)
+
+    x_centro_mm = (x_esq_mm + x_dir_mm) / 2
+    y_centro_mm = (y_topo_mm + y_fundo_mm) / 2
+    # Baseline ~1/3 da altura da fonte abaixo do centro vertical — aproximação
+    # padrão pra centralizar visualmente texto sem descendentes (tombo é só
+    # maiúsculas/dígitos/hífen).
+    y_baseline_mm = y_centro_mm + fonte_mm * 0.33
+
+    c.setFont(fonte, fonte_mm * MM)
+    y_baseline_pt = (altura_pagina_mm - y_baseline_mm) * MM
+    c.drawCentredString(x_centro_mm * MM, y_baseline_pt, texto)
+    return fonte_mm
+
+
+def _campo_texto_centralizado_zpl(texto: str, x_esq_mm: float, x_dir_mm: float,
+                                  y_topo_mm: float, y_fundo_mm: float) -> tuple[int, int, int]:
+    """
+    Equivalente ZPL de _tombo_centralizado_pdf: calcula (x_dots, y_topo_dots,
+    altura_fonte_dots) pra um campo ^A0 centralizado na coluna, com a fonte
+    que preenche o espaço.
+
+    O ZPL não tem "desenhar centralizado" nativo nem Helvetica — a largura
+    do texto é estimada com a métrica do Helvetica-Bold (mesma referência
+    usada no PDF) como proxy do `^A0` escalável do firmware, aproximação
+    aceitável pra esse fim. y_topo_dots já aplica o ajuste baseline→topo
+    (mesmo fix do bug do modelo padrão: ^FO+^A0 usa o topo da caixa, não a
+    baseline).
+    """
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    from reportlab.lib.units import mm as MM
+
+    largura_disp = x_dir_mm - x_esq_mm
+    altura_disp = y_fundo_mm - y_topo_mm
+    fonte_mm = _fonte_mm_que_cabe(texto, largura_disp, altura_disp)
+    largura_texto_mm = stringWidth(texto, "Helvetica-Bold", fonte_mm * MM) / MM
+
+    x_mm = x_esq_mm + (largura_disp - largura_texto_mm) / 2
+    y_centro_mm = (y_topo_mm + y_fundo_mm) / 2
+    y_baseline_mm = y_centro_mm + fonte_mm * 0.33
+
+    fonte_dots = round(fonte_mm * DOTS_POR_MM)
+    x_dots = round(x_mm * DOTS_POR_MM)
+    y_topo_dots = round(y_baseline_mm * DOTS_POR_MM) - fonte_dots
+    return x_dots, y_topo_dots, fonte_dots
+
+
+def _coluna_tombo_compacta(origem_x_mm: float = 0.0) -> tuple[float, float]:
+    """
+    (x_esq, x_dir) da coluna reservada ao tombo no modelo compacto — entre o
+    QR e o ícone. Compartilhado pelo ZPL e pelo PDF, pra não duplicar essa
+    conta duas vezes. A faixa vertical (y_topo/y_fundo) é a mesma do QR —
+    cada chamador já a tem calculada, não entra aqui.
+    """
+    largura_logo_px, altura_logo_px = _dimensoes_logo()
+    largura_logo_mm = COMPACTA_LOGO_ALTURA_MM * (largura_logo_px / altura_logo_px)
+    icone_x_esq_mm = origem_x_mm + COMPACTA_LARGURA_MM - COMPACTA_LOGO_MARGEM_DIREITA_MM - largura_logo_mm
+
+    x_esq = origem_x_mm + COMPACTA_POS_QR_X_MM + COMPACTA_QR_TAMANHO_MM + COMPACTA_GAP_APOS_QR_MM
+    x_dir = icone_x_esq_mm - COMPACTA_GAP_ANTES_ICONE_MM
+    return x_esq, x_dir
+
+
+def gerar_zpl_compacta(bens, host: str, porta: str) -> bytes:
+    """Mesma ideia de gerar_zpl, no layout compacto (50×30mm, sem nome da clínica)."""
+    largura_dots = round(COMPACTA_LARGURA_MM * DOTS_POR_MM)
+    altura_dots = round(COMPACTA_ALTURA_MM * DOTS_POR_MM)
+    modulo_qr_dots = round(COMPACTA_QR_MODULO_MM * DOTS_POR_MM)
+    modulo_code128_dots = round(COMPACTA_CODE128_MODULO_MM * DOTS_POR_MM)
+    h_code_dots = round(COMPACTA_CODE128_ALTURA_MM * DOTS_POR_MM)
+
+    x_qr = round(COMPACTA_POS_QR_X_MM * DOTS_POR_MM)
+    y_qr = round(COMPACTA_POS_QR_Y_MM * DOTS_POR_MM)
+    x_code = round(COMPACTA_POS_CODE128_X_MM * DOTS_POR_MM)
+    y_code = round(COMPACTA_POS_CODE128_Y_MM * DOTS_POR_MM)
+
+    row_topo_mm = COMPACTA_POS_QR_Y_MM
+    row_fundo_mm = COMPACTA_POS_QR_Y_MM + COMPACTA_QR_TAMANHO_MM
+    row_centro_mm = (row_topo_mm + row_fundo_mm) / 2
+
+    altura_logo_dots = round(COMPACTA_LOGO_ALTURA_MM * DOTS_POR_MM)
+    gfa_logo, largura_logo_dots = _gfa_bitmap_logo(altura_logo_dots)
+    x_logo = largura_dots - round(COMPACTA_LOGO_MARGEM_DIREITA_MM * DOTS_POR_MM) - largura_logo_dots
+    y_logo = round((row_centro_mm - COMPACTA_LOGO_ALTURA_MM / 2) * DOTS_POR_MM)
+
+    coluna_x_esq_mm, coluna_x_dir_mm = _coluna_tombo_compacta()
+
+    partes: list[str] = []
+    for bem in bens:
+        payload = montar_payload(bem.tombo, host, porta)
+        matriz = _matriz_qr(payload)
+        gfa_qr = _gfa_bitmap_qr(matriz, modulo_qr_dots)
+
+        x_tombo, y_tombo, h_tombo_dots = _campo_texto_centralizado_zpl(
+            bem.tombo, coluna_x_esq_mm, coluna_x_dir_mm, row_topo_mm, row_fundo_mm)
+
+        zpl = (
+            "^XA"
+            f"^PW{largura_dots}^LL{altura_dots}"
+            f"^FO{x_qr},{y_qr}{gfa_qr}^FS"
+            f"^FO{x_logo},{y_logo}{gfa_logo}^FS"
+            f"^FO{x_tombo},{y_tombo}^A0N,{h_tombo_dots},{h_tombo_dots}^FD{bem.tombo}^FS"
+            f"^FO{x_code},{y_code}^BY{modulo_code128_dots},2,{h_code_dots}"
+            f"^BCN,{h_code_dots},N,N,N^FD{bem.tombo}^FS"
+            "^XZ"
+        )
+        partes.append(zpl)
+
+    return "".join(partes).encode("utf-8")
+
+
+def _desenhar_etiqueta_compacta(c, bem, host: str, porta: str, origem_x_mm: float,
+                                origem_y_topo_mm: float, altura_pagina_mm: float):
+    payload = montar_payload(bem.tombo, host, porta)
+    matriz = _matriz_qr(payload)
+
+    _desenhar_qr(c, matriz, origem_x_mm + COMPACTA_POS_QR_X_MM, origem_y_topo_mm + COMPACTA_POS_QR_Y_MM,
+                COMPACTA_QR_TAMANHO_MM, altura_pagina_mm)
+    _desenhar_code128(c, bem.tombo, origem_x_mm + COMPACTA_POS_CODE128_X_MM,
+                      origem_y_topo_mm + COMPACTA_POS_CODE128_Y_MM, altura_pagina_mm,
+                      largura_mm=COMPACTA_CODE128_LARGURA_MM, altura_mm=COMPACTA_CODE128_ALTURA_MM,
+                      modulo_mm=COMPACTA_CODE128_MODULO_MM)
+
+    row_topo_mm = origem_y_topo_mm + COMPACTA_POS_QR_Y_MM
+    row_fundo_mm = row_topo_mm + COMPACTA_QR_TAMANHO_MM
+    row_centro_mm = (row_topo_mm + row_fundo_mm) / 2
+
+    icone_x_direita_mm = origem_x_mm + COMPACTA_LARGURA_MM - COMPACTA_LOGO_MARGEM_DIREITA_MM
+    icone_y_topo_mm = row_centro_mm - COMPACTA_LOGO_ALTURA_MM / 2
+
+    _desenhar_logo(c, icone_x_direita_mm, icone_y_topo_mm, COMPACTA_LOGO_ALTURA_MM, altura_pagina_mm)
+
+    coluna_x_esq_mm, coluna_x_dir_mm = _coluna_tombo_compacta(origem_x_mm)
+    _tombo_centralizado_pdf(c, bem.tombo, coluna_x_esq_mm, coluna_x_dir_mm,
+                            row_topo_mm, row_fundo_mm, altura_pagina_mm)
+
+
+def gerar_pdf_unitario_compacta(bens, host: str, porta: str) -> bytes:
+    """Uma página de 50x30mm por bem — modelo compacto (RF-28.3)."""
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    tamanho_pagina = (_mm_para_pt(COMPACTA_LARGURA_MM), _mm_para_pt(COMPACTA_ALTURA_MM))
+    buf = io.BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=tamanho_pagina)
+    for bem in bens:
+        _desenhar_etiqueta_compacta(c, bem, host, porta, origem_x_mm=0, origem_y_topo_mm=0,
+                                    altura_pagina_mm=COMPACTA_ALTURA_MM)
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def gerar_pdf_folha_compacta(bens, host: str, porta: str) -> bytes:
+    """Folha A4 em grade, com marcas de corte — modelo compacto (RF-28.3)."""
+    from reportlab.pdfgen import canvas as rl_canvas
+    from reportlab.lib.pagesizes import A4
+
+    a4_largura_mm, a4_altura_mm = 210.0, 297.0
+    margem_mm = 10.0
+    cols = max(1, int((a4_largura_mm - 2 * margem_mm) // COMPACTA_LARGURA_MM))
+    rows = max(1, int((a4_altura_mm - 2 * margem_mm) // COMPACTA_ALTURA_MM))
+    por_pagina = cols * rows
+
+    buf = io.BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+    for i, bem in enumerate(bens):
+        pos = i % por_pagina
+        if pos == 0 and i > 0:
+            c.showPage()
+        col, row = pos % cols, pos // cols
+        x0_mm = margem_mm + col * COMPACTA_LARGURA_MM
+        y0_topo_mm = margem_mm + row * COMPACTA_ALTURA_MM
+        _desenhar_etiqueta_compacta(c, bem, host, porta, x0_mm, y0_topo_mm, a4_altura_mm)
+        _desenhar_marcas_corte(c, x0_mm, y0_topo_mm, a4_altura_mm,
+                               largura_mm=COMPACTA_LARGURA_MM, altura_mm=COMPACTA_ALTURA_MM)
     c.showPage()
     c.save()
     return buf.getvalue()

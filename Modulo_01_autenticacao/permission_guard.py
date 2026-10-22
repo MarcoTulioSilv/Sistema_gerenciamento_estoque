@@ -66,6 +66,8 @@ _PERMISSOES: dict[str,list[str]]={
     "relatorios_patrimonio": ["admin", "ti"],  # RF-35 — Gestora (admin) + TI
     # MOD-07 — Patrimônio (T-30 — log de auditoria)
     "log_patrimonio": ["ti"],
+    # MOD-07 — Patrimônio (etiqueta compacta — visualização de layout)
+    "visualizar_layout_etiqueta": ["ti"],
 }
 
 class PermissionGuard:

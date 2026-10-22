@@ -40,7 +40,7 @@ from Modulo_05_admin import ConfigService
 
 from .dto import (
     BemPublico, DadosBem, DadosBaixa, DadosManutencao,
-    FiltroBens, ResultadoEtiquetas, SaidaEtiqueta,
+    FiltroBens, ModeloEtiqueta, ResultadoEtiquetas, SaidaEtiqueta,
 )
 from .excecoes import (
     BemNaoEncontradoError, BemBaixadoError, BaixaJaRegistradaError,
@@ -511,10 +511,17 @@ class PatrimonioService:
 
     def gerar_etiquetas(self, bens_ids: list[int], saida: SaidaEtiqueta, usuario_id: int,
                         caminho_destino: str | None = None,
-                        nome_impressora: str | None = None) -> ResultadoEtiquetas:
+                        nome_impressora: str | None = None,
+                        modelo: ModeloEtiqueta = ModeloEtiqueta.padrao) -> ResultadoEtiquetas:
         """
         Gera e emite etiquetas em lote (RF-28), a partir da seleção por
         caixa de seleção em T-23.
+
+        `modelo` escolhe o tamanho/layout físico (padrão 100×50mm ou
+        compacta 50×30mm) — independente de `saida`, que escolhe o CAMINHO
+        de emissão. Default `padrao` preserva o comportamento anterior pra
+        quem não passar o argumento (ex.: T-24, que sempre imprime no
+        padrão ao cadastrar um bem).
 
         `impressora_rede` não está disponível nesta rodada (decisão de
         escopo) — recusada com ImpressoraIndisponivelError, não implementada
@@ -551,6 +558,7 @@ class PatrimonioService:
 
         host = ConfigService.get("coleta_host")
         porta = ConfigService.get("coleta_porta")
+        compacta = modelo == ModeloEtiqueta.compacta
 
         caminho_arquivo = None
         try:
@@ -561,13 +569,16 @@ class PatrimonioService:
             elif saida == SaidaEtiqueta.impressora_cabo:
                 if not nome_impressora:
                     raise ImpressoraIndisponivelError("Selecione uma impressora.")
-                zpl = etiqueta_builder.gerar_zpl(bens, host, porta)
+                gerar_zpl = etiqueta_builder.gerar_zpl_compacta if compacta else etiqueta_builder.gerar_zpl
+                zpl = gerar_zpl(bens, host, porta)
                 etiqueta_builder.imprimir_cabo(zpl, nome_impressora)
             elif saida == SaidaEtiqueta.arquivo_unitario:
-                pdf = etiqueta_builder.gerar_pdf_unitario(bens, host, porta)
+                gerar_pdf = etiqueta_builder.gerar_pdf_unitario_compacta if compacta else etiqueta_builder.gerar_pdf_unitario
+                pdf = gerar_pdf(bens, host, porta)
                 caminho_arquivo = self._gravar_arquivo_temp(pdf, "unitario")
             elif saida == SaidaEtiqueta.arquivo_folha:
-                pdf = etiqueta_builder.gerar_pdf_folha(bens, host, porta)
+                gerar_pdf = etiqueta_builder.gerar_pdf_folha_compacta if compacta else etiqueta_builder.gerar_pdf_folha
+                pdf = gerar_pdf(bens, host, porta)
                 caminho_arquivo = self._gravar_arquivo_temp(pdf, "folha")
             else:
                 raise ImpressoraIndisponivelError(f"Saída '{saida}' não suportada.")
@@ -577,12 +588,48 @@ class PatrimonioService:
         agora = datetime.utcnow()
         BemRepo.marcar_etiqueta_impressa([b.id for b in bens], agora)
 
-        logger.info("Etiquetas geradas: saida=%s quantidade=%s usuario_id=%s",
-                    saida.value, len(bens), usuario_id)
+        logger.info("Etiquetas geradas: saida=%s modelo=%s quantidade=%s usuario_id=%s",
+                    saida.value, modelo.value, len(bens), usuario_id)
         return ResultadoEtiquetas(
             saida=saida, quantidade=len(bens), caminho_arquivo=caminho_arquivo,
             tombos=[b.tombo for b in bens],
         )
+
+    def pre_visualizar_etiqueta(self, bem_id: int, modelo: ModeloEtiqueta, usuario_id: int) -> str:
+        """
+        Gera o PDF de UM bem (modelo escolhido) num arquivo temporário e
+        devolve o caminho — pra conferir o layout antes de imprimir de
+        verdade. NÃO marca etiqueta_impressa_em: visualizar não é emitir.
+
+        Só TI (`visualizar_layout_etiqueta`) — é ferramenta de calibração,
+        não uma via de emissão operacional.
+
+        Raises:
+            BemNaoEncontradoError, BemBaixadoError, PermissaoNegadaError
+        """
+        self._resolver_usuario_autorizado(usuario_id, "visualizar_layout_etiqueta")
+
+        bem = BemRepo.buscar_por_id(bem_id)
+        if not bem:
+            raise BemNaoEncontradoError(f"Bem {bem_id} não encontrado.")
+        if bem.situacao == SituacaoBemEnum.baixado:
+            raise BemBaixadoError(f"Bem {bem.tombo} está baixado.")
+
+        host = ConfigService.get("coleta_host")
+        porta = ConfigService.get("coleta_porta")
+
+        try:
+            gerar_pdf = (etiqueta_builder.gerar_pdf_unitario_compacta
+                        if modelo == ModeloEtiqueta.compacta
+                        else etiqueta_builder.gerar_pdf_unitario)
+            pdf = gerar_pdf([bem], host, porta)
+        except EtiquetaBuilderError as exc:
+            raise PayloadExcedidoError(str(exc)) from exc
+
+        caminho = self._gravar_arquivo_temp(pdf, f"preview_{modelo.value}")
+        logger.info("Pré-visualização de etiqueta: bem_id=%s modelo=%s usuario_id=%s",
+                    bem_id, modelo.value, usuario_id)
+        return caminho
 
     def montar_payload_qr(self, tombo: str) -> str:
         """

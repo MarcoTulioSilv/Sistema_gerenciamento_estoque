@@ -633,7 +633,8 @@ class XlsxBuilder:
         nos últimos meses de calendário indicados em `meses_labels` (ex.:
         ["Jun/2026", "Jul/2026", "Ago/2026"]). `dados` já vem pronto de
         RelatorioService.buscar_dados_consumo_medio — cada linha é
-        [rótulo, mês1, ..., mêsN, total, média_mensal].
+        [rótulo, mês1, ..., mêsN, total, média_mensal, variação], já sem
+        produtos/grupos sem uso no período (filtrados na origem).
         """
         meses = len(meses_labels)
         wb = Workbook()
@@ -644,7 +645,7 @@ class XlsxBuilder:
         colunas = (
             [("Produto/Grupo", 100)]
             + [(label, 12) for label in meses_labels]
-            + [("Total Consumido", 16), ("Média Mensal", 14)]
+            + [("Total Consumido", 16), ("Média Mensal", 14), ("Variação (%)", 14)]
         )
         n_cols = len(colunas)
         # Coluna A reservada pro logo; título ocupa B até uma coluna a mais

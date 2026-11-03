@@ -29,6 +29,128 @@ function extrairFatorEmbalagem(descricao) {
     return 1; // Retorna 1 se não encontrar fracionamento
 }
 
+function formatarDataBR(valor) {
+    if (valor && valor.includes('-')) {
+        let p = valor.split('-');
+        return `${p[2]}/${p[1]}/${p[0]}`;
+    }
+    return valor || "";
+}
+
+// ─── Múltiplos lotes na mesma linha de produto ────────────────────────────────
+//
+// Algumas notas resumem mais de um lote físico numa única linha (mesmo
+// produto, quantidade total dividida entre lotes diferentes). As funções
+// abaixo detectam isso de dois jeitos independentes — o rastro estruturado
+// da NFe (repetível por natureza, um bloco por lote) e o texto livre de
+// "Informações Adicionais do Produto" (formato observado:
+// "Lote: 123 Venc: dd/mm/aaaa Qtd: 10") — e NUNCA inventam quantidade: se
+// não há como saber a quantidade de um lote, ela fica null e um aviso é
+// disparado (ver resolverLotesMultiplos). O caminho de lote único (0 ou 1
+// lote na linha) continua passando pelo código original em extrairDadosSefaz,
+// inalterado.
+
+function extrairLotesEstruturados(detalhe) {
+    function snapshot(xpath) {
+        let resultado = document.evaluate(xpath, detalhe, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        let nos = [];
+        for (let i = 0; i < resultado.snapshotLength; i++) nos.push(resultado.snapshotItem(i));
+        return nos;
+    }
+
+    let nosLote = snapshot(".//label[contains(text(), 'Número do Lote do produto')]/following-sibling::span");
+    if (nosLote.length === 0) return [];
+
+    let nosVal = snapshot(".//label[contains(text(), 'Data de validade')]/following-sibling::span");
+    let nosFab = snapshot(".//label[contains(text(), 'Data de fabricação')]/following-sibling::span");
+    // Rótulo exato de quantidade por lote ainda não confirmado contra uma nota
+    // real com múltiplos lotes estruturados — tentamos as variações mais
+    // prováveis; se nenhuma existir, qtd fica null e resolverLotesMultiplos()
+    // tenta casar com o texto livre antes de desistir.
+    let nosQtd = snapshot(".//label[contains(text(), 'Quantidade do Lote')]/following-sibling::span")
+        .concat(snapshot(".//label[contains(text(), 'Qtde do Lote')]/following-sibling::span"));
+
+    return nosLote.map((no, i) => ({
+        lote: no.innerText.trim(),
+        validade: formatarDataBR(nosVal[i] ? nosVal[i].innerText.trim() : ""),
+        fabricacao: formatarDataBR(nosFab[i] ? nosFab[i].innerText.trim() : ""),
+        qtd: nosQtd[i] ? parseFloat(nosQtd[i].innerText.replace(/\./g, '').replace(',', '.')) : null,
+    }));
+}
+
+function extrairLotesTextoLivre(texto) {
+    if (!texto) return [];
+    // Quebra em blocos a partir de cada ocorrência de "Lote" — não depende do
+    // separador usado entre eles (" - ", "|", quebra de linha, etc).
+    const blocos = texto.split(/(?=Lote\s*[:\-]?\s*\S)/i)
+        .map(b => b.trim())
+        .filter(b => /^Lote\s*[:\-]?/i.test(b));
+
+    return blocos.map(bloco => {
+        const mLote = bloco.match(/Lote\s*[:\-]?\s*([A-Za-z0-9_\-]+)/i);
+        const mFab = bloco.match(/Fab\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
+        const mVenc = bloco.match(/(?:Venc|Val)\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
+        const mQtd = bloco.match(/Qtd\s*[:\-]?\s*(\d+)/i);
+        return {
+            lote: mLote ? mLote[1].trim() : null,
+            fabricacao: mFab ? mFab[1] : "",
+            validade: mVenc ? mVenc[1] : "",
+            qtd: mQtd ? parseInt(mQtd[1], 10) : null,
+        };
+    }).filter(l => l.lote);
+}
+
+function obterTextoInfoAdicionalProduto(detalhe) {
+    let no = document.evaluate(
+        ".//fieldset[contains(@class, 'fieldset-internal')]//label[contains(text(), 'Descrição')]/following-sibling::span",
+        detalhe, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
+    ).singleNodeValue;
+    return no ? no.innerText : "";
+}
+
+/**
+ * Detecta se a linha tem MAIS de um lote (estruturado ou texto livre) e,
+ * se tiver, resolve a quantidade de cada um sem nunca inventar número:
+ *   1. estruturado já traz a própria quantidade -> usa
+ *   2. senão, casa pelo número do lote com o texto livre -> usa
+ *   3. senão, fica null + avisa (console.warn + alert)
+ * Devolve null se a linha tem só 0 ou 1 lote (deixa o caminho original de
+ * extrairDadosSefaz cuidar, sem nenhuma mudança de comportamento).
+ */
+function resolverLotesMultiplos(detalhe, descricaoProduto) {
+    let lotesEstruturados = extrairLotesEstruturados(detalhe);
+    let lotesTexto = extrairLotesTextoLivre(obterTextoInfoAdicionalProduto(detalhe));
+
+    let lotes = lotesEstruturados.length > 1 ? lotesEstruturados
+        : (lotesTexto.length > 1 ? lotesTexto : null);
+    if (!lotes) return null;
+
+    if (lotes === lotesEstruturados) {
+        let semQuantidade = [];
+        lotes.forEach(l => {
+            if (l.qtd === null) {
+                let correspondente = lotesTexto.find(t => t.lote === l.lote);
+                if (correspondente && correspondente.qtd !== null) {
+                    l.qtd = correspondente.qtd;
+                } else {
+                    semQuantidade.push(l.lote);
+                }
+            }
+        });
+        if (semQuantidade.length > 0) {
+            let msg = `SCE: Produto "${descricaoProduto}" tem lote(s) sem quantidade identificada: ${semQuantidade.join(', ')}. Confira manualmente na tela de revisão (T-07c) antes de confirmar a entrada.`;
+            console.warn(msg);
+            alert(msg);
+        }
+    }
+
+    let somaConhecida = lotes.reduce((acc, l) => l.qtd !== null ? acc + l.qtd : acc, 0);
+    let todasConhecidas = lotes.every(l => l.qtd !== null);
+    console.log(`SCE: ${lotes.length} lotes detectados em "${descricaoProduto}": ${lotes.map(l => l.lote).join(', ')}.`);
+
+    return { lotes, somaConhecida, todasConhecidas };
+}
+
 function extrairDadosSefaz() {
     try {
         let numNfNode = document.querySelector(".fixo-nro-serie span");
@@ -109,6 +231,11 @@ function extrairDadosSefaz() {
                 }
             }
 
+            // 5b. Mais de um lote na mesma linha? (estruturado ou texto livre —
+            // ver resolverLotesMultiplos). Se só 0 ou 1 lote, devolve null e o
+            // caminho abaixo segue IDÊNTICO ao comportamento original.
+            let multiplos = resolverLotesMultiplos(detalhe, descricaoProduto);
+
             // 6. Cálculos de Fracionamento
             let fator = extrairFatorEmbalagem(descricaoProduto);
 
@@ -119,20 +246,46 @@ function extrairDadosSefaz() {
             let uEstoque = fator > 1 ? "UNID" : uComercial;
 
             if (eanNode && eanNode.innerText.trim() !== "") {
-                itens.push({
-                    descricao: descricaoProduto,
-                    ean: eanFinal,
-                    quantidade: qtdRealUnidades,
-                    valor_unitario: vUnReal,
-                    unidade_estoque: uEstoque,
-                    valor_total: valorTotal,
-                    fator_fracionamento: fator,
-                    quantidade_comercial: qtdComercial,
-                    unidade_comercial: uComercial,
-                    lote: loteValor, 
-                    validade: validade,
-                    fabricacao: fabricacao,
-                });
+                if (multiplos) {
+                    if (multiplos.todasConhecidas && Math.abs(multiplos.somaConhecida - qtdComercial) > 0.001) {
+                        console.warn(`SCE: soma das quantidades dos lotes (${multiplos.somaConhecida}) diverge da quantidade total da linha (${qtdComercial}) em "${descricaoProduto}".`);
+                    }
+                    multiplos.lotes.forEach(l => {
+                        let qtdComercialLote = l.qtd;
+                        let qtdRealLote = qtdComercialLote !== null ? Math.round(qtdComercialLote * fator) : null;
+                        let valorTotalLote = qtdComercialLote !== null ? Number((vUnComercial * qtdComercialLote).toFixed(4)) : null;
+                        let vUnRealLote = (qtdRealLote && qtdRealLote > 0) ? Number((valorTotalLote / qtdRealLote).toFixed(4)) : null;
+                        itens.push({
+                            descricao: descricaoProduto,
+                            ean: eanFinal,
+                            quantidade: qtdRealLote,
+                            valor_unitario: vUnRealLote,
+                            unidade_estoque: uEstoque,
+                            valor_total: valorTotalLote,
+                            fator_fracionamento: fator,
+                            quantidade_comercial: qtdComercialLote,
+                            unidade_comercial: uComercial,
+                            lote: l.lote,
+                            validade: l.validade || validade,
+                            fabricacao: l.fabricacao || fabricacao,
+                        });
+                    });
+                } else {
+                    itens.push({
+                        descricao: descricaoProduto,
+                        ean: eanFinal,
+                        quantidade: qtdRealUnidades,
+                        valor_unitario: vUnReal,
+                        unidade_estoque: uEstoque,
+                        valor_total: valorTotal,
+                        fator_fracionamento: fator,
+                        quantidade_comercial: qtdComercial,
+                        unidade_comercial: uComercial,
+                        lote: loteValor,
+                        validade: validade,
+                        fabricacao: fabricacao,
+                    });
+                }
             }
         }
 

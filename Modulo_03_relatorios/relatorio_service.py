@@ -339,11 +339,15 @@ class RelatorioService:
         Consumo (saídas) mês a mês dos últimos `meses` meses de calendário,
         agrupado por grupo de consumo (GrupoConsumo — produtos "irmãos" com
         palavras-chave em comum) ou pelo próprio produto, se não pertencer a
-        nenhum grupo. Inclui grupos/produtos sem nenhuma saída no período
-        (aparecem com 0) — visão geral do catálogo ativo.
+        nenhum grupo. Grupos/produtos sem nenhum uso no período (total = 0)
+        são omitidos — não há consumo médio a mostrar, só polui a listagem.
 
         Retorna (rótulos_dos_meses, linhas), onde cada linha é
-        [rótulo, mês1, mês2, ..., mêsN, total, média_mensal].
+        [rótulo, mês1, mês2, ..., mêsN, total, média_mensal, variação].
+        `variação` compara o último mês válido com a média dos meses válidos
+        anteriores a ele (ex.: "+15.0%", "-8.0%") — "Novo" se não havia uso
+        algum antes do último mês (percentual indefinido), "—" se o período
+        válido tem um só mês (nada anterior para comparar).
         """
         hoje     = date.today()
         periodos = _ultimos_n_meses(meses, hoje)  # mais antigo -> mais recente
@@ -418,12 +422,35 @@ class RelatorioService:
         for rotulo in rotulos_presentes:
             valores_mes = acumulado[rotulo]
             total = sum(valores_mes[idx] for idx in meses_validos)
+            if total == 0:
+                continue  # produto/grupo sem nenhum uso no período — não polui o relatório
+
             media = round(total / qtd_meses_validos, 1)
             valores_exibicao = [
                 valores_mes[idx] if idx in meses_validos else "—"
                 for idx in range(meses)
             ]
-            linhas.append([rotulo, *valores_exibicao, total, media])
+
+            # Variação de uso: último mês válido contra a média dos meses
+            # válidos anteriores a ele — destaca mudança recente de consumo,
+            # não só a tendência média do período inteiro.
+            if len(meses_validos) < 2:
+                variacao = "—"  # histórico curto demais pra comparar
+            else:
+                idx_ultimo = meses_validos[-1]
+                idx_anteriores = meses_validos[:-1]
+                media_anteriores = sum(valores_mes[idx] for idx in idx_anteriores) / len(idx_anteriores)
+                valor_ultimo = valores_mes[idx_ultimo]
+                if media_anteriores == 0:
+                    # Não havia consumo antes do último mês válido — "aumento"
+                    # percentual não tem base (divisão por zero); comunica o
+                    # fato em vez de um número sem sentido.
+                    variacao = "Novo" if valor_ultimo > 0 else "—"
+                else:
+                    pct = (valor_ultimo - media_anteriores) / media_anteriores * 100
+                    variacao = f"{pct:+.1f}%"
+
+            linhas.append([rotulo, *valores_exibicao, total, media, variacao])
 
         return rotulos_meses, linhas
 

@@ -473,9 +473,7 @@ class TelaEntradaDANFE(ctk.CTkFrame):
             self._lbl_nf_valor.configure(text=dados.numero_nf)
             self._dados_chave["numero_nf"] = dados.numero_nf
 
-        if dados.data_emissao:
-            self._data_fab.set(dados.data_emissao.strftime("%d/%m/%Y"))
-
+        self._data_emissao_nf = dados.data_emissao
         self._emitente_atual = dados.nome_emitente
         self._itens_pendentes = []
         self._resumo_danfe = []  # Histórico para montar a tabela no final
@@ -547,7 +545,15 @@ class TelaEntradaDANFE(ctk.CTkFrame):
         # Preenche os inputs raspados
         if item.get("lote"): self._num_lote.set(item["lote"])
         if item.get("validade"): self._data_venc.set(item["validade"])
-        if item.get("fabricacao"): self._data_fab.set(item["fabricacao"])
+        if item.get("fabricacao"):
+            self._data_fab.set(item["fabricacao"])
+        elif getattr(self, "_data_emissao_nf", None):
+            # Regra original (cadastro automático removido em refatoração
+            # posterior): sem fabricação conhecida, usa a data de emissão da
+            # NF como aproximação. Precisa valer pra TODO item do lote, não só
+            # o primeiro — por isso fica aqui, não num set único no início do
+            # processamento.
+            self._data_fab.set(self._data_emissao_nf.strftime("%d/%m/%Y"))
         if item.get("quantidade"): self._quantidade.set(str(item["quantidade"]))
         if item.get("valor_unitario"): self._valor_unit.set(str(item["valor_unitario"]).replace(".", ","))
         

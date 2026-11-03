@@ -222,7 +222,7 @@ class TelaCentralRelatorios(ctk.CTkFrame):
     def _iniciar_vis_consumo_medio(self):
         meses = int(self._opt_periodo_consumo.get().split()[0])
         rotulos_meses = RelatorioService.rotulos_meses_consumo(meses)
-        colunas = ["Produto/Grupo", *rotulos_meses, "Total Consumido", "Média Mensal"]
+        colunas = ["Produto/Grupo", *rotulos_meses, "Total Consumido", "Média Mensal", "Variação (%)"]
         self._abrir_tabela(
             f"Consumo Médio ({meses} meses: {rotulos_meses[0]} a {rotulos_meses[-1]})",
             colunas,

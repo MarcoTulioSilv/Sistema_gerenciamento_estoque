@@ -4,6 +4,7 @@ Tela T-23 — Listagem de bens patrimoniais, filtros e seleção (MOD-07).
 Padrão de scroll infinito de t10_posicao_estoque.py (CTkScrollableFrame).
 """
 import logging
+import os
 import shutil
 import customtkinter as ctk
 
@@ -13,7 +14,9 @@ from tkinter import filedialog
 from gui.componentes.form_widgets import FeedbackBanner
 from gui.componentes.seletor_impressora import SeletorImpressora
 from gui.componentes.tabela_scroll import TabelaScroll
-from Modulo_07_patrimonio import PatrimonioService, FiltroBens, PatrimonioError, SaidaEtiqueta
+from Modulo_07_patrimonio import (
+    PatrimonioService, FiltroBens, ModeloEtiqueta, PatrimonioError, SaidaEtiqueta,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +74,7 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         self._carregando_pagina = False
         self._timer_scroll = None
         self._painel_impressora = None
+        self._pode_visualizar_layout = usuario.perfil.value == "ti"
         self._construir()
         self._carregar()
         self._monitorar_scroll()
@@ -150,6 +154,13 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         self._lbl_selecao = ctk.CTkLabel(self._barra_selecao, text="", text_color="#14504C",
                                          font=ctk.CTkFont(size=11, weight="bold"))
         self._lbl_selecao.pack(side="left", padx=12, pady=(8))
+        self._opt_modelo = ctk.CTkOptionMenu(
+            self._barra_selecao, values=["Padrão (100×50mm)", "Compacta (50×30mm)"],
+            width=170, height=26, corner_radius=6, anchor="center",
+            fg_color=COR_BRANCO, button_color=COR_PETROLEO_M, text_color="#161614",
+            font=ctk.CTkFont(size=10))
+        self._opt_modelo.set("Padrão (100×50mm)")
+        self._opt_modelo.pack(side="left", padx=(0, 10))
         ctk.CTkButton(self._barra_selecao, text="Imprimir na térmica", width=150,
                       height=26, fg_color=COR_BRANCO, text_color=COR_PETROLEO_M,
                       border_width=1, border_color="#B9DCD8", font=ctk.CTkFont(size=10),
@@ -164,6 +175,11 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
                       border_width=1, border_color="#B9DCD8", font=ctk.CTkFont(size=10),
                       command=lambda: self._gerar_arquivo(SaidaEtiqueta.arquivo_folha)
                       ).pack(side="left", padx=(0, 6))
+        if self._pode_visualizar_layout:
+            ctk.CTkButton(self._barra_selecao, text="Visualizar layout (TI)", width=150,
+                          height=26, fg_color=COR_BRANCO, text_color=COR_PETROLEO_M,
+                          border_width=1, border_color="#B9DCD8", font=ctk.CTkFont(size=10),
+                          command=self._visualizar_layout).pack(side="left", padx=(0, 6))
         ctk.CTkButton(self._barra_selecao, text="Limpar seleção", width=110, height=26,
                       fg_color=COR_BRANCO, text_color="#161614",
                       border_width=1, border_color=COR_CINZA_B,
@@ -418,6 +434,10 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
 
     # ── Etiquetas ─────────────────────────────────────────────────────────────
 
+    def _modelo_selecionado(self) -> ModeloEtiqueta:
+        return (ModeloEtiqueta.compacta if self._opt_modelo.get().startswith("Compacta")
+                else ModeloEtiqueta.padrao)
+
     def _imprimir_termica(self):
         if not self._selecionados:
             self._banner.erro("Selecione ao menos um bem.")
@@ -441,7 +461,8 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
         try:
             resultado = self._servico.gerar_etiquetas(
                 list(self._selecionados), SaidaEtiqueta.impressora_cabo,
-                usuario_id=self._usuario.id, nome_impressora=nome_impressora)
+                usuario_id=self._usuario.id, nome_impressora=nome_impressora,
+                modelo=self._modelo_selecionado())
             self._banner.sucesso(f"{resultado.quantidade} etiqueta(s) enviada(s) para '{nome_impressora}'.")
             self._limpar_selecao()
             self._carregar()
@@ -457,7 +478,8 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
             return
         try:
             resultado = self._servico.gerar_etiquetas(
-                list(self._selecionados), saida, usuario_id=self._usuario.id)
+                list(self._selecionados), saida, usuario_id=self._usuario.id,
+                modelo=self._modelo_selecionado())
         except PatrimonioError as exc:
             self._banner.erro(str(exc))
             return
@@ -482,6 +504,34 @@ class TelaBensPatrimoniais(ctk.CTkFrame):
 
         self._limpar_selecao()
         self._carregar()
+
+    def _visualizar_layout(self):
+        """
+        Pré-visualiza o layout da etiqueta (modelo escolhido) pro primeiro
+        bem selecionado — só TI, só pra calibração visual. Não marca
+        etiqueta_impressa_em (não é uma emissão de verdade).
+        """
+        if not self._selecionados:
+            self._banner.erro("Selecione ao menos um bem.")
+            return
+        bem_id = next(iter(self._selecionados))
+        try:
+            caminho = self._servico.pre_visualizar_etiqueta(
+                bem_id, self._modelo_selecionado(), usuario_id=self._usuario.id)
+        except PatrimonioError as exc:
+            self._banner.erro(str(exc))
+            return
+        except Exception as exc:
+            logger.error("Erro ao pré-visualizar etiqueta: %s", exc)
+            self._banner.erro(f"Erro ao gerar pré-visualização: {exc}")
+            return
+
+        try:
+            os.startfile(caminho)
+        except OSError as exc:
+            self._banner.erro(f"Pré-visualização gerada, mas não consegui abrir: {exc}")
+            return
+        self._banner.sucesso("Pré-visualização aberta no visualizador padrão do Windows.")
 
     def limpar_memoria(self):
         """Chamado pelo app.py ao sair da tela para esvaziar a RAM."""

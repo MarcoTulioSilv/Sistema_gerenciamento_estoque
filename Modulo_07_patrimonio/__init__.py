@@ -2,7 +2,7 @@
 from .patrimonio_service import PatrimonioService
 from .inventario_service import InventarioService
 from .dto import (
-    ClassificacaoLeitura, SeveridadeLeitura, CodigoAviso, SaidaEtiqueta,
+    ClassificacaoLeitura, SeveridadeLeitura, CodigoAviso, SaidaEtiqueta, ModeloEtiqueta,
     FiltroBens, DadosBem, DadosManutencao, DadosBaixa, ContextoColeta, ConviteColeta, AjusteConfirmado,
     ResultadoLeitura, LeituraRecente, ResumoSessao, Aviso, ResultadoAbertura,
     ResultadoEtiquetas, BemPublico,
@@ -21,7 +21,7 @@ from .excecoes import (
 __all__ = [
     "PatrimonioService",
     "InventarioService",
-    "ClassificacaoLeitura", "SeveridadeLeitura", "CodigoAviso", "SaidaEtiqueta",
+    "ClassificacaoLeitura", "SeveridadeLeitura", "CodigoAviso", "SaidaEtiqueta", "ModeloEtiqueta",
     "FiltroBens", "DadosBem", "DadosManutencao", "DadosBaixa", "ContextoColeta", "ConviteColeta", "AjusteConfirmado",
     "ResultadoLeitura", "LeituraRecente", "ResumoSessao", "Aviso", "ResultadoAbertura",
     "ResultadoEtiquetas", "BemPublico",

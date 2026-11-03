@@ -75,8 +75,14 @@ class SaidaEtiqueta(str, enum.Enum):
     """Caminhos de emissão de etiqueta (RF-28.1 a RF-28.3)."""
     impressora_rede  = "impressora_rede"
     impressora_cabo  = "impressora_cabo"
-    arquivo_unitario = "arquivo_unitario"   # uma etiqueta por página, 100×50 mm
+    arquivo_unitario = "arquivo_unitario"   # uma etiqueta por página, no tamanho do modelo
     arquivo_folha    = "arquivo_folha"      # A4 em grade, com marcas de corte
+
+
+class ModeloEtiqueta(str, enum.Enum):
+    """Tamanho/layout físico da etiqueta — independente de `SaidaEtiqueta`."""
+    padrao   = "padrao"     # 100×50mm — QR (módulo 1,0mm) + nome da clínica + tombo + code128
+    compacta = "compacta"   # 50×30mm — QR (módulo 0,5mm) + ícone + tombo + code128
 
 
 # ─── Entrada ────────────────────────────────────────────────────────────────
